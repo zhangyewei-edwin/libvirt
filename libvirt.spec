@@ -1,6 +1,6 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.0.3
+Version: 0.0.4
 Release: 1
 License: LGPL
 Group: Development/Libraries
@@ -90,6 +90,9 @@ rm -fr %{buildroot}
 %doc python/libvirtclass.txt
 
 %changelog
+* Fri Feb 10 2006 Daniel Veillard <veillard@redhat.com> 0.0.4-1
+- fixes some problems in 0.0.3 due to the change of names
+
 * Wed Feb  8 2006 Daniel Veillard <veillard@redhat.com> 0.0.3-1
 - changed library name to libvirt from libvir, complete and test the python 
   bindings
