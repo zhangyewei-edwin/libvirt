@@ -42,6 +42,8 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %setup -q
 
 %build
+# 0.0.4 workaround timestamp in the future
+find . -exec touch {} \;
 %configure
 make
 
