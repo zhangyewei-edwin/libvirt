@@ -1,6 +1,6 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.0.4
+Version: 0.0.5
 Release: 1
 License: LGPL
 Group: Development/Libraries
@@ -42,8 +42,6 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %setup -q
 
 %build
-# 0.0.4 workaround timestamp in the future
-find . -exec touch {} \;
 %configure
 make
 
@@ -51,6 +49,7 @@ make
 rm -fr %{buildroot}
 
 %makeinstall
+(cd docs/examples ; make clean ; rm -rf .deps)
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
@@ -78,8 +77,13 @@ rm -fr %{buildroot}
 %{_libdir}/lib*.so
 %{_includedir}/libvirt/*.h
 %{_libdir}/pkgconfig/libvirt.pc
+%doc %{_datadir}/gtk-doc/html/libvirt/*.devhelp
+%doc %{_datadir}/gtk-doc/html/libvirt/*.html
+%doc %{_datadir}/gtk-doc/html/libvirt/*.png
+%doc %{_datadir}/gtk-doc/html/libvirt/*.css
 
 %doc docs/*.html docs/html docs/*.gif
+%doc docs/examples
 %doc docs/libvirt-api.xml
 
 %files python
@@ -88,6 +92,7 @@ rm -fr %{buildroot}
 %doc AUTHORS NEWS README COPYING.LIB
 %{_libdir}/python*/site-packages/libvirt.py*
 %{_libdir}/python*/site-packages/libvirtmod*
+%doc python/tests/*.py
 %doc python/TODO
 %doc python/libvirtclass.txt
 
