@@ -1,6 +1,6 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.0
+Version: 0.1.1
 Release: 1
 License: LGPL
 Group: Development/Libraries
@@ -100,8 +100,18 @@ rm -fr %{buildroot}
 %doc python/tests/*.py
 %doc python/TODO
 %doc python/libvirtclass.txt
+%doc docs/examples/python
 
 %changelog
+* Wed Jun 21 2006 Daniel Veillard <veillard@redhat.com> 0.1.1-1
+- extend and cleanup the driver infrastructure and code
+- python examples
+- extend uuid support
+- bug fixes, buffer handling cleanups
+- support for new Xen hypervisor API
+- test driver for unit testing
+- virsh --conect argument
+
 * Mon Apr 10 2006 Daniel Veillard <veillard@redhat.com> 0.1.0-1
 - various fixes
 - new APIs: for Node information and Reboot
