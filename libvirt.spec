@@ -1,6 +1,6 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.1
+Version: 0.1.2
 Release: 1
 License: LGPL
 Group: Development/Libraries
@@ -14,7 +14,7 @@ Requires: readline
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 Obsoletes: libvir
-ExclusiveArch: i386 x86_64
+ExclusiveArch: i386 x86_64 ia64
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -75,6 +75,7 @@ rm -fr %{buildroot}
 %doc %{_mandir}/man1/virsh.1*
 %{_bindir}/virsh
 %{_libdir}/lib*.so.*
+%{_libexecdir}/libvirt_proxy
 
 %files devel
 %defattr(-, root, root)
@@ -103,6 +104,10 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Mon Jul  3 2006 Daniel Veillard <veillard@redhat.com> 0.1.2-1
+- added a proxy mechanism for read only access using httpu
+- fixed header includes paths
+
 * Wed Jun 21 2006 Daniel Veillard <veillard@redhat.com> 0.1.1-1
 - extend and cleanup the driver infrastructure and code
 - python examples
