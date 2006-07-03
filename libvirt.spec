@@ -46,6 +46,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %setup -q
 
 %build
+touch `find .`
 %configure
 make
 
