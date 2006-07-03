@@ -15,6 +15,7 @@ BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64
+Patch0: chown.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -44,6 +45,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
+%patch0 -p1
 
 %build
 touch `find .`
@@ -76,7 +78,7 @@ rm -fr %{buildroot}
 %doc %{_mandir}/man1/virsh.1*
 %{_bindir}/virsh
 %{_libdir}/lib*.so.*
-%{_libexecdir}/libvirt_proxy
+%attr(4755, root, root) %{_libexecdir}/libvirt_proxy
 
 %files devel
 %defattr(-, root, root)
