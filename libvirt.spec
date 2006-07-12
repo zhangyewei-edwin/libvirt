@@ -1,7 +1,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.3
-Release: 1
+Release: 1.1
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -106,6 +106,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Wed Jul 12 2006 Jesse Keating <jkeating@redhat.com> - 0.1.3-1.1
+- rebuild
+
 * Tue Jul 11 2006 Daniel Veillard <veillard@redhat.com> 0.1.3-1
 - support for HVM Xen guests
 - various bugfixes
