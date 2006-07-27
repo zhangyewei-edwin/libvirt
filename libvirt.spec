@@ -1,13 +1,13 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.3
-Release: 3
+Release: 4
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvir.org/
-BuildRequires: xen python python-devel
+BuildRequires: python python-devel
 Requires: xen
 Requires: libxml2
 Requires: readline
@@ -107,6 +107,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Thu Jul 27 2006 Jeremy Katz <katzj@redhat.com> - 0.1.3-4
+- don't BR xen, we just need xen-devel
+
 * Thu Jul 27 2006 Daniel Veillard <veillard@redhat.com> 0.1.3-3
 - need rebuild since libxenstore is now versionned
 
