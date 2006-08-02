@@ -1,10 +1,11 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.3
-Release: 5
+Release: 6
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
+Patch0: libvirt-uuid.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvir.org/
 BuildRequires: python python-devel
@@ -47,6 +48,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
+%patch0 -p0
 
 %build
 %configure
@@ -107,6 +109,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Wed Aug  2 2006 Jeremy Katz <katzj@redhat.com> - 0.1.3-6
+- add patch from pvetere to allow getting uuid from libvirt
+
 * Wed Aug  2 2006 Jeremy Katz <katzj@redhat.com> - 0.1.3-5
 - build on ia64 now
 
