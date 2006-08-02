@@ -12,7 +12,7 @@ Requires: xen
 Requires: libxml2
 Requires: readline
 Requires: ncurses
-BuildRequires: xen-devel
+BuildRequires: xen-devel >= 3.0.2-23
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
