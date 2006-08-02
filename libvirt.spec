@@ -1,7 +1,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.3
-Release: 4
+Release: 5
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -17,7 +17,7 @@ BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 Obsoletes: libvir
-ExclusiveArch: i386 x86_64
+ExclusiveArch: i386 x86_64 ia64
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -107,6 +107,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Wed Aug  2 2006 Jeremy Katz <katzj@redhat.com> - 0.1.3-5
+- build on ia64 now
+
 * Thu Jul 27 2006 Jeremy Katz <katzj@redhat.com> - 0.1.3-4
 - don't BR xen, we just need xen-devel
 
