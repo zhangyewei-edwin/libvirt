@@ -1,7 +1,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.4
-Release: 2
+Release: 3
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -19,6 +19,7 @@ BuildRequires: ncurses-devel
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
 Patch0: uuid_parse.patch
+Patch1: network.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -49,6 +50,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %prep
 %setup -q
 %patch0
+%patch1
 
 %build
 %configure
@@ -109,6 +111,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Mon Aug 21 2006 Daniel Veillard <veillard@redhat.com> 0.1.4-3
+- another patch to fix network handling in non-HVM guests
+
 * Thu Aug 17 2006 Daniel Veillard <veillard@redhat.com> 0.1.4-2
 - patch to fix virParseUUID()
 
