@@ -17,7 +17,7 @@ BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 Obsoletes: libvir
-ExclusiveArch: i386 x86_64 ia64
+ExclusiveArch: i386 x86_64
 Patch0: uuid_parse.patch
 Patch1: network.patch
 Patch2: libvirt-pvfb.patch
