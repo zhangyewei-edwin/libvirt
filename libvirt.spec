@@ -1,7 +1,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.4
-Release: 3
+Release: 4
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -20,6 +20,7 @@ Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
 Patch0: uuid_parse.patch
 Patch1: network.patch
+Patch2: libvirt-pvfb.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -51,6 +52,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %setup -q
 %patch0
 %patch1
+%patch2 
 
 %build
 %configure
@@ -111,6 +113,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Mon Aug 28 2006 Jeremy Katz <katzj@redhat.com> - 0.1.4-4
+- add patch to support paravirt framebuffer in Xen 
+
 * Mon Aug 21 2006 Daniel Veillard <veillard@redhat.com> 0.1.4-3
 - another patch to fix network handling in non-HVM guests
 
