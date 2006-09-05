@@ -17,7 +17,7 @@ BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 Obsoletes: libvir
-ExclusiveArch: i386 x86_64
+ExclusiveArch: i386 x86_64 ia64
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -107,6 +107,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Tue Sep  5 2006 Daniel Veillard <veillard@redhat.com> 0.1.5-2
+- reactivating ia64 support
+
 * Tue Sep  5 2006 Daniel Veillard <veillard@redhat.com> 0.1.5-1
 - new release
 - bug fixes
