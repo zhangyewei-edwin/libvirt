@@ -1,7 +1,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.4
-Release: 5
+Version: 0.1.5
+Release: 1
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -12,16 +12,12 @@ Requires: xen
 Requires: libxml2
 Requires: readline
 Requires: ncurses
-BuildRequires: xen-devel >= 3.0.2-23
+BuildRequires: xen-devel
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 Obsoletes: libvir
-ExclusiveArch: i386 x86_64
-Patch0: uuid_parse.patch
-Patch1: network.patch
-Patch2: libvirt-pvfb.patch
-Patch3: libvirt-dom0ops.patch
+ExclusiveArch: i386 x86_64 ia64
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -51,10 +47,6 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
-%patch0
-%patch1
-%patch2 
-%patch3 -p1
 
 %build
 %configure
@@ -115,6 +107,12 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Tue Sep  5 2006 Daniel Veillard <veillard@redhat.com> 0.1.5-1
+- new release
+- bug fixes
+- support for new hypervisor calls
+- early code for config files and defined domains
+
 * Mon Sep  4 2006 Daniel Berrange <berrange@redhat.com> - 0.1.4-5
 - add patch to address dom0_ops API breakage in Xen 3.0.3 tree
 
