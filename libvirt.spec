@@ -1,7 +1,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.5
-Release: 1
+Release: 2
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
