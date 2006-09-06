@@ -1,10 +1,11 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.5
-Release: 2
+Release: 3
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
+Patch0: libvirt-xendconfig-2.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvir.org/
 BuildRequires: python python-devel
@@ -47,6 +48,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
+%patch0 -p0
 
 %build
 %configure
@@ -107,6 +109,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Tue Sep  5 2006 Jeremy Katz <katzj@redhat.com> - 0.1.5-3
+- patch from danpb to support new-format cd devices for HVM guests
+
 * Tue Sep  5 2006 Daniel Veillard <veillard@redhat.com> 0.1.5-2
 - reactivating ia64 support
 
