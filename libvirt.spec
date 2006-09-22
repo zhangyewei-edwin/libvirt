@@ -1,13 +1,14 @@
+# -*- rpm-spec -*-
+
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.5
-Release: 3
+Version: 0.1.6
+Release: 1
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
-Patch0: libvirt-xendconfig-2.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
-URL: http://libvir.org/
+URL: http://libvirt.org/
 BuildRequires: python python-devel
 Requires: xen
 Requires: libxml2
@@ -17,6 +18,7 @@ BuildRequires: xen-devel
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
+BuildRequires: gettext
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
 
@@ -48,7 +50,6 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
-%patch0 -p0
 
 %build
 %configure
@@ -63,6 +64,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
+%find_lang %{name}
 
 %clean
 rm -fr %{buildroot}
@@ -73,7 +75,7 @@ rm -fr %{buildroot}
 %postun
 /sbin/ldconfig
 
-%files
+%files -f %{name}.lang
 %defattr(-, root, root)
 
 %doc AUTHORS ChangeLog NEWS README COPYING.LIB TODO
@@ -109,6 +111,13 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Fri Sep 22 2006 Daniel Veillard <veillard@redhat.com> 0.1.6-1
+- Support for localization
+- Support for new Xen-3.0.3 cdrom and disk configuration
+- Support for setting VNC port
+- Fix bug when running against xen-3.0.2 hypercalls
+- Fix reconnection problem when talking directly to http xend
+
 * Tue Sep  5 2006 Jeremy Katz <katzj@redhat.com> - 0.1.5-3
 - patch from danpb to support new-format cd devices for HVM guests
 
