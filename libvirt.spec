@@ -2,7 +2,7 @@
 
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.6
+Version: 0.1.7
 Release: 1
 License: LGPL
 Group: Development/Libraries
@@ -111,6 +111,10 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Fri Sep 22 2007 Daniel Veillard <veillard@redhat.com> 0.1.7-1
+- Fix bug when running against xen-3.0.3 hypercalls
+- Fix memory bug when getting vcpus info from xend
+
 * Fri Sep 22 2006 Daniel Veillard <veillard@redhat.com> 0.1.6-1
 - Support for localization
 - Support for new Xen-3.0.3 cdrom and disk configuration
