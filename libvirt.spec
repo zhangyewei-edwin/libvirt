@@ -3,7 +3,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.7
-Release: 1
+Release: 2
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -21,6 +21,8 @@ BuildRequires: ncurses-devel
 BuildRequires: gettext
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
+Patch0: libvirt_0.1.7_page_size.patch
+Patch1: libvirt_0.1.7_mlock.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -50,6 +52,8 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
+%patch0 -p0
+%patch1 -p0
 
 %build
 %configure
@@ -111,7 +115,11 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
-* Fri Sep 22 2007 Daniel Veillard <veillard@redhat.com> 0.1.7-1
+* Mon Oct  2 2006 Daniel Veillard <veillard@redhat.com> 0.1.7-2
+- fix missing page size detection code for ia64
+- fix mlock size when getting domain info list from hypervisor
+
+* Fri Sep 22 2006 Daniel Veillard <veillard@redhat.com> 0.1.7-1
 - Fix bug when running against xen-3.0.3 hypercalls
 - Fix memory bug when getting vcpus info from xend
 
