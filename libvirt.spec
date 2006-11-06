@@ -3,7 +3,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.8
-Release: 1
+Release: 2%{?dist}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -30,6 +30,8 @@ and the virsh command line tool to control virtual domains.
 Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}
+Requires: xen-devel
+Requires: pgkconfig
 Obsoletes: libvir-devel
 
 %description devel
@@ -111,6 +113,10 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Mon Nov  6 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-2
+- fixing spec file, added %dist, -devel requires pkgconfig and xen-devel
+- Resolves: rhbz#202320
+
 * Mon Oct 16 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-1
 - fix missing page size detection code for ia64
 - fix mlock size when getting domain info list from hypervisor
