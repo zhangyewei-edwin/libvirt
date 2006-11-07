@@ -3,7 +3,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.1.8
-Release: 2%{?dist}
+Release: 3%{?dist}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -31,7 +31,7 @@ Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}
 Requires: xen-devel
-Requires: pgkconfig
+Requires: pkgconfig
 Obsoletes: libvir-devel
 
 %description devel
@@ -113,6 +113,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Tue Nov  7 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-3
+- it's pkgconfig not pgkconfig !
+
 * Mon Nov  6 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-2
 - fixing spec file, added %dist, -devel requires pkgconfig and xen-devel
 - Resolves: rhbz#202320
