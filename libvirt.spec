@@ -2,8 +2,8 @@
 
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.8
-Release: 3%{?dist}
+Version: 0.1.9
+Release: 1%{?dist}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -113,6 +113,17 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Wed Nov 29 2006 Daniel Veillard <veillard@redhat.com> 0.1.9-1
+- better error reporting
+- python bindings fixes and extensions
+- add support for shareable drives
+- add support for non-bridge style networking
+- hot plug device support
+- added support for inactive domains
+- API to dump core of domains
+- various bug fixes, cleanups and improvements
+- updated the localization
+
 * Tue Nov  7 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-3
 - it's pkgconfig not pgkconfig !
 
