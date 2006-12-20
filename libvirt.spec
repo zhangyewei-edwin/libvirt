@@ -2,8 +2,8 @@
 
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.9
-Release: 2%{?dist}
+Version: 0.1.10
+Release: 1%{?dist}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -112,6 +112,12 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Wed Dec 20 2006 Daniel Veillard <veillard@redhat.com> 0.1.10-1.fc7
+- support for inactive Xen domains
+- improved support for Xen display and vnc
+- a few bug fixes
+- localization updates
+
 * Thu Dec  7 2006 Jeremy Katz <katzj@redhat.com> - 0.1.9-2
 - rebuild against python 2.5
 
