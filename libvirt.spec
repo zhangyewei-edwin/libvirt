@@ -2,7 +2,7 @@
 
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.10
+Version: 0.1.11
 Release: 1%{?dist}
 License: LGPL
 Group: Development/Libraries
@@ -84,6 +84,7 @@ rm -fr %{buildroot}
 %{_bindir}/virsh
 %{_libdir}/lib*.so.*
 %attr(4755, root, root) %{_libexecdir}/libvirt_proxy
+%doc docs/libvirt.rng
 
 %files devel
 %defattr(-, root, root)
@@ -112,6 +113,11 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Mon Jan 22 2007 Daniel Veillard <veillard@redhat.com> 0.1.11-1.fc7
+- finish inactive Xen domains support
+- memory leak fix
+- RelaxNG schemas for XML configs
+
 * Wed Dec 20 2006 Daniel Veillard <veillard@redhat.com> 0.1.10-1.fc7
 - support for inactive Xen domains
 - improved support for Xen display and vnc
