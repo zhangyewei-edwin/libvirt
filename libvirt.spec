@@ -2,7 +2,7 @@
 
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.1.11
+Version: 0.2.0
 Release: 1%{?dist}
 License: LGPL
 Group: Development/Libraries
@@ -19,6 +19,7 @@ BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
+BuildRequires: libsysfs-devel
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
 
@@ -30,7 +31,6 @@ and the virsh command line tool to control virtual domains.
 Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}
-Requires: xen-devel
 Requires: pkgconfig
 Obsoletes: libvir-devel
 
@@ -65,6 +65,8 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
+install -d -m 0755 $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/
+install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
 %find_lang %{name}
 
 %clean
@@ -83,7 +85,10 @@ rm -fr %{buildroot}
 %doc %{_mandir}/man1/virsh.1*
 %{_bindir}/virsh
 %{_libdir}/lib*.so.*
+%config %{_sysconfdir}/libvirt/qemu/networks/
+%{_localstatedir}/run/libvirt/
 %attr(4755, root, root) %{_libexecdir}/libvirt_proxy
+%attr(0755, root, root) %{_libexecdir}/libvirt_qemud
 %doc docs/libvirt.rng
 
 %files devel
@@ -113,6 +118,11 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Wed Feb 14 2007 Daniel Veillard <veillard@redhat.com> 0.2.0-1.fc7
+- support for KVM and QEmu
+- support for network configuration
+- assorted fixes
+
 * Mon Jan 22 2007 Daniel Veillard <veillard@redhat.com> 0.1.11-1.fc7
 - finish inactive Xen domains support
 - memory leak fix
