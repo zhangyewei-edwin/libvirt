@@ -23,6 +23,7 @@ BuildRequires: libsysfs-devel
 BuildRequires: gnutls-devel
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
+Patch0: libvirt-0.2.0-Werror.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -52,6 +53,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
+%patch0 -p1
 
 %build
 %configure
