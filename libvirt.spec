@@ -3,7 +3,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.2.0
-Release: 1%{?dist}
+Release: 2%{?dist}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -24,6 +24,7 @@ BuildRequires: gnutls-devel
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
 Patch0: libvirt-0.2.0-Werror.patch
+Patch2: libvirt-0.2.0-qemu-fixes.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -54,6 +55,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %prep
 %setup -q
 %patch0 -p1
+%patch2 -p1
 
 %build
 %configure
@@ -121,6 +123,11 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Thu Feb 15 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.0-2.fc7
+- Fixed path to qemu daemon for autostart
+- Fixed generation of <features> block in XML
+- Pre-create config directory at startup
+
 * Wed Feb 14 2007 Daniel Veillard <veillard@redhat.com> 0.2.0-1.fc7
 - support for KVM and QEmu
 - support for network configuration
