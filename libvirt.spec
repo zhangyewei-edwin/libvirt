@@ -3,7 +3,7 @@
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
 Version: 0.2.0
-Release: 3%{?dist}
+Release: 4%{?dist}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -33,6 +33,9 @@ Patch3: libvirt-0.2.0-disable-kqemu.patch
 
 # QEMU 0.9.0 wants a : in front of the port number now :-(
 Patch4: libvirt-0.2.0-vnc-port.patch
+
+# Fix loading of network & guest configs
+Patch5: libvirt-0.2.0-config-load.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -66,6 +69,7 @@ supplied by the libvirt library to use the Xen virtualization framework.
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
+%patch5 -p1
 
 %build
 %configure
@@ -133,6 +137,9 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Fri Feb 23 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.0-4.fc7
+- Fix loading of guest & network configs
+
 * Fri Feb 16 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.0-3.fc7
 - Disable kqemu support since its not in Fedora qemu binary
 - Fix for -vnc arg syntax change in 0.9.0  QEMU
