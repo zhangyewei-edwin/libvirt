@@ -1,9 +1,15 @@
 # -*- rpm-spec -*-
 
+# This macro is used for the continuous automated builds. It just
+# allows an extra fragment based on the timestamp to be appended
+# to the release. This distinguishes automated builds, from formal
+# Fedora RPM builds
+%define _extra_release %{?dist:%{dist}}%{!?dist:%{?extra_release:%{extra_release}}}
+
 Summary: Library providing an API to use the Xen virtualization
 Name: libvirt
-Version: 0.2.0
-Release: 4%{?dist}
+Version: 0.2.1
+Release: 1%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -20,22 +26,9 @@ BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: libsysfs-devel
-BuildRequires: gnutls-devel
+BuildRequires: /sbin/iptables
 Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
-Patch0: libvirt-0.2.0-Werror.patch
-Patch2: libvirt-0.2.0-qemu-fixes.patch
-# The 0.9.0 build of QEMU in Fedora has compiled out
-# the normal KQEMU support, so we drop that from libvirt
-# too, otherwise we fail on the unknown -no-kqemu command
-# line arg to qemu
-Patch3: libvirt-0.2.0-disable-kqemu.patch
-
-# QEMU 0.9.0 wants a : in front of the port number now :-(
-Patch4: libvirt-0.2.0-vnc-port.patch
-
-# Fix loading of network & guest configs
-Patch5: libvirt-0.2.0-config-load.patch
 
 %description
 This C library provides an API to use the Xen virtualization framework,
@@ -65,14 +58,9 @@ supplied by the libvirt library to use the Xen virtualization framework.
 
 %prep
 %setup -q
-%patch0 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
 
 %build
-%configure
+%configure --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid
 make
 
 %install
@@ -84,8 +72,18 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
-install -d -m 0755 $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
+
+# We don't want to install /etc/libvirt/qemu/networks in the main %files list
+# because if the admin wants to delete the default network completely, we don't
+# want to end up re-incarnating it on every RPM upgrade.
+install -d -m 0755 $RPM_BUILD_ROOT%{_datadir}/libvirt/networks/
+cp $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/default.xml \
+   $RPM_BUILD_ROOT%{_datadir}/libvirt/networks/default.xml
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/default.xml
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/autostart/default.xml
+# Strip auto-generated UUID - we need it generated per-install
+sed -i -e "/<uuid>/d" $RPM_BUILD_ROOT%{_datadir}/libvirt/networks/default.xml
 %find_lang %{name}
 
 %clean
@@ -93,6 +91,27 @@ rm -fr %{buildroot}
 
 %post
 /sbin/ldconfig
+
+# We want to install the default network for initial RPM installs
+# or on the first upgrade from a non-network aware libvirt only.
+# We check this by looking to see if the daemon is already installed
+/sbin/chkconfig --list libvirtd 1>/dev/null 2>&1
+if [ $? != 0 ]
+then
+    UUID=`/usr/bin/uuidgen`
+    sed -e "s,</name>,</name>\n  <uuid>$UUID</uuid>," \
+         < %{_datadir}/libvirt/networks/default.xml \
+         > %{_sysconfdir}/libvirt/qemu/networks/default.xml
+    ln -s ../default.xml %{_sysconfdir}/libvirt/qemu/networks/autostart/default.xml
+fi
+
+/sbin/chkconfig --add libvirtd
+
+%preun
+if [ $1 = 0 ]; then
+    /sbin/service libvirtd stop 1>/dev/null 2>&1
+    /sbin/chkconfig --del libvirtd
+fi
 
 %postun
 /sbin/ldconfig
@@ -104,10 +123,17 @@ rm -fr %{buildroot}
 %doc %{_mandir}/man1/virsh.1*
 %{_bindir}/virsh
 %{_libdir}/lib*.so.*
-%config %{_sysconfdir}/libvirt/qemu/networks/
-%{_localstatedir}/run/libvirt/
+%dir %attr(0700, root, root) %{_sysconfdir}/libvirt/
+%dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/
+%dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/networks/
+%{_sysconfdir}/rc.d/init.d/libvirtd
+%dir %{_datadir}/libvirt/
+%dir %{_datadir}/libvirt/networks/
+%{_datadir}/libvirt/networks/default.xml
+%dir %{_localstatedir}/run/libvirt/
+%dir %{_localstatedir}/lib/libvirt/
 %attr(4755, root, root) %{_libexecdir}/libvirt_proxy
-%attr(0755, root, root) %{_libexecdir}/libvirt_qemud
+%attr(0755, root, root) %{_sbindir}/libvirt_qemud
 %doc docs/libvirt.rng
 
 %files devel
@@ -137,6 +163,13 @@ rm -fr %{buildroot}
 %doc docs/examples/python
 
 %changelog
+* Fri Mar 16 2007 Daniel Veillard <veillard@redhat.com> - 2.0.1-1.fc7
+- Release of 0.2.1
+- lot of bug and portability fixes
+- Add support for network autostart and init scripts
+- New API to detect the virtualization capabilities of a host
+- Documentation updates
+
 * Fri Feb 23 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.0-4.fc7
 - Fix loading of guest & network configs
 
