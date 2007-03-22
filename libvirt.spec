@@ -6,17 +6,16 @@
 # Fedora RPM builds
 %define _extra_release %{?dist:%{dist}}%{!?dist:%{?extra_release:%{extra_release}}}
 
-Summary: Library providing an API to use the Xen virtualization
+Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.2.1
-Release: 1%{?_extra_release}
+Release: 2%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
-Requires: xen
 Requires: libxml2
 Requires: readline
 Requires: ncurses
@@ -31,8 +30,8 @@ Obsoletes: libvir
 ExclusiveArch: i386 x86_64 ia64
 
 %description
-This C library provides an API to use the Xen virtualization framework,
-and the virsh command line tool to control virtual domains.
+Libvirt is a C toolkit to interract with the virtualization capabilities
+of recent versions of Linux (and other OSes).
 
 %package devel
 Summary: Libraries, includes, etc. to compile with the libvirt library
@@ -43,7 +42,7 @@ Obsoletes: libvir-devel
 
 %description devel
 Includes and documentations for the C library providing an API to use
-the Xen virtualization framework
+the virtualization capabilities of recent versions of Linux (and other OSes).
 
 %package python
 Summary: Python bindings for the libvirt library
@@ -54,7 +53,8 @@ Obsoletes: libvir-python
 %description python
 The libvirt-python package contains a module that permits applications
 written in the Python programming language to use the interface
-supplied by the libvirt library to use the Xen virtualization framework.
+supplied by the libvirt library to use the the virtualization capabilities 
+of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
@@ -127,6 +127,10 @@ fi
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/networks/
 %{_sysconfdir}/rc.d/init.d/libvirtd
+%dir %{_sysconfdir}/libvirt
+%dir %{_sysconfdir}/libvirt/qemu
+%dir %{_sysconfdir}/libvirt/qemu/networks
+%dir %{_sysconfdir}/libvirt/qemu/networks/autostart
 %dir %{_datadir}/libvirt/
 %dir %{_datadir}/libvirt/networks/
 %{_datadir}/libvirt/networks/default.xml
@@ -163,6 +167,11 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Mar 22 2007 Jeremy Katz <katzj@redhat.com> - 0.2.1-2.fc7
+- don't require xen; we don't need the daemon and can control non-xen now
+- fix scriptlet error (need to own more directories)
+- update description text
+
 * Fri Mar 16 2007 Daniel Veillard <veillard@redhat.com> - 2.0.1-1.fc7
 - Release of 0.2.1
 - lot of bug and portability fixes
