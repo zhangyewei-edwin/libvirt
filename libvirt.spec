@@ -9,7 +9,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.2.1
-Release: 2%{?_extra_release}
+Release: 3%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -144,6 +144,7 @@ fi
 %defattr(-, root, root)
 
 %{_libdir}/lib*.so
+%dir %{_includedir}/libvirt
 %{_includedir}/libvirt/*.h
 %{_libdir}/pkgconfig/libvirt.pc
 %doc %{_datadir}/gtk-doc/html/libvirt/*.devhelp
@@ -167,6 +168,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Mon Mar 26 2007 Daniel Veillard <veillard@redhat.com> - 2.0.1-3.fc7
+- add missing directory ownership fixes rhbz#233874
+
 * Thu Mar 22 2007 Jeremy Katz <katzj@redhat.com> - 0.2.1-2.fc7
 - don't require xen; we don't need the daemon and can control non-xen now
 - fix scriptlet error (need to own more directories)
