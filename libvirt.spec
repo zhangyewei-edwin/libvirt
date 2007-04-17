@@ -8,8 +8,8 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.2.1
-Release: 3%{?_extra_release}
+Version: 0.2.2
+Release: 1%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -126,6 +126,7 @@ fi
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/networks/
+%dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/networks/autostart
 %{_sysconfdir}/rc.d/init.d/libvirtd
 %dir %{_sysconfdir}/libvirt
 %dir %{_sysconfdir}/libvirt/qemu
@@ -168,15 +169,17 @@ fi
 %doc docs/examples/python
 
 %changelog
-* Mon Mar 26 2007 Daniel Veillard <veillard@redhat.com> - 2.0.1-3.fc7
-- add missing directory ownership fixes rhbz#233874
+* Tue Apr 17 2007 Daniel Veillard <veillard@redhat.com> - 0.2.2-1.fc7
+- Release of 0.2.2
+- lot of assorted bugfixes and cleanups
+- preparing for Xen-3.0.5
 
 * Thu Mar 22 2007 Jeremy Katz <katzj@redhat.com> - 0.2.1-2.fc7
 - don't require xen; we don't need the daemon and can control non-xen now
 - fix scriptlet error (need to own more directories)
 - update description text
 
-* Fri Mar 16 2007 Daniel Veillard <veillard@redhat.com> - 2.0.1-1.fc7
+* Fri Mar 16 2007 Daniel Veillard <veillard@redhat.com> - 0.2.1-1.fc7
 - Release of 0.2.1
 - lot of bug and portability fixes
 - Add support for network autostart and init scripts
