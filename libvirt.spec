@@ -9,7 +9,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.2.2
-Release: 1%{?_extra_release}
+Release: 2%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -19,6 +19,7 @@ BuildRequires: python python-devel
 Requires: libxml2
 Requires: readline
 Requires: ncurses
+Requires: dnsmasq
 BuildRequires: xen-devel
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
@@ -169,6 +170,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Fri Apr 21 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.2-2.fc7
+- Added Requires on dnsmasq for virtual networking
+
 * Tue Apr 17 2007 Daniel Veillard <veillard@redhat.com> - 0.2.2-1.fc7
 - Release of 0.2.2
 - lot of assorted bugfixes and cleanups
