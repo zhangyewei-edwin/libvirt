@@ -9,10 +9,15 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.2.2
-Release: 2%{?_extra_release}
+Release: 3%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
+Patch1: libvirt-0.2.2-disable-xm.patch
+Patch2: libvirt-0.2.2-dnsmasq-order.patch
+Patch3: libvirt-0.2.2-qemu-noreboot.patch
+Patch4: libvirt-0.2.2-sync-daemon-restart.patch
+Patch5: libvirt-0.2.2-graphics-hvm.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -54,11 +59,16 @@ Obsoletes: libvir-python
 %description python
 The libvirt-python package contains a module that permits applications
 written in the Python programming language to use the interface
-supplied by the libvirt library to use the the virtualization capabilities 
+supplied by the libvirt library to use the the virtualization capabilities
 of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
+%patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
 
 %build
 %configure --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid
@@ -170,6 +180,13 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu May  3 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.2-3.fc7
+- Fixed init script restart race
+- Remove duplicate <graphics> tag for HVM
+- Support -no-reboot in qemu for installs
+- Disable xm config file driver for 3.0.5
+- Force dnsmasq ordering for resolv.conf
+
 * Fri Apr 21 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.2-2.fc7
 - Added Requires on dnsmasq for virtual networking
 
