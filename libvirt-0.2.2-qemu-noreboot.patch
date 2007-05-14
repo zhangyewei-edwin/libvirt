@@ -1,13 +1,14 @@
 diff -rup libvirt-0.2.2/qemud/conf.c libvirt-0.2.2.new/qemud/conf.c
 --- libvirt-0.2.2/qemud/conf.c	2007-04-17 04:34:42.000000000 -0400
-+++ libvirt-0.2.2.new/qemud/conf.c	2007-05-01 18:16:46.000000000 -0400
++++ libvirt-0.2.2.new/qemud/conf.c	2007-05-14 10:36:12.000000000 -0400
 @@ -245,21 +245,25 @@ static int qemudExtractVersionInfo(const
      cleanup1:
          _exit(-1); /* Just in case */
      } else { /* Parent */
 -        char help[4096]; /* Ought to be enough to hold QEMU help screen */
+-        int got, ret = -1;
 +        char help[8192]; /* Ought to be enough to hold QEMU help screen */
-         int got, ret = -1;
++        int got = 0, ret = -1;
          int major, minor, micro;
  
          if (close(newstdout[1]) < 0)
@@ -107,7 +108,7 @@ diff -rup libvirt-0.2.2/qemud/conf.c libvirt-0.2.2.new/qemud/conf.c
          goto no_memory;
 diff -rup libvirt-0.2.2/qemud/internal.h libvirt-0.2.2.new/qemud/internal.h
 --- libvirt-0.2.2/qemud/internal.h	2007-04-11 10:13:36.000000000 -0400
-+++ libvirt-0.2.2.new/qemud/internal.h	2007-05-01 17:53:42.000000000 -0400
++++ libvirt-0.2.2.new/qemud/internal.h	2007-05-14 10:36:02.000000000 -0400
 @@ -161,6 +161,7 @@ enum qemud_vm_grapics_type {
  enum qemud_cmd_flags {
      QEMUD_CMD_FLAG_KQEMU = 1,
@@ -125,4 +126,3 @@ diff -rup libvirt-0.2.2/qemud/internal.h libvirt-0.2.2.new/qemud/internal.h
      struct qemud_vm_os_def os;
  
      int features;
-Only in libvirt-0.2.2.new/qemud: libvirt-0.2.2-qemu-noreboot.patch

@@ -9,7 +9,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.2.2
-Release: 3%{?_extra_release}
+Release: 4%{?_extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -18,6 +18,7 @@ Patch2: libvirt-0.2.2-dnsmasq-order.patch
 Patch3: libvirt-0.2.2-qemu-noreboot.patch
 Patch4: libvirt-0.2.2-sync-daemon-restart.patch
 Patch5: libvirt-0.2.2-graphics-hvm.patch
+Patch6: libvirt-0.2.2-bridge-init.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -69,6 +70,7 @@ of recent versions of Linux (and other OSes).
 %patch3 -p1
 %patch4 -p1
 %patch5 -p1
+%patch6 -p1
 
 %build
 %configure --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid
@@ -180,6 +182,10 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Mon May 14 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.2-4.fc7
+- Fixed uninitialized value causing stack overflow
+- Fixed bridged networking when no virtual network is defined (bz 239273)
+
 * Thu May  3 2007 Daniel P. Berrange <berrange@redhat.com> - 0.2.2-3.fc7
 - Fixed init script restart race
 - Remove duplicate <graphics> tag for HVM
