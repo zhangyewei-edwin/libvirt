@@ -3,7 +3,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.3.1
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -165,6 +165,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Wed Jul 25 2007 Jesse Keating <jkeating@redhat.com> - 0.3.1-2
+- Rebuild for RH #249435
+
 * Tue Jul 24 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-1.fc8
 - Release of 0.3.1
 - localtime clock support
