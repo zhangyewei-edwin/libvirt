@@ -3,7 +3,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.3.1
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -35,6 +35,8 @@ Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}
 Requires: pkgconfig
+Requires: xen-devel
+Requires: gnutls-devel
 Obsoletes: libvir-devel
 
 %description devel
@@ -167,6 +169,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Aug 16 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-4.fc8
+- Fixes missing Requires for libvirt-devel
+
 * Thu Jul 26 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-3.fc8
 - adds fix for bug #249594
 
