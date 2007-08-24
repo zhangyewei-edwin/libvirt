@@ -3,7 +3,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.3.2
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -16,14 +16,16 @@ Requires: ncurses
 Requires: dnsmasq
 Requires: bridge-utils
 Requires: iptables
+
+%ifarch i386 x86_64 ia64
 BuildRequires: xen-devel
+%endif
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: gnutls-devel
 Obsoletes: libvir
-ExclusiveArch: i386 x86_64 ia64
 
 %description
 Libvirt is a C toolkit to interract with the virtualization capabilities
@@ -34,7 +36,9 @@ Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}
 Requires: pkgconfig
+%ifarch i386 x86_64 ia64
 Requires: xen-devel
+%endif
 Requires: gnutls-devel
 Obsoletes: libvir-devel
 
@@ -58,7 +62,13 @@ of recent versions of Linux (and other OSes).
 %setup -q
 
 %build
+# Xen is availble only on i386 x86_64 ia64
+%ifarch i386 x86_64 ia64
 %configure --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid --with-remote-file=%{_localstatedir}/run/libvirtd.pid
+%else
+%configure --without-xen --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid --with-remote-file=%{_localstatedir}/run/libvirtd.pid
+%endif
+
 make
 
 %install
@@ -167,6 +177,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Fri Aug 24 2007 Daniel Veillard <veillard@redhat.com> - 0.3.2-2.fc8
+- also build on arches where Xen is not available
+
 * Tue Aug 21 2007 Daniel Veillard <veillard@redhat.com> - 0.3.2-1.fc8
 - Release of 0.3.2
 - API for domains migration
