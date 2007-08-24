@@ -27,6 +27,9 @@ BuildRequires: gettext
 BuildRequires: gnutls-devel
 Obsoletes: libvir
 
+# Fedora build root suckage
+BuildRequires: gawk
+
 %description
 Libvirt is a C toolkit to interract with the virtualization capabilities
 of recent versions of Linux (and other OSes).
