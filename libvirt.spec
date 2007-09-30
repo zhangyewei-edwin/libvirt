@@ -2,8 +2,8 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.3.2
-Release: 2%{?dist}%{?extra_release}
+Version: 0.3.3
+Release: 1%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -25,6 +25,9 @@ BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: gnutls-devel
+BuildRequires: avahi-devel
+BuildRequires: dnsmasq
+BuildRequires: bridge-utils
 Obsoletes: libvir
 
 # Fedora build root suckage
@@ -180,6 +183,13 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Sun Sep 30 2007 Daniel Veillard <veillard@redhat.com> - 0.3.3-1
+- Release of 0.3.3
+- Avahi support
+- NUMA support
+- lots of assorted improvements, bugfixes and cleanups
+- documentation and localization improvements
+
 * Fri Aug 24 2007 Daniel Veillard <veillard@redhat.com> - 0.3.2-2.fc8
 - also build on arches where Xen is not available
 
