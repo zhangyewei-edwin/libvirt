@@ -69,7 +69,7 @@ of recent versions of Linux (and other OSes).
 
 %build
 # Xen is availble only on i386 x86_64 ia64
-%ifarch i386 x86_64 ia64
+%ifarch i386 i686 x86_64 ia64
 %configure --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid --with-remote-file=%{_localstatedir}/run/libvirtd.pid
 %else
 %configure --without-xen --with-init-script=redhat --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid --with-remote-file=%{_localstatedir}/run/libvirtd.pid
