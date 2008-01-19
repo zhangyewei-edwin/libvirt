@@ -11,13 +11,15 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.0
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 Patch1: libvirt-%{version}-auth-null-cb.patch
 Patch2: libvirt-%{version}-conffile-size.patch
 Patch3: libvirt-%{version}-auth-null-cb-2.patch
+Patch4: libvirt-%{version}-remote-ssh.patch
+Patch5: libvirt-%{version}-nodeinfo-compat.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -93,6 +95,8 @@ of recent versions of Linux (and other OSes).
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
+%patch5 -p1
 
 %build
 # Xen is availble only on i386 x86_64 ia64
@@ -218,6 +222,10 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Fri Jan 18 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.0-4.fc9
+- Fix SSH tunnelling (rhbz #428743)
+- Fix back-compat for nodeinfo call changes.
+
 * Sun Jan 13 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.0-3.fc9
 - Fix crash when no auth callback
 
