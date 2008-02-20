@@ -11,7 +11,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.0
-Release: 4%{?dist}%{?extra_release}
+Release: 5%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -222,6 +222,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Wed Feb 20 2008 Fedora Release Engineering <rel-eng@fedoraproject.org> - 0.4.0-5
+- Autorebuild for GCC 4.3
+
 * Fri Jan 18 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.0-4.fc9
 - Fix SSH tunnelling (rhbz #428743)
 - Fix back-compat for nodeinfo call changes.
