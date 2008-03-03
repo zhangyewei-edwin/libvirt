@@ -21,10 +21,12 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.1
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
+Patch0: libvirt-0.4.1-qemud1.patch
+Patch1: libvirt-0.4.1-qemud2.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -136,6 +138,8 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch0 -p1
+%patch1 -p1
 
 %build
 # Xen is available only on i386 x86_64 ia64
@@ -276,6 +280,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Mon Mar  3 2008 Daniel Veillard <veillard@redhat.com> - 0.4.1-2.fc9
+- 2 patches found just after the release
+
 * Mon Mar  3 2008 Daniel Veillard <veillard@redhat.com> - 0.4.1-1.fc9
 - Release of 0.4.1
 - Storage APIs
