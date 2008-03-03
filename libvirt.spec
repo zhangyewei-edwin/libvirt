@@ -42,12 +42,15 @@ Requires: PolicyKit >= 0.6
 %endif
 # For mount/umount in FS driver
 BuildRequires: util-linux
+# PPC64 has no Xen nor QEmu, build anyway
+%ifnarch ppc64
 %if %{with_qemu}
 # From QEMU RPMs
 Requires: /usr/bin/qemu-img
 %else
 # From Xen RPMs
 Requires: /usr/sbin/qcow-create
+%endif
 %endif
 # For LVM drivers
 Requires: lvm2
