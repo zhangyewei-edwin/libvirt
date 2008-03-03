@@ -9,7 +9,11 @@
 %endif
 
 %if "%{fedora}"
+%ifarch ppc64
+%define with_qemu 0
+%else
 %define with_qemu 1
+%endif
 %else
 %define with_qemu 0
 %endif
@@ -42,7 +46,7 @@ Requires: PolicyKit >= 0.6
 %endif
 # For mount/umount in FS driver
 BuildRequires: util-linux
-# PPC64 has no Xen nor QEmu, build anyway
+# PPC64 has no Xen nor QEmu, try to build anyway
 %ifnarch ppc64
 %if %{with_qemu}
 # From QEMU RPMs
@@ -70,19 +74,24 @@ BuildRequires: avahi-devel
 BuildRequires: libselinux-devel
 BuildRequires: dnsmasq
 BuildRequires: bridge-utils
+%if %{with_qemu}
 BuildRequires: qemu
+%endif
 BuildRequires: cyrus-sasl-devel
 %if %{with_polkit}
 BuildRequires: PolicyKit-devel >= 0.6
 %endif
 # For mount/umount in FS driver
 BuildRequires: util-linux
+# PPC64 has no Xen nor QEmu, try to build anyway
+%ifnarch ppc64
 %if %{with_qemu}
 # From QEMU RPMs
 BuildRequires: /usr/bin/qemu-img
 %else
 # From Xen RPMs
 BuildRequires: /usr/sbin/qcow-create
+%endif
 %endif
 # For LVM drivers
 BuildRequires: lvm2
@@ -136,10 +145,18 @@ of recent versions of Linux (and other OSes).
            --with-remote-file=%{_localstatedir}/run/libvirtd.pid \
            --with-xen-proxy=%{with_proxy}
 %else
+%ifnarch ppc64
 %configure --without-xen \
            --with-init-script=redhat \
            --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
            --with-remote-file=%{_localstatedir}/run/libvirtd.pid
+%else
+%configure --without-xen \
+           --without-qemu \
+           --with-init-script=redhat \
+           --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
+           --with-remote-file=%{_localstatedir}/run/libvirtd.pid
+%endif
 %endif
 
 make
