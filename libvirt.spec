@@ -21,12 +21,13 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.1
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 Patch0: libvirt-0.4.1-qemud1.patch
 Patch1: libvirt-0.4.1-qemud2.patch
+Patch2: %{name}-%{version}-daemon-startup.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -140,6 +141,7 @@ of recent versions of Linux (and other OSes).
 %setup -q
 %patch0 -p1
 %patch1 -p1
+%patch2 -p1
 
 %build
 # Xen is available only on i386 x86_64 ia64
@@ -280,6 +282,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Mon Mar 10 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-3.fc9
+- Fixed daemon startup when run with --daemon flag
+
 * Mon Mar  3 2008 Daniel Veillard <veillard@redhat.com> - 0.4.1-2.fc9
 - 2 patches found just after the release
 
