@@ -21,13 +21,16 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.1
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 Patch0: libvirt-0.4.1-qemud1.patch
 Patch1: libvirt-0.4.1-qemud2.patch
 Patch2: %{name}-%{version}-daemon-startup.patch
+Patch3: %{name}-%{version}-qemu-media-change.patch
+Patch4: %{name}-%{version}-xen-boot-device.patch
+Patch5: %{name}-%{version}-tap-ifname.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -142,6 +145,9 @@ of recent versions of Linux (and other OSes).
 %patch0 -p1
 %patch1 -p1
 %patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
 
 %build
 # Xen is available only on i386 x86_64 ia64
@@ -178,6 +184,8 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
+# Default dir for disk images defined in SELinux policy
+install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/images/
 
 # We don't want to install /etc/libvirt/qemu/networks in the main %files list
 # because if the admin wants to delete the default network completely, we don't
@@ -242,6 +250,7 @@ fi
 %{_datadir}/libvirt/networks/default.xml
 %dir %{_localstatedir}/run/libvirt/
 %dir %{_localstatedir}/lib/libvirt/
+%dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/images/
 %if %{with_polkit}
 %{_datadir}/PolicyKit/policy/libvirtd.policy
 %endif
@@ -282,6 +291,11 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Mar 13 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-4.fc9
+- Fix QEMU tap device setup
+- Fix Xen boot device XML processing
+- Fixed QEMU cdrom media change
+
 * Mon Mar 10 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-3.fc9
 - Fixed daemon startup when run with --daemon flag
 
