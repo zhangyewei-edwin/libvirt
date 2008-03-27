@@ -21,7 +21,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.1
-Release: 4%{?dist}%{?extra_release}
+Release: 5%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -31,6 +31,8 @@ Patch2: %{name}-%{version}-daemon-startup.patch
 Patch3: %{name}-%{version}-qemu-media-change.patch
 Patch4: %{name}-%{version}-xen-boot-device.patch
 Patch5: %{name}-%{version}-tap-ifname.patch
+Patch6: libvirt-storage-api-iscsi-sendtarget.patch 
+Patch7: libvirt-iscsi-sysfs4.patch 
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -148,6 +150,8 @@ of recent versions of Linux (and other OSes).
 %patch3 -p1
 %patch4 -p1
 %patch5 -p1
+%patch6 -p1
+%patch7 -p1
 
 %build
 # Xen is available only on i386 x86_64 ia64
@@ -291,6 +295,11 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Mar 27 2008 Chris Lalancette <clalance@redhat.com> - 0.4.1-5.fc9
+- Do iscsiadm sendtarget before trying to do login
+- Do sysfs scanning for iSCSI LUNs instead of trying to parse them from
+  iscsiadm session output
+
 * Thu Mar 13 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-4.fc9
 - Fix QEMU tap device setup
 - Fix Xen boot device XML processing
