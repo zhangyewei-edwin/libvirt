@@ -21,7 +21,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.1
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -33,6 +33,7 @@ Patch4: %{name}-%{version}-xen-boot-device.patch
 Patch5: %{name}-%{version}-tap-ifname.patch
 Patch6: libvirt-storage-api-iscsi-sendtarget.patch 
 Patch7: libvirt-iscsi-sysfs4.patch 
+Patch8: libvirt-source-dir-fix.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -152,6 +153,7 @@ of recent versions of Linux (and other OSes).
 %patch5 -p1
 %patch6 -p1
 %patch7 -p1
+%patch8 -p1
 
 %build
 # Xen is available only on i386 x86_64 ia64
@@ -295,6 +297,10 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Fri Mar 28 2008 Chris Lalancette <clalance@redhat.com> - 0.4.1-6.fc9
+- When dumping XML for a storage pool, make the <source> directory tag
+  match the <dir> tag used for specifying the pool in the first place
+
 * Thu Mar 27 2008 Chris Lalancette <clalance@redhat.com> - 0.4.1-5.fc9
 - Do iscsiadm sendtarget before trying to do login
 - Do sysfs scanning for iSCSI LUNs instead of trying to parse them from
