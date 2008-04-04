@@ -21,7 +21,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.1
-Release: 6%{?dist}%{?extra_release}
+Release: 7%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -34,6 +34,7 @@ Patch5: %{name}-%{version}-tap-ifname.patch
 Patch6: libvirt-storage-api-iscsi-sendtarget.patch 
 Patch7: libvirt-iscsi-sysfs4.patch 
 Patch8: libvirt-source-dir-fix.patch
+Patch9: %{name}-%{version}-polkit.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -154,6 +155,7 @@ of recent versions of Linux (and other OSes).
 %patch6 -p1
 %patch7 -p1
 %patch8 -p1
+%patch9 -p1
 
 %build
 # Xen is available only on i386 x86_64 ia64
@@ -297,6 +299,10 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Apr  4 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-7.fc9
+- Don't run polkit-auth as root
+- Don't request polkit auth if client is root
+
 * Fri Mar 28 2008 Chris Lalancette <clalance@redhat.com> - 0.4.1-6.fc9
 - When dumping XML for a storage pool, make the <source> directory tag
   match the <dir> tag used for specifying the pool in the first place
