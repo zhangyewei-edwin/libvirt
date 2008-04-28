@@ -1,29 +1,36 @@
 # -*- rpm-spec -*-
 
-%if "%{fedora}" >= "8"
-%define with_polkit 1
-%define with_lokkit 1
-%define with_proxy no
-%else
-%define with_polkit 0
-%define with_lokkit 0
-%define with_proxy yes
+%define with_xen       1
+%define with_xen_proxy 1
+%define with_qemu      1
+%define with_polkit    0
+%define with_lokkit    0
+
+# Xen is available only on i386 x86_64 ia64
+%ifnarch i386 i686 x86_64 ia64
+%define with_xen 0
+%endif
+
+%if ! %{with_xen}
+%define with_xen_proxy 0
 %endif
 
 %if "%{fedora}"
 %ifarch ppc64
 %define with_qemu 0
-%else
-%define with_qemu 1
 %endif
-%else
-%define with_qemu 0
+%endif
+
+%if "%{fedora}" >= "8"
+%define with_polkit    1
+%define with_lokkit    1
+%define with_xen_proxy 0
 %endif
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.2
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -51,12 +58,11 @@ Requires: /usr/sbin/lokkit
 %endif
 # For mount/umount in FS driver
 BuildRequires: util-linux
-# PPC64 has no Xen nor QEmu, try to build anyway
-%ifnarch ppc64
 %if %{with_qemu}
 # From QEMU RPMs
 Requires: /usr/bin/qemu-img
 %else
+%if %{with_xen}
 # From Xen RPMs
 Requires: /usr/sbin/qcow-create
 %endif
@@ -67,7 +73,7 @@ Requires: lvm2
 Requires: iscsi-initiator-utils
 # For disk driver
 Requires: parted
-%ifarch i386 x86_64 ia64
+%if %{with_xen}
 BuildRequires: xen-devel
 %endif
 BuildRequires: libxml2-devel
@@ -91,12 +97,11 @@ BuildRequires: /usr/sbin/lokkit
 %endif
 # For mount/umount in FS driver
 BuildRequires: util-linux
-# PPC64 has no Xen nor QEmu, try to build anyway
-%ifnarch ppc64
 %if %{with_qemu}
 # From QEMU RPMs
 BuildRequires: /usr/bin/qemu-img
 %else
+%if %{with_xen}
 # From Xen RPMs
 BuildRequires: /usr/sbin/qcow-create
 %endif
@@ -121,7 +126,7 @@ Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}
 Requires: pkgconfig
-%ifarch i386 x86_64 ia64
+%if %{with_xen}
 Requires: xen-devel
 %endif
 Obsoletes: libvir-devel
@@ -146,27 +151,19 @@ of recent versions of Linux (and other OSes).
 %setup -q
 
 %build
-# Xen is available only on i386 x86_64 ia64
-%ifarch i386 i686 x86_64 ia64
-%configure --with-init-script=redhat \
-           --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
-           --with-remote-file=%{_localstatedir}/run/libvirtd.pid \
-           --with-xen-proxy=%{with_proxy}
-%else
-%ifnarch ppc64
-%configure --without-xen \
-           --with-init-script=redhat \
-           --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
-           --with-remote-file=%{_localstatedir}/run/libvirtd.pid
-%else
-%configure --without-xen \
-           --without-qemu \
-           --with-init-script=redhat \
-           --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
-           --with-remote-file=%{_localstatedir}/run/libvirtd.pid
-%endif
+%if ! %{with_xen}
+%define _without_xen --without-xen
 %endif
 
+%if ! %{with_qemu}
+%define _without_qemu --without_qemu
+%endif
+
+%configure %{?_without_xen} \
+           %{?_without_qemu} \
+           --with-init-script=redhat \
+           --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
+           --with-remote-file=%{_localstatedir}/run/libvirtd.pid
 make
 
 %install
@@ -251,10 +248,8 @@ fi
 %{_datadir}/PolicyKit/policy/libvirtd.policy
 %endif
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/qemu/
-%ifarch i386 i686 x86_64 ia64
-%if %{with_proxy} == "yes"
+%if %{with_xen_proxy}
 %attr(4755, root, root) %{_libexecdir}/libvirt_proxy
-%endif
 %endif
 %attr(0755, root, root) %{_libexecdir}/libvirt_parthelper
 %attr(0755, root, root) %{_sbindir}/libvirtd
@@ -289,6 +284,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Mon Apr 28 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-3.fc10
+- Simplify the way arch conditionals are handled
+
 * Mon Apr 28 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-2.fc10
 - Enable lokkit support (#443796)
 
