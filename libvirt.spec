@@ -251,8 +251,10 @@ fi
 %{_datadir}/PolicyKit/policy/libvirtd.policy
 %endif
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/qemu/
+%ifarch i386 i686 x86_64 ia64
 %if %{with_proxy} == "yes"
 %attr(4755, root, root) %{_libexecdir}/libvirt_proxy
+%endif
 %endif
 %attr(0755, root, root) %{_libexecdir}/libvirt_parthelper
 %attr(0755, root, root) %{_sbindir}/libvirtd
