@@ -156,7 +156,7 @@ of recent versions of Linux (and other OSes).
 %endif
 
 %if ! %{with_qemu}
-%define _without_qemu --without_qemu
+%define _without_qemu --without-qemu
 %endif
 
 %configure %{?_without_xen} \
