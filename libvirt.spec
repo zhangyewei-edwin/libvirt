@@ -30,7 +30,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.2
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -179,6 +179,8 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
 # Default dir for disk images defined in SELinux policy
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/images/
+# Default dir for kernel+initrd images defnied in SELinux policy
+install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/boot/
 
 # We don't want to install /etc/libvirt/qemu/networks in the main %files list
 # because if the admin wants to delete the default network completely, we don't
@@ -244,6 +246,7 @@ fi
 %dir %{_localstatedir}/run/libvirt/
 %dir %{_localstatedir}/lib/libvirt/
 %dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/images/
+%dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/boot/
 %if %{with_polkit}
 %{_datadir}/PolicyKit/policy/libvirtd.policy
 %endif
@@ -284,6 +287,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Fri May  9 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-4.fc10
+- Added directory for initrd/kernel images for SELinux policy
+
 * Mon Apr 28 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-3.fc10
 - Simplify the way arch conditionals are handled
 
