@@ -21,7 +21,7 @@
 %endif
 %endif
 
-%if "%{fedora}" >= "8"
+%if %{fedora} >= 8
 %define with_polkit    1
 %define with_lokkit    1
 %define with_xen_proxy 0
@@ -30,7 +30,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.2
-Release: 4%{?dist}%{?extra_release}
+Release: 5%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -287,6 +287,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu May 15 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-5.fc10
+- Rebuild with policy enabled (rhbz #446616)
+
 * Fri May  9 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-4.fc10
 - Added directory for initrd/kernel images for SELinux policy
 
