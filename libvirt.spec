@@ -20,7 +20,7 @@
 %endif
 %endif
 
-%if %{fedora} >= 8
+%if 0%{fedora} >= 8
 %define with_polkit    1
 %define with_xen_proxy 0
 %endif
@@ -281,6 +281,7 @@ fi
 %changelog
 * Wed Jun  4 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-6.fc10
 - Disable lokkit support again (#449996, #447633)
+- Ensure %{fedora} is evaluated correctly
 
 * Thu May 15 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-5.fc10
 - Rebuild with policy enabled (rhbz #446616)
