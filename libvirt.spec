@@ -27,8 +27,8 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.4.2
-Release: 6%{?dist}%{?extra_release}
+Version: 0.4.3
+Release: 1%{?dist}%{?extra_release}
 License: LGPL
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -279,6 +279,12 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Jun 12 2008 Daniel Veillard <veillard@redhat.com> - 0.4.3-1.fc10
+- upstream release 0.4.3
+- many bug fixes
+- many small improvements
+- serious xenner fixes
+
 * Wed Jun  4 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-6.fc10
 - Disable lokkit support again (#449996, #447633)
 - Ensure %{fedora} is evaluated correctly
