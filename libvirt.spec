@@ -28,8 +28,8 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.4.4
-Release: 2%{?dist}%{?extra_release}
-License: LGPL
+Release: 3%{?dist}%{?extra_release}
+License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 Patch1: %{name}-%{version}-boot-cdrom.patch
@@ -281,6 +281,9 @@ fi
 %doc docs/examples/python
 
 %changelog
+* Thu Aug  7 2008 Tom "spot" Callaway <tcallawa@redhat.com> - 0.4.4-3.fc10
+- fix license tag
+
 * Tue Jul  8 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.4-2.fc10
 - Fix booting of CDROM images with KVM (rhbz #452355)
 
