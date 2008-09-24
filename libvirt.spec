@@ -394,6 +394,10 @@ fi
 %endif
 
 %changelog
+* Wed Sep 24 2008 Daniel Veillard <veillard@redhat.com> - 0.4.6-2.fc10
+- upstream release 0.4.6
+- fixes some problems with 0.4.5
+
 * Tue Sep  9 2008 Daniel Veillard <veillard@redhat.com> - 0.4.5-2.fc10
 - fix a crash if a QEmu/KVM domain is defined without an emulator path
 
