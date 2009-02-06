@@ -1,10 +1,6 @@
-Index: qemud/event.c
-===================================================================
-RCS file: /data/cvs/libvirt/qemud/event.c,v
-retrieving revision 1.17
-diff -u -p -u -r1.17 event.c
---- qemud/event.c	22 Dec 2008 12:55:47 -0000	1.17
-+++ qemud/event.c	4 Feb 2009 15:08:06 -0000
+diff -rup libvirt-0.6.0.orig/qemud/event.c libvirt-0.6.0.new/qemud/event.c
+--- libvirt-0.6.0.orig/qemud/event.c	2008-12-22 13:02:54.000000000 +0000
++++ libvirt-0.6.0.new/qemud/event.c	2009-02-06 19:29:28.000000000 +0000
 @@ -68,6 +68,7 @@ struct virEventTimeout {
  /* State for the main event loop */
  struct virEventLoop {
@@ -41,13 +37,9 @@ diff -u -p -u -r1.17 event.c
          return 0;
  
      if (safewrite(eventLoop.wakeupfd[1], &c, sizeof(c)) != sizeof(c))
-Index: qemud/qemud.c
-===================================================================
-RCS file: /data/cvs/libvirt/qemud/qemud.c,v
-retrieving revision 1.138
-diff -u -p -u -r1.138 qemud.c
---- qemud/qemud.c	28 Jan 2009 11:31:39 -0000	1.138
-+++ qemud/qemud.c	4 Feb 2009 15:08:06 -0000
+diff -rup libvirt-0.6.0.orig/qemud/qemud.c libvirt-0.6.0.new/qemud/qemud.c
+--- libvirt-0.6.0.orig/qemud/qemud.c	2009-01-31 09:04:17.000000000 +0000
++++ libvirt-0.6.0.new/qemud/qemud.c	2009-02-06 19:29:28.000000000 +0000
 @@ -2013,11 +2013,15 @@ static int qemudOneLoop(void) {
      return 0;
  }

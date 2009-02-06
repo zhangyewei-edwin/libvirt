@@ -1,12 +1,7 @@
-? mingw-fixes
-Index: qemud/event.c
-===================================================================
-RCS file: /data/cvs/libvirt/qemud/event.c,v
-retrieving revision 1.17
-diff -u -p -u -p -r1.17 event.c
---- qemud/event.c	22 Dec 2008 12:55:47 -0000	1.17
-+++ qemud/event.c	5 Feb 2009 17:12:51 -0000
-@@ -653,6 +653,8 @@ virPollEventToEventHandleType(int events
+diff -rup libvirt-0.6.0.orig/qemud/event.c libvirt-0.6.0.new/qemud/event.c
+--- libvirt-0.6.0.orig/qemud/event.c	2009-02-06 19:30:58.000000000 +0000
++++ libvirt-0.6.0.new/qemud/event.c	2009-02-06 19:30:00.000000000 +0000
+@@ -657,6 +657,8 @@ virPollEventToEventHandleType(int events
          ret |= VIR_EVENT_HANDLE_WRITABLE;
      if(events & POLLERR)
          ret |= VIR_EVENT_HANDLE_ERROR;
@@ -15,13 +10,9 @@ diff -u -p -u -p -r1.17 event.c
      if(events & POLLHUP)
          ret |= VIR_EVENT_HANDLE_HANGUP;
      return ret;
-Index: src/domain_conf.c
-===================================================================
-RCS file: /data/cvs/libvirt/src/domain_conf.c,v
-retrieving revision 1.64
-diff -u -p -u -p -r1.64 domain_conf.c
---- src/domain_conf.c	30 Jan 2009 21:52:22 -0000	1.64
-+++ src/domain_conf.c	5 Feb 2009 17:12:51 -0000
+diff -rup libvirt-0.6.0.orig/src/domain_conf.c libvirt-0.6.0.new/src/domain_conf.c
+--- libvirt-0.6.0.orig/src/domain_conf.c	2009-01-31 09:04:17.000000000 +0000
++++ libvirt-0.6.0.new/src/domain_conf.c	2009-02-06 19:30:00.000000000 +0000
 @@ -504,6 +504,7 @@ virDomainObjPtr virDomainAssignDef(virCo
      domain->state = VIR_DOMAIN_SHUTOFF;
      domain->def = def;
@@ -30,14 +21,10 @@ diff -u -p -u -p -r1.64 domain_conf.c
  
      if (VIR_REALLOC_N(doms->objs, doms->count + 1) < 0) {
          virReportOOMError(conn);
-Index: src/remote_internal.c
-===================================================================
-RCS file: /data/cvs/libvirt/src/remote_internal.c,v
-retrieving revision 1.136
-diff -u -p -u -p -r1.136 remote_internal.c
---- src/remote_internal.c	3 Feb 2009 13:08:07 -0000	1.136
-+++ src/remote_internal.c	5 Feb 2009 17:12:52 -0000
-@@ -6192,17 +6192,17 @@ processCalls(virConnectPtr conn,
+diff -rup libvirt-0.6.0.orig/src/remote_internal.c libvirt-0.6.0.new/src/remote_internal.c
+--- libvirt-0.6.0.orig/src/remote_internal.c	2009-01-31 09:04:18.000000000 +0000
++++ libvirt-0.6.0.new/src/remote_internal.c	2009-02-06 19:30:00.000000000 +0000
+@@ -6198,17 +6198,17 @@ processCalls(virConnectPtr conn,
                  continue;
              virReportSystemError(in_open ? NULL : conn, errno,
                                   "%s", _("poll on socket failed"));
@@ -58,7 +45,7 @@ diff -u -p -u -p -r1.136 remote_internal.c
          }
  
          /* Iterate through waiting threads and if
-@@ -6253,9 +6253,21 @@ processCalls(virConnectPtr conn,
+@@ -6259,9 +6259,21 @@ processCalls(virConnectPtr conn,
          if (fds[0].revents & (POLLHUP | POLLERR)) {
              errorf(in_open ? NULL : conn, VIR_ERR_INTERNAL_ERROR,
                     "%s", _("received hangup / error event on socket"));
