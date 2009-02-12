@@ -47,7 +47,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.0
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -56,7 +56,6 @@ Patch2: %{name}-%{version}-rpccall.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
-Requires: libxml2
 Requires: readline
 Requires: ncurses
 Requires: dnsmasq
@@ -140,7 +139,8 @@ BuildRequires: iscsi-initiator-utils
 BuildRequires: parted-devel
 # For QEMU/LXC numa info
 BuildRequires: numactl-devel
-Obsoletes: libvir
+Obsoletes: libvir <= 0.2
+Provides: libvir = %{version}-%{release}
 
 # Fedora build root suckage
 BuildRequires: gawk
@@ -152,12 +152,13 @@ of recent versions of Linux (and other OSes).
 %package devel
 Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
-Requires: libvirt = %{version}
+Requires: libvirt = %{version}-%{release}
 Requires: pkgconfig
 %if %{with_xen}
 Requires: xen-devel
 %endif
-Obsoletes: libvir-devel
+Obsoletes: libvir-devel <= 0.2
+Provides: libvir-devel = %{version}-%{release}
 
 %description devel
 Includes and documentations for the C library providing an API to use
@@ -167,8 +168,9 @@ the virtualization capabilities of recent versions of Linux (and other OSes).
 %package python
 Summary: Python bindings for the libvirt library
 Group: Development/Libraries
-Requires: libvirt = %{version}
-Obsoletes: libvir-python
+Requires: libvirt = %{version}-%{release}
+Obsoletes: libvir-python <= 0.2
+Provides: libvir-python = %{version}-%{release}
 
 %description python
 The libvirt-python package contains a module that permits applications
@@ -181,6 +183,9 @@ of recent versions of Linux (and other OSes).
 %setup -q
 %patch1 -p1
 %patch2 -p1
+
+mv NEWS NEWS.old
+iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 
 %build
 %if ! %{with_xen}
@@ -249,7 +254,7 @@ of recent versions of Linux (and other OSes).
 make %{?_smp_mflags}
 
 %install
-rm -fr %{buildroot}
+rm -rf %{buildroot}
 
 %makeinstall
 (cd docs/examples ; make clean ; rm -rf .deps Makefile Makefile.in)
@@ -291,6 +296,10 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-python-%{version}
 rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu.conf
 %endif
 
+%if %{with_libvirtd}
+chmod 0644 $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/libvirtd
+%endif
+
 %clean
 rm -fr %{buildroot}
 
@@ -324,8 +333,7 @@ if [ $1 = 0 ]; then
 fi
 %endif
 
-%postun
-/sbin/ldconfig
+%postun -p /sbin/ldconfig
 
 %files -f %{name}.lang
 %defattr(-, root, root)
@@ -463,6 +471,9 @@ fi
 %endif
 
 %changelog
+* Wed Feb 11 2009 Richard W.M. Jones <rjones@redhat.com> - 0.6.0-3.fc11
+- Multiple fixes to remove rpmlint warnings/errors (rhbz #226055)
+
 * Fri Feb  6 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.0-2.fc11
 - Fix libvirtd --timeout usage
 - Fix RPC call problems and QEMU startup handling (rhbz #484414)
@@ -531,7 +542,7 @@ fi
 
 * Wed Jun  4 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-6.fc10
 - Disable lokkit support again (#449996, #447633)
-- Ensure %{fedora} is evaluated correctly
+- Ensure %-fedora is evaluated correctly
 
 * Thu May 15 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-5.fc10
 - Rebuild with policy enabled (rhbz #446616)
@@ -716,7 +727,7 @@ fi
 - it's pkgconfig not pgkconfig !
 
 * Mon Nov  6 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-2
-- fixing spec file, added %dist, -devel requires pkgconfig and xen-devel
+- fixing spec file, added %-dist, -devel requires pkgconfig and xen-devel
 - Resolves: rhbz#202320
 
 * Mon Oct 16 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-1
