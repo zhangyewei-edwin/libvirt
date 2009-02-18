@@ -47,12 +47,15 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.0
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 Patch1: %{name}-%{version}-timeout.patch
 Patch2: %{name}-%{version}-rpccall.patch
+Patch3: %{name}-%{version}-qemu-startup.patch
+Patch4: %{name}-%{version}-dbus-threads.patch
+Patch5: %{name}-%{version}-autostart-timeout.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -183,6 +186,9 @@ of recent versions of Linux (and other OSes).
 %setup -q
 %patch1 -p1
 %patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
 
 mv NEWS NEWS.old
 iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
@@ -471,6 +477,11 @@ fi
 %endif
 
 %changelog
+* Wed Feb 18 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.0-4.fc11
+- Fix QEMU startup timeout/race (rhbz #484649)
+- Setup DBus threading. Don't allow dbus to call _exit / change SIGPIPE (rhbz #484553)
+- Fix timeout when autostarting session daemon
+
 * Wed Feb 11 2009 Richard W.M. Jones <rjones@redhat.com> - 0.6.0-3.fc11
 - Multiple fixes to remove rpmlint warnings/errors (rhbz #226055)
 
