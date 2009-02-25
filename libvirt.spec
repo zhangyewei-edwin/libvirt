@@ -47,7 +47,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.0
-Release: 4%{?dist}%{?extra_release}
+Release: 5%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -477,6 +477,9 @@ fi
 %endif
 
 %changelog
+* Wed Feb 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.0-5
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_11_Mass_Rebuild
+
 * Wed Feb 18 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.0-4.fc11
 - Fix QEMU startup timeout/race (rhbz #484649)
 - Setup DBus threading. Don't allow dbus to call _exit / change SIGPIPE (rhbz #484553)
