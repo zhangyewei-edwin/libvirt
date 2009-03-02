@@ -14,7 +14,7 @@
 %define with_network   0%{!?_without_network:1}
 
 # Xen is available only on i386 x86_64 ia64
-%ifnarch i386 i686 x86_64 ia64
+%ifnarch i386 i586 i686 x86_64 ia64
 %define with_xen 0
 %endif
 
@@ -47,7 +47,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.0
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -477,7 +477,10 @@ fi
 %endif
 
 %changelog
-* Wed Feb 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.0-5
+* Mon Mar  2 2009 Daniel Veillard <veillard@redhat.com> - 0.6.0-6.fc11
+- make sure Xen is handled in i586 new default 32bits x86 packages
+
+* Wed Feb 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.0-5.fc11
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_11_Mass_Rebuild
 
 * Wed Feb 18 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.0-4.fc11
