@@ -102,7 +102,6 @@ BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: gnutls-devel
-BuildRequires: lzo-devel
 BuildRequires: hal-devel
 %if %{with_avahi}
 BuildRequires: avahi-devel
