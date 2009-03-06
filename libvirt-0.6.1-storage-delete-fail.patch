@@ -1,0 +1,11 @@
+diff -rup libvirt-0.6.1.orig/src/storage_driver.c libvirt-0.6.1.new/src/storage_driver.c
+--- libvirt-0.6.1.orig/src/storage_driver.c	2009-02-16 03:43:41.000000000 -0500
++++ libvirt-0.6.1.new/src/storage_driver.c	2009-03-06 08:02:51.000000000 -0500
+@@ -1296,7 +1296,6 @@ storageVolumeDelete(virStorageVolPtr obj
+     ret = 0;
+ 
+ cleanup:
+-    virStorageVolDefFree(vol);
+     if (pool)
+         virStoragePoolObjUnlock(pool);
+     return ret;
