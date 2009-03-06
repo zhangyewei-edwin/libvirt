@@ -1,0 +1,277 @@
+diff -r 961d4b1ca1d3 qemud/libvirtd_qemu.aug
+--- a/qemud/libvirtd_qemu.aug	Wed Mar 04 13:17:44 2009 +0000
++++ b/qemud/libvirtd_qemu.aug	Thu Mar 05 14:22:50 2009 +0000
+@@ -27,6 +27,8 @@ module Libvirtd_qemu =
+                  | str_entry "vnc_tls_x509_cert_dir"
+                  | bool_entry "vnc_tls_x509_verify"
+                  | str_entry "vnc_password"
++                 | bool_entry "vnc_sasl"
++                 | str_entry "vnc_sasl_dir"
+ 
+    (* Each enty in the config is one of the following three ... *)
+    let entry = vnc_entry
+diff -r 961d4b1ca1d3 qemud/test_libvirtd_qemu.aug
+--- a/qemud/test_libvirtd_qemu.aug	Wed Mar 04 13:17:44 2009 +0000
++++ b/qemud/test_libvirtd_qemu.aug	Thu Mar 05 14:22:50 2009 +0000
+@@ -60,6 +60,25 @@ vnc_tls_x509_verify = 1
+ # example here before you set this
+ #
+ vnc_password = \"XYZ12345\"
++
++
++# Enable use of SASL encryption on the VNC server. This requires
++# a VNC client which supports the SASL protocol extension.
++# Examples include vinagre, virt-viewer and virt-manager
++# itself. UltraVNC, RealVNC, TightVNC do not support this
++#
++# It is necessary to configure /etc/sasl2/qemu.conf to choose
++# the desired SASL plugin (eg, GSSPI for Kerberos)
++#
++vnc_sasl = 1
++
++
++# The default SASL configuration file is located in /etc/sasl2/
++# When running libvirtd unprivileged, it may be desirable to
++# override the configs in this location. Set this parameter to
++# point to the directory, and create a qemu.conf in that location
++#
++vnc_sasl_dir = \"/some/directory/sasl2\"
+ "
+ 
+    test Libvirtd_qemu.lns get conf =
+@@ -123,3 +142,22 @@ vnc_password = \"XYZ12345\"
+ { "#comment" = "example here before you set this" }
+ { "#comment" = "" }
+ { "vnc_password" = "XYZ12345" }
++{ "#empty" }
++{ "#empty" }
++{ "#comment" = "Enable use of SASL encryption on the VNC server. This requires" }
++{ "#comment" = "a VNC client which supports the SASL protocol extension." }
++{ "#comment" = "Examples include vinagre, virt-viewer and virt-manager" }
++{ "#comment" = "itself. UltraVNC, RealVNC, TightVNC do not support this" }
++{ "#comment" = "" }
++{ "#comment" = "It is necessary to configure /etc/sasl2/qemu.conf to choose" }
++{ "#comment" = "the desired SASL plugin (eg, GSSPI for Kerberos)" }
++{ "#comment" = "" }
++{ "vnc_sasl" = "1" }
++{ "#empty" }
++{ "#empty" }
++{ "#comment" = "The default SASL configuration file is located in /etc/sasl2/" }
++{ "#comment" = "When running libvirtd unprivileged, it may be desirable to" }
++{ "#comment" = "override the configs in this location. Set this parameter to" }
++{ "#comment" = "point to the directory, and create a qemu.conf in that location" }
++{ "#comment" = "" }
++{ "vnc_sasl_dir" = "/some/directory/sasl2" }
+diff -r 961d4b1ca1d3 src/qemu.conf
+--- a/src/qemu.conf	Wed Mar 04 13:17:44 2009 +0000
++++ b/src/qemu.conf	Thu Mar 05 14:22:50 2009 +0000
+@@ -60,6 +60,27 @@
+ # vnc_password = "XYZ12345"
+ 
+ 
++# Enable use of SASL encryption on the VNC server. This requires
++# a VNC client which supports the SASL protocol extension.
++# Examples include vinagre, virt-viewer and virt-manager
++# itself. UltraVNC, RealVNC, TightVNC do not support this
++#
++# It is necessary to configure /etc/sasl2/qemu.conf to choose
++# the desired SASL plugin (eg, GSSPI for Kerberos)
++#
++# vnc_sasl = 1
++
++
++# The default SASL configuration file is located in /etc/sasl2/
++# When running libvirtd unprivileged, it may be desirable to
++# override the configs in this location. Set this parameter to
++# point to the directory, and create a qemu.conf in that location
++#
++# vnc_sasl_dir = "/some/directory/sasl2"
++
++
++
++
+ # The default security driver is SELinux. If SELinux is disabled
+ # on the host, then the security driver will automatically disable
+ # itself. If you wish to disable QEMU SELinux security driver while
+diff -r 961d4b1ca1d3 src/qemu_conf.c
+--- a/src/qemu_conf.c	Wed Mar 04 13:17:44 2009 +0000
++++ b/src/qemu_conf.c	Thu Mar 05 14:22:50 2009 +0000
+@@ -161,6 +161,21 @@ int qemudLoadDriverConfig(struct qemud_d
+         }
+     }
+ 
++    p = virConfGetValue (conf, "vnc_sasl");
++    CHECK_TYPE ("vnc_sasl", VIR_CONF_LONG);
++    if (p) driver->vncSASL = p->l;
++
++    p = virConfGetValue (conf, "vnc_sasl_dir");
++    CHECK_TYPE ("vnc_sasl_dir", VIR_CONF_STRING);
++    if (p && p->str) {
++        VIR_FREE(driver->vncSASLdir);
++        if (!(driver->vncSASLdir = strdup(p->str))) {
++            virReportOOMError(NULL);
++            virConfFree(conf);
++            return -1;
++        }
++    }
++
+     virConfFree (conf);
+     return 0;
+ }
+@@ -838,15 +853,20 @@ int qemudBuildCommandLine(virConnectPtr 
+             goto no_memory;                                             \
+     } while (0)
+ 
++#define ADD_ENV_PAIR(envname, val)                                      \
++    do {                                                                \
++        char *envval;                                                   \
++        ADD_ENV_SPACE;                                                  \
++        if (virAsprintf(&envval, "%s=%s", envname, val) < 0)            \
++            goto no_memory;                                             \
++        qenv[qenvc++] = envval;                                         \
++    } while (0)
++
+ #define ADD_ENV_COPY(envname)                                           \
+     do {                                                                \
+         char *val = getenv(envname);                                    \
+-        char *envval;                                                   \
+-        ADD_ENV_SPACE;                                                  \
+         if (val != NULL) {                                              \
+-            if (virAsprintf(&envval, "%s=%s", envname, val) < 0)        \
+-                goto no_memory;                                         \
+-            qenv[qenvc++] = envval;                                     \
++            ADD_ENV_PAIR(envname, val);                                 \
+         }                                                               \
+     } while (0)
+ 
+@@ -1295,6 +1315,15 @@ int qemudBuildCommandLine(virConnectPtr 
+                                       driver->vncTLSx509certdir);
+                 }
+             }
++
++            if (driver->vncSASL) {
++                virBufferAddLit(&opt, ",sasl");
++
++                if (driver->vncSASLdir)
++                    ADD_ENV_PAIR("SASL_CONF_DIR", driver->vncSASLdir);
++
++                /* TODO: Support ACLs later */
++            }
+         } else {
+             virBufferVSprintf(&opt, "%d",
+                               vm->def->graphics->data.vnc.port - 5900);
+diff -r 961d4b1ca1d3 src/qemu_conf.h
+--- a/src/qemu_conf.h	Wed Mar 04 13:17:44 2009 +0000
++++ b/src/qemu_conf.h	Thu Mar 05 14:22:50 2009 +0000
+@@ -73,9 +73,11 @@ struct qemud_driver {
+     char *stateDir;
+     unsigned int vncTLS : 1;
+     unsigned int vncTLSx509verify : 1;
++    unsigned int vncSASL : 1;
+     char *vncTLSx509certdir;
+     char *vncListen;
+     char *vncPassword;
++    char *vncSASLdir;
+ 
+     virCapsPtr caps;
+ 
+diff -r 961d4b1ca1d3 src/qemu_driver.c
+--- a/src/qemu_driver.c	Wed Mar 04 13:17:44 2009 +0000
++++ b/src/qemu_driver.c	Thu Mar 05 14:22:50 2009 +0000
+@@ -620,6 +620,7 @@ qemudShutdown(void) {
+     VIR_FREE(qemu_driver->vncTLSx509certdir);
+     VIR_FREE(qemu_driver->vncListen);
+     VIR_FREE(qemu_driver->vncPassword);
++    VIR_FREE(qemu_driver->vncSASLdir);
+ 
+     /* Free domain callback list */
+     virDomainEventCallbackListFree(qemu_driver->domainEventCallbacks);
+diff -r 961d4b1ca1d3 tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-sasl.args
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-sasl.args	Thu Mar 05 14:22:50 2009 +0000
+@@ -0,0 +1,1 @@
++LC_ALL=C PATH=/bin HOME=/home/test USER=test LOGNAME=test SASL_CONF_DIR=/root/.sasl2 /usr/bin/qemu -S -M pc -m 214 -smp 1 -monitor pty -pidfile /nowhere/QEMUGuest1.pid -no-acpi -boot c -hda /dev/HostVG/QEMUGuest1 -net none -serial none -parallel none -usb -vnc 127.0.0.1:3,sasl
+diff -r 961d4b1ca1d3 tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-sasl.xml
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-sasl.xml	Thu Mar 05 14:22:50 2009 +0000
+@@ -0,0 +1,24 @@
++<domain type='qemu'>
++  <name>QEMUGuest1</name>
++  <uuid>c7a5fdbd-edaf-9455-926a-d65c16db1809</uuid>
++  <memory>219200</memory>
++  <currentMemory>219200</currentMemory>
++  <vcpu>1</vcpu>
++  <os>
++    <type arch='i686' machine='pc'>hvm</type>
++    <boot dev='hd'/>
++  </os>
++  <clock offset='utc'/>
++  <on_poweroff>destroy</on_poweroff>
++  <on_reboot>restart</on_reboot>
++  <on_crash>destroy</on_crash>
++  <devices>
++    <emulator>/usr/bin/qemu</emulator>
++    <disk type='block' device='disk'>
++      <source dev='/dev/HostVG/QEMUGuest1'/>
++      <target dev='hda' bus='ide'/>
++    </disk>
++    <input type='mouse' bus='ps2'/>
++    <graphics type='vnc' port='5903' autoport='no' listen='127.0.0.1'/>
++  </devices>
++</domain>
+diff -r 961d4b1ca1d3 tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-tls.args
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-tls.args	Thu Mar 05 14:22:50 2009 +0000
+@@ -0,0 +1,1 @@
++LC_ALL=C PATH=/bin HOME=/home/test USER=test LOGNAME=test SASL_CONF_DIR=/root/.sasl2 /usr/bin/qemu -S -M pc -m 214 -smp 1 -monitor pty -pidfile /nowhere/QEMUGuest1.pid -no-acpi -boot c -hda /dev/HostVG/QEMUGuest1 -net none -serial none -parallel none -usb -vnc 127.0.0.1:3,tls,x509verify=/etc/pki/tls/qemu,sasl
+diff -r 961d4b1ca1d3 tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-tls.xml
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/tests/qemuxml2argvdata/qemuxml2argv-graphics-vnc-tls.xml	Thu Mar 05 14:22:50 2009 +0000
+@@ -0,0 +1,24 @@
++<domain type='qemu'>
++  <name>QEMUGuest1</name>
++  <uuid>c7a5fdbd-edaf-9455-926a-d65c16db1809</uuid>
++  <memory>219200</memory>
++  <currentMemory>219200</currentMemory>
++  <vcpu>1</vcpu>
++  <os>
++    <type arch='i686' machine='pc'>hvm</type>
++    <boot dev='hd'/>
++  </os>
++  <clock offset='utc'/>
++  <on_poweroff>destroy</on_poweroff>
++  <on_reboot>restart</on_reboot>
++  <on_crash>destroy</on_crash>
++  <devices>
++    <emulator>/usr/bin/qemu</emulator>
++    <disk type='block' device='disk'>
++      <source dev='/dev/HostVG/QEMUGuest1'/>
++      <target dev='hda' bus='ide'/>
++    </disk>
++    <input type='mouse' bus='ps2'/>
++    <graphics type='vnc' port='5903' autoport='no' listen='127.0.0.1'/>
++  </devices>
++</domain>
+diff -r 961d4b1ca1d3 tests/qemuxml2argvtest.c
+--- a/tests/qemuxml2argvtest.c	Wed Mar 04 13:17:44 2009 +0000
++++ b/tests/qemuxml2argvtest.c	Thu Mar 05 14:22:50 2009 +0000
+@@ -213,6 +213,19 @@ mymain(int argc, char **argv)
+             QEMUD_CMD_FLAG_DRIVE_CACHE_V2);
+     DO_TEST("disk-usb", 0);
+     DO_TEST("graphics-vnc", 0);
++
++    driver.vncSASL = 1;
++    driver.vncSASLdir = strdup("/root/.sasl2");
++    DO_TEST("graphics-vnc-sasl", 0);
++    driver.vncTLS = 1;
++    driver.vncTLSx509verify = 1;
++    driver.vncTLSx509certdir = strdup("/etc/pki/tls/qemu");
++    DO_TEST("graphics-vnc-tls", 0);
++    driver.vncSASL = driver.vncTLSx509verify = driver.vncTLS = 0;
++    free(driver.vncSASLdir);
++    free(driver.vncTLSx509certdir);
++    driver.vncSASLdir = driver.vncTLSx509certdir = NULL;
++
+     DO_TEST("graphics-sdl", 0);
+     DO_TEST("graphics-sdl-fullscreen", 0);
+     DO_TEST("input-usbmouse", 0);

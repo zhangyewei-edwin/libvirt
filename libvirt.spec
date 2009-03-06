@@ -47,10 +47,14 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.1
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
+Patch1: libvirt-%{version}-storage-delete-fail.patch
+
+# Not upstream yet - pending QEMU merge
+Patch100: libvirt-%{version}-vnc-sasl-auth.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -179,6 +183,9 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
+
+%patch100 -p1
 
 mv NEWS NEWS.old
 iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
@@ -471,6 +478,10 @@ fi
 %endif
 
 %changelog
+* Fri Mar  6 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-2.fc11
+- Fix crash after storage vol deletion fails
+- Add patch to enable VNC SASL authentication
+
 * Wed Mar  4 2009 Daniel Veillard <veillard@redhat.com> - 0.6.1-1.fc11
 - upstream release 0.6.1
 - support for node device detach reattach and reset
