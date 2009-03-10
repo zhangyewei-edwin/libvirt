@@ -47,7 +47,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.1
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -97,6 +97,8 @@ Requires: lvm2
 Requires: iscsi-initiator-utils
 # For disk driver
 Requires: parted
+# For svirt support
+Requires: libselinux
 %if %{with_xen}
 BuildRequires: xen-devel
 %endif
@@ -478,6 +480,9 @@ fi
 %endif
 
 %changelog
+* Mon Mar  9 2009 Cole Robinson <crobinso@redhat.com> - 0.6.1-3.fc11
+- Add Requires: libselinux
+
 * Fri Mar  6 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-2.fc11
 - Fix crash after storage vol deletion fails
 - Add patch to enable VNC SASL authentication
