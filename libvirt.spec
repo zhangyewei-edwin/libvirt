@@ -47,7 +47,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.1
-Release: 4%{?dist}%{?extra_release}
+Release: 5%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -61,6 +61,7 @@ Patch7: libvirt-0.6.1-storage-free.patch
 Patch8: libvirt-0.6.1-vcpu-deadlock.patch
 Patch9: libvirt-0.6.1-xenblock-detach.patch
 Patch10: libvirt-0.6.1-fd-leaks2.patch
+Patch11: libvirt-0.6.1-svirt-shared-readonly.patch
 
 # Not upstream yet - pending QEMU merge
 Patch100: libvirt-0.6.1-vnc-sasl-auth.patch
@@ -205,6 +206,7 @@ of recent versions of Linux (and other OSes).
 %patch8 -p1
 %patch9 -p1
 %patch10 -p0
+%patch11 -p1
 
 %patch100 -p1
 
@@ -499,6 +501,9 @@ fi
 %endif
 
 %changelog
+* Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-5.fc11
+- Don't relabel shared/readonly disks
+
 * Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-4.fc11
 - Fix memory allocation for xend lookup
 - Avoid crash if storage volume deletion fails
