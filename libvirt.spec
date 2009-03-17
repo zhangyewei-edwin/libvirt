@@ -66,6 +66,10 @@ Patch11: libvirt-0.6.1-svirt-shared-readonly.patch
 # Not upstream yet - pending QEMU merge
 Patch100: libvirt-0.6.1-vnc-sasl-auth.patch
 
+# Not for upstream. Temporary hack till PulseAudio autostart
+# problems are sorted out when SELinux enforcing
+Patch200: libvirt-0.6.1-svirt-sound.patch
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -209,6 +213,7 @@ of recent versions of Linux (and other OSes).
 %patch11 -p1
 
 %patch100 -p1
+%patch200 -p1
 
 mv NEWS NEWS.old
 iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
@@ -503,6 +508,7 @@ fi
 %changelog
 * Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-5.fc11
 - Don't relabel shared/readonly disks
+- Disable sound cards when running sVirt
 
 * Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-4.fc11
 - Fix memory allocation for xend lookup
