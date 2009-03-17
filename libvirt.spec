@@ -47,14 +47,24 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.1
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
-Patch1: libvirt-%{version}-storage-delete-fail.patch
+Patch1: libvirt-0.6.1-xend-lookup.patch
+Patch2: libvirt-0.6.1-xen-events.patch
+Patch3: libvirt-0.6.1-events-dispatch.patch
+Patch4: libvirt-0.6.1-fd-leaks.patch
+Patch5: libvirt-0.6.1-getvcpus-remote.patch
+Patch6: libvirt-0.6.1-pool-mode-parse.patch
+Patch7: libvirt-0.6.1-storage-free.patch
+Patch8: libvirt-0.6.1-vcpu-deadlock.patch
+Patch9: libvirt-0.6.1-xenblock-detach.patch
+Patch10: libvirt-0.6.1-fd-leaks2.patch
 
 # Not upstream yet - pending QEMU merge
-Patch100: libvirt-%{version}-vnc-sasl-auth.patch
+Patch100: libvirt-0.6.1-vnc-sasl-auth.patch
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python python-devel
@@ -185,7 +195,16 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
+%patch1 -p0
+%patch2 -p0
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
+%patch6 -p1
+%patch7 -p1
+%patch8 -p1
+%patch9 -p1
+%patch10 -p0
 
 %patch100 -p1
 
@@ -480,6 +499,16 @@ fi
 %endif
 
 %changelog
+* Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-4.fc11
+- Fix memory allocation for xend lookup
+- Avoid crash if storage volume deletion fails
+- Fix multiple FD leaks
+- Fix bug in dispatch FD events when a callback is marked deleted
+- Fix parsing of storage volume owner/group/mode
+- Fix memory allocation for virDomainGetVcpus RPC handler
+- Avoid deadlock in setting vCPU count
+- Use correct driver name in Xen block detach
+
 * Mon Mar  9 2009 Cole Robinson <crobinso@redhat.com> - 0.6.1-3.fc11
 - Add Requires: libselinux
 

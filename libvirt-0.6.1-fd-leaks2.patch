@@ -1,0 +1,40 @@
+Index: src/remote_internal.c
+===================================================================
+RCS file: /data/cvs/libxen/src/remote_internal.c,v
+retrieving revision 1.141
+diff -u -u -p -r1.141 remote_internal.c
+--- src/remote_internal.c	3 Mar 2009 19:33:34 -0000	1.141
++++ src/remote_internal.c	16 Mar 2009 16:57:17 -0000
+@@ -332,7 +332,7 @@ doRemoteOpen (virConnectPtr conn,
+               virConnectAuthPtr auth ATTRIBUTE_UNUSED,
+               int flags)
+ {
+-    int wakeupFD[2];
++    int wakeupFD[2] = { -1, -1 };
+     char *transport_str = NULL;
+ 
+     if (conn->uri) {
+@@ -885,6 +885,11 @@ doRemoteOpen (virConnectPtr conn,
+ #endif
+     }
+ 
++    if (wakeupFD[0] >= 0) {
++        close(wakeupFD[0]);
++	close(wakeupFD[1]);
++    }
++
+     VIR_FREE(priv->hostname);
+     goto cleanup;
+ }
+@@ -1350,6 +1355,11 @@ doRemoteClose (virConnectPtr conn, struc
+         } while (reap != -1 && reap != priv->pid);
+     }
+ #endif
++    if (priv->wakeupReadFD >= 0) {
++        close(priv->wakeupReadFD);
++	close(priv->wakeupSendFD);
++    }
++
+ 
+     /* Free hostname copy */
+     free (priv->hostname);

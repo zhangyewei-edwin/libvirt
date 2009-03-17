@@ -1,0 +1,26 @@
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Tue, 10 Mar 2009 10:32:24 +0000 (+0000)
+Subject: Fix Xen block detach with newer Xend (Cole RobinSon / Tomohiro Takahashi)
+X-Git-Url: http://git.et.redhat.com/?p=libvirt.git;a=commitdiff_plain;h=33813a932d58c17441203d0e581eba91369a71e0
+
+Fix Xen block detach with newer Xend (Cole RobinSon / Tomohiro Takahashi)
+---
+
+diff --git a/src/xend_internal.c b/src/xend_internal.c
+index f9f2cb3..772f3f4 100644
+--- a/src/xend_internal.c
++++ b/src/xend_internal.c
+@@ -5566,7 +5566,12 @@ virDomainXMLDevID(virDomainPtr domain,
+     char *xref;
+ 
+     if (dev->type == VIR_DOMAIN_DEVICE_DISK) {
+-        strcpy(class, "vbd");
++        if (dev->data.disk->driverName &&
++            STREQ(dev->data.disk->driverName, "tap"))
++            strcpy(class, "tap");
++        else
++            strcpy(class, "vbd");
++
+         if (dev->data.disk->dst == NULL)
+             return -1;
+         xenUnifiedLock(priv);

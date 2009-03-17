@@ -1,0 +1,20 @@
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Mon, 16 Mar 2009 10:31:38 +0000 (+0000)
+Subject: Don't free storage volume in cleanup path, since it may still be referenced
+X-Git-Url: http://git.et.redhat.com/?p=libvirt.git;a=commitdiff_plain;h=d8f08ca049b6d3bc7a5124a3957e967539ad080d
+
+Don't free storage volume in cleanup path, since it may still be referenced
+---
+
+diff --git a/src/storage_driver.c b/src/storage_driver.c
+index f1320c5..b261843 100644
+--- a/src/storage_driver.c
++++ b/src/storage_driver.c
+@@ -1296,7 +1296,6 @@ storageVolumeDelete(virStorageVolPtr obj,
+     ret = 0;
+ 
+ cleanup:
+-    virStorageVolDefFree(vol);
+     if (pool)
+         virStoragePoolObjUnlock(pool);
+     return ret;
