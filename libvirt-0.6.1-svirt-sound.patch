@@ -10,7 +10,7 @@ diff -rup libvirt-0.6.1.orig/src/qemu_conf.c libvirt-0.6.1.new/src/qemu_conf.c
 +    if (driver->securityDriver &&
 +        driver->securityDriver->name &&
 +        STREQ(driver->securityDriver->name, "selinux") &&
-+        getuid == 0) {
++        getuid() == 0) {
 +        static int soundWarned = 0; 
 +        skipSound = 1;
 +        if (vm->def->nsounds &&

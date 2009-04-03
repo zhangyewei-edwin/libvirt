@@ -47,7 +47,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.1
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -506,6 +506,9 @@ fi
 %endif
 
 %changelog
+* Fri Apr  3 2009 Daniel P. Berrange  <berrange@redhat.com> - 0.6.1-6.fc11
+- Fix typo in previous patch
+
 * Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-5.fc11
 - Don't relabel shared/readonly disks
 - Disable sound cards when running sVirt
