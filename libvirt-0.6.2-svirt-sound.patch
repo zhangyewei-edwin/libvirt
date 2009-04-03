@@ -1,10 +1,9 @@
-diff -rup libvirt-0.6.1.orig/src/qemu_conf.c libvirt-0.6.1.new/src/qemu_conf.c
---- libvirt-0.6.1.orig/src/qemu_conf.c	2009-03-17 11:57:04.000000000 +0000
-+++ libvirt-0.6.1.new/src/qemu_conf.c	2009-03-17 15:50:08.000000000 +0000
-@@ -757,6 +757,20 @@ int qemudBuildCommandLine(virConnectPtr 
-     char uuid[VIR_UUID_STRING_BUFLEN];
+--- src/qemu_conf.c.orig	2009-04-02 11:50:10.000000000 +0200
++++ src/qemu_conf.c	2009-04-03 17:46:59.000000000 +0200
+@@ -779,6 +779,20 @@ int qemudBuildCommandLine(virConnectPtr 
      char domid[50];
      char *pidfile;
+     const char *cpu = NULL;
 +    int skipSound = 0;
 +
 +    if (driver->securityDriver &&
@@ -22,7 +21,7 @@ diff -rup libvirt-0.6.1.orig/src/qemu_conf.c libvirt-0.6.1.new/src/qemu_conf.c
  
      uname_normalize(&ut);
  
-@@ -1364,7 +1378,8 @@ int qemudBuildCommandLine(virConnectPtr 
+@@ -1425,7 +1439,8 @@ int qemudBuildCommandLine(virConnectPtr 
      }
  
      /* Add sound hardware */
@@ -32,4 +31,3 @@ diff -rup libvirt-0.6.1.orig/src/qemu_conf.c libvirt-0.6.1.new/src/qemu_conf.c
          int size = 100;
          char *modstr;
          if (VIR_ALLOC_N(modstr, size+1) < 0)
-Only in libvirt-0.6.1.new/src: qemu_conf.c~

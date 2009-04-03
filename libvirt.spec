@@ -13,6 +13,25 @@
 %define with_uml       0%{!?_without_uml:1}
 %define with_network   0%{!?_without_network:1}
 
+%define with_xen           0%{!?_without_xen:1}
+%define with_xen_proxy     0%{!?_without_xen_proxy:1}
+%define with_qemu          0%{!?_without_qemu:1}
+%define with_openvz        0%{!?_without_openvz:1}
+%define with_lxc           0%{!?_without_lxc:1}
+%define with_sasl          0%{!?_without_sasl:1}
+%define with_avahi         0%{!?_without_avahi:1}
+%define with_polkit        0%{!?_without_polkit:0}
+%define with_python        0%{!?_without_python:1}
+%define with_libvirtd      0%{!?_without_libvirtd:1}
+%define with_uml           0%{!?_without_uml:1}
+%define with_network       0%{!?_without_network:1}
+%define with_storage_fs    0%{!?_without_storage_fs:1}
+%define with_storage_lvm   0%{!?_without_storage_lvm:1}
+%define with_storage_iscsi 0%{!?_without_storage_iscsi:1}
+%define with_storage_disk  0%{!?_without_storage_disk:1}
+%define with_numactl       0%{!?_without_numactl:1}
+
+
 # Xen is available only on i386 x86_64 ia64
 %ifnarch i386 i586 i686 x86_64 ia64
 %define with_xen 0
@@ -46,29 +65,15 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.6.1
-Release: 6%{?dist}%{?extra_release}
+Version: 0.6.2
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
-Patch1: libvirt-0.6.1-xend-lookup.patch
-Patch2: libvirt-0.6.1-xen-events.patch
-Patch3: libvirt-0.6.1-events-dispatch.patch
-Patch4: libvirt-0.6.1-fd-leaks.patch
-Patch5: libvirt-0.6.1-getvcpus-remote.patch
-Patch6: libvirt-0.6.1-pool-mode-parse.patch
-Patch7: libvirt-0.6.1-storage-free.patch
-Patch8: libvirt-0.6.1-vcpu-deadlock.patch
-Patch9: libvirt-0.6.1-xenblock-detach.patch
-Patch10: libvirt-0.6.1-fd-leaks2.patch
-Patch11: libvirt-0.6.1-svirt-shared-readonly.patch
-
-# Not upstream yet - pending QEMU merge
-Patch100: libvirt-0.6.1-vnc-sasl-auth.patch
 
 # Not for upstream. Temporary hack till PulseAudio autostart
 # problems are sorted out when SELinux enforcing
-Patch200: libvirt-0.6.1-svirt-sound.patch
+Patch200: libvirt-0.6.2-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -92,11 +97,13 @@ Requires: cyrus-sasl-md5
 %if %{with_polkit}
 Requires: PolicyKit >= 0.6
 %endif
+%if %{with_storage_fs}
 # For mount/umount in FS driver
 BuildRequires: util-linux
 # For showmount in FS driver (netfs discovery)
 BuildRequires: nfs-utils
 Requires: nfs-utils
+%endif
 %if %{with_qemu}
 # From QEMU RPMs
 Requires: /usr/bin/qemu-img
@@ -106,12 +113,18 @@ Requires: /usr/bin/qemu-img
 Requires: /usr/sbin/qcow-create
 %endif
 %endif
+%if %{with_storage_lvm}
 # For LVM drivers
 Requires: lvm2
+%endif
+%if %{with_storage_iscsi}
 # For ISCSI driver
 Requires: iscsi-initiator-utils
+%endif
+%if %{with_storage_disk}
 # For disk driver
 Requires: parted
+%endif
 # For svirt support
 Requires: libselinux
 %if %{with_xen}
@@ -139,8 +152,10 @@ BuildRequires: cyrus-sasl-devel
 %if %{with_polkit}
 BuildRequires: PolicyKit-devel >= 0.6
 %endif
+%if %{with_storage_fs}
 # For mount/umount in FS driver
 BuildRequires: util-linux
+%endif
 %if %{with_qemu}
 # From QEMU RPMs
 BuildRequires: /usr/bin/qemu-img
@@ -150,14 +165,22 @@ BuildRequires: /usr/bin/qemu-img
 BuildRequires: /usr/sbin/qcow-create
 %endif
 %endif
+%if %{with_storage_lvm}
 # For LVM drivers
 BuildRequires: lvm2
+%endif
+%if %{with_storage_iscsi}
 # For ISCSI driver
 BuildRequires: iscsi-initiator-utils
+%endif
+%if %{with_storage_disk}
 # For disk driver
 BuildRequires: parted-devel
+%endif
+%if %{with_numactl}
 # For QEMU/LXC numa info
 BuildRequires: numactl-devel
+%endif
 Obsoletes: libvir <= 0.2
 Provides: libvir = %{version}-%{release}
 
@@ -200,20 +223,8 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p0
-%patch2 -p0
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
-%patch10 -p0
-%patch11 -p1
 
-%patch100 -p1
-%patch200 -p1
+%patch200 -p0
 
 mv NEWS NEWS.old
 iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
@@ -267,6 +278,26 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 %define _without_network --without-network
 %endif
 
+%if ! %{with_storage_fs}
+%define _without_storage_fs --without-storage-fs
+%endif
+
+%if ! %{with_storage_lvm}
+%define _without_storage_lvm --without-storage-lvm
+%endif
+
+%if ! %{with_storage_iscsi}
+%define _without_storage_iscsi --without-storage-iscsi
+%endif
+
+%if ! %{with_storage_disk}
+%define _without_storage_disk --without-storage-disk
+%endif
+
+%if ! %{with_numactl}
+%define _without_numactl --without-numactl
+%endif
+
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
@@ -279,6 +310,11 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_uml} \
            %{?_without_network} \
            %{?_with_rhel5_api} \
+           %{?_without_storage_fs} \
+           %{?_without_storage_lvm} \
+           %{?_without_storage_iscsi} \
+           %{?_without_storage_disk} \
+           %{?_without_numactl} \
            --with-init-script=redhat \
            --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
            --with-remote-file=%{_localstatedir}/run/libvirtd.pid
@@ -506,6 +542,14 @@ fi
 %endif
 
 %changelog
+* Fri Apr  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.2-1.fc11
+- release of 0.6.2
+- memory ballooning in QEMU
+- SCSI HBA storage pool support
+- support SASL auth for VNC server
+- PCI passthrough in Xen driver
+- assorted bug fixes
+
 * Fri Apr  3 2009 Daniel P. Berrange  <berrange@redhat.com> - 0.6.1-6.fc11
 - Fix typo in previous patch
 
