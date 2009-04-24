@@ -12,7 +12,7 @@
 +        getuid() == 0) {
 +        static int soundWarned = 0; 
 +        skipSound = 1;
-+        if (vm->def->nsounds &&
++        if (def->nsounds &&
 +            !soundWarned) {
 +            soundWarned = 1;
 +            VIR_WARN0("Sound cards for VMs are disabled while SELinux security model is active");
@@ -25,8 +25,8 @@
      }
  
      /* Add sound hardware */
--    if (vm->def->nsounds) {
-+    if (vm->def->nsounds &&
+-    if (def->nsounds) {
++    if (def->nsounds &&
 +        !skipSound) {
          int size = 100;
          char *modstr;

@@ -1,26 +1,14 @@
 # -*- rpm-spec -*-
 
-%define with_xen       0%{!?_without_xen:1}
-%define with_xen_proxy 0%{!?_without_xen_proxy:1}
-%define with_qemu      0%{!?_without_qemu:1}
-%define with_openvz    0%{!?_without_openvz:1}
-%define with_lxc       0%{!?_without_lxc:1}
-%define with_sasl      0%{!?_without_sasl:1}
-%define with_avahi     0%{!?_without_avahi:1}
-%define with_polkit    0%{!?_without_polkit:0}
-%define with_python    0%{!?_without_python:1}
-%define with_libvirtd  0%{!?_without_libvirtd:1}
-%define with_uml       0%{!?_without_uml:1}
-%define with_network   0%{!?_without_network:1}
-
 %define with_xen           0%{!?_without_xen:1}
 %define with_xen_proxy     0%{!?_without_xen_proxy:1}
 %define with_qemu          0%{!?_without_qemu:1}
 %define with_openvz        0%{!?_without_openvz:1}
 %define with_lxc           0%{!?_without_lxc:1}
+%define with_vbox          0%{!?_without_vbox:1}
 %define with_sasl          0%{!?_without_sasl:1}
 %define with_avahi         0%{!?_without_avahi:1}
-%define with_polkit        0%{!?_without_polkit:0}
+%define with_polkit        0%{!?_without_polkit:1}
 %define with_python        0%{!?_without_python:1}
 %define with_libvirtd      0%{!?_without_libvirtd:1}
 %define with_uml           0%{!?_without_uml:1}
@@ -60,23 +48,24 @@
 %define with_rhel5 0
 %else
 %define with_rhel5 1
+%define with_polkit 0
 %endif
 
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.6.2
-Release: 2%{?dist}%{?extra_release}
+Version: 0.6.3
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 
 # Patches cherry-picked from upstream
-Patch0: libvirt-0.6.2-qemu-drive-format.patch
+# N/A
 
 # Not for upstream. Temporary hack till PulseAudio autostart
 # problems are sorted out when SELinux enforcing
-Patch200: libvirt-0.6.2-svirt-sound.patch
+Patch200: libvirt-0.6.3-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -227,8 +216,6 @@ of recent versions of Linux (and other OSes).
 %prep
 %setup -q
 
-%patch0 -p1
-
 %patch200 -p0
 
 mv NEWS NEWS.old
@@ -249,6 +236,10 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 
 %if ! %{with_lxc}
 %define _without_lxc --without-lxc
+%endif
+
+%if ! %{with_vbox}
+%define _without_vbox --without-vbox
 %endif
 
 %if ! %{with_sasl}
@@ -307,6 +298,7 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_qemu} \
            %{?_without_openvz} \
            %{?_without_lxc} \
+           %{?_without_vbox} \
            %{?_without_sasl} \
            %{?_without_avahi} \
            %{?_without_polkit} \
@@ -341,7 +333,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
 # Default dir for disk images defined in SELinux policy
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/images/
-# Default dir for kernel+initrd images defnied in SELinux policy
+# Default dir for kernel+initrd images defined in SELinux policy
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/boot/
 
 %if %{with_qemu}
@@ -414,8 +406,10 @@ fi
 %defattr(-, root, root)
 
 %doc AUTHORS ChangeLog NEWS README COPYING.LIB TODO
-%doc %{_mandir}/man1/virsh.1*
+%{_mandir}/man1/virsh.1*
+%{_mandir}/man1/virt-xml-validate.1*
 %{_bindir}/virsh
+%{_bindir}/virt-xml-validate
 %{_libdir}/lib*.so.*
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/
 
@@ -547,6 +541,12 @@ fi
 %endif
 
 %changelog
+* Fri Apr 24 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-1.fc12
+- release of 0.6.3
+- VirtualBox driver
+- new virt-xml-validate command
+- assorted bug fixes
+
 * Thu Apr 16 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.2-2.fc12
 - Fix qemu drive format specification (#496092)
 
