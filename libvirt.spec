@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.3
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -520,6 +520,7 @@ fi
 %dir %{_includedir}/libvirt
 %{_includedir}/libvirt/*.h
 %{_libdir}/pkgconfig/libvirt.pc
+%dir %{_datadir}/gtk-doc/html/libvirt
 %doc %{_datadir}/gtk-doc/html/libvirt/*.devhelp
 %doc %{_datadir}/gtk-doc/html/libvirt/*.html
 %doc %{_datadir}/gtk-doc/html/libvirt/*.png
@@ -544,6 +545,9 @@ fi
 %endif
 
 %changelog
+* Tue Apr 28 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-3.fc12
+- was also missing /usr/share/gtk-doc/html/libvirt in -devel
+
 * Tue Apr 28 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-2.fc12
 - fix packaging bug #496945 libvirt should own /var/cache/libvirt
 
