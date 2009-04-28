@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.3
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -335,6 +335,8 @@ install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/images/
 # Default dir for kernel+initrd images defined in SELinux policy
 install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/boot/
+# used for virDomainMemoryPeek
+install -d -m 0700 $RPM_BUILD_ROOT%{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
 # We don't want to install /etc/libvirt/qemu/networks in the main %files list
@@ -455,6 +457,7 @@ fi
 %dir %{_localstatedir}/lib/libvirt/
 %dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/images/
 %dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/boot/
+%dir %attr(0700, root, root) %{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
 %dir %{_localstatedir}/run/libvirt/qemu/
@@ -541,6 +544,9 @@ fi
 %endif
 
 %changelog
+* Tue Apr 28 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-2.fc12
+- fix packaging bug #496945 libvirt should own /var/cache/libvirt
+
 * Fri Apr 24 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-1.fc12
 - release of 0.6.3
 - VirtualBox driver
