@@ -55,13 +55,14 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.3
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 
 # Patches cherry-picked from upstream
 # N/A
+Patch1: libvirt-0.6.3-shared-readonly-label.patch
 
 # Not for upstream. Temporary hack till PulseAudio autostart
 # problems are sorted out when SELinux enforcing
@@ -215,6 +216,7 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
 
 %patch200 -p0
 
@@ -545,6 +547,9 @@ fi
 %endif
 
 %changelog
+* Tue May  5 2009 Daniel Berrange <berrange@redhat.com> - 0.6.3-4.fc12
+- Fix readonly/shared disk image labelling (rhbz #493692)
+
 * Tue Apr 28 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-3.fc12
 - was also missing /usr/share/gtk-doc/html/libvirt in -devel
 
