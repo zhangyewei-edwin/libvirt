@@ -19,7 +19,3 @@ MAKEFILE_COMMON := $(shell $(checkout-makefile-common))
 endif
 
 include $(MAKEFILE_COMMON)
-
-ifeq ($(BRANCH),devel)
-include Makefile.preview
-endif
