@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.3
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -63,6 +63,8 @@ Source: libvirt-%{version}.tar.gz
 # Patches cherry-picked from upstream
 Patch1: libvirt-0.6.3-shared-readonly-label.patch
 Patch2: libvirt-0.6.3-hostdev-managed.patch
+# Refresh qemu caps when getCapabilities is called (bz 460649)
+Patch3: libvirt-0.6.3-refresh-qemu-caps.patch
 
 # Not for upstream. Temporary hack till PulseAudio autostart
 # problems are sorted out when SELinux enforcing
@@ -218,6 +220,7 @@ of recent versions of Linux (and other OSes).
 %setup -q
 %patch1 -p1
 %patch2 -p1
+%patch3 -p1
 
 %patch200 -p0
 
@@ -548,6 +551,9 @@ fi
 %endif
 
 %changelog
+* Wed May  6 2009 Cole Robinson <crobinso@redhat.com> - 0.6.3-6.fc12
+- Refresh qemu caps when getCapabilities is called (bug #460649)
+
 * Wed May  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-5.fc12
 - Fix handling of <hostdev managed='yes'> (bug #499386)
 
