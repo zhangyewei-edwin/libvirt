@@ -61,17 +61,22 @@ Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 
 # Patches cherry-picked from upstream
+
+# Handle shared/readonly image labelling (bz 493692)
 Patch1: libvirt-0.6.3-shared-readonly-label.patch
+# Handle <hostdev managed='yes'> correctly (bz 499386)
 Patch2: libvirt-0.6.3-hostdev-managed.patch
 # Refresh qemu caps when getCapabilities is called (bz 460649)
 Patch3: libvirt-0.6.3-refresh-qemu-caps.patch
-# Enable migration with qemu 0.10
+# Enable migration with qemu 0.10 Enable (bz 499704)
 Patch4: libvirt-0.6.3-enable-qemu-0-10-migration.patch
 # Don't try to label a disk with no path (e.g. empty cdrom) (bz 499569)
 Patch5: libvirt-0.6.2-fix-nosource-label.patch
 
-# Not for upstream. Temporary hack till PulseAudio autostart
-# problems are sorted out when SELinux enforcing
+# Patches not for upstream.
+
+# Temporary hack till PulseAudio autostart problems are sorted
+# out when SELinux enforcing (bz 486112)
 Patch200: libvirt-0.6.3-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
