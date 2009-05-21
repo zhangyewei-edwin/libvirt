@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.3
-Release: 9%{?dist}%{?extra_release}
+Release: 10%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -74,6 +74,11 @@ Patch4: libvirt-0.6.3-enable-qemu-0-10-migration.patch
 Patch5: libvirt-0.6.2-fix-nosource-label.patch
 # Fix qemu argv detection with latest qemu (bz 501923)
 Patch6: libvirt-0.6.3-fix-qemu-argv-detection-with-kvm-85.patch
+# Fix XML attribute escaping (bz 499791)
+Patch7: libvirt-0.6.3-xml-attribute-escaping.patch
+# Fix serious event handling issues causing guests to be destroyed (bz 499698)
+Patch8: libvirt-0.6.3-event-handling-1.patch
+Patch9: libvirt-0.6.3-event-handling-2.patch
 
 # Patches not for upstream.
 
@@ -235,6 +240,9 @@ of recent versions of Linux (and other OSes).
 %patch4 -p1
 %patch5 -p1
 %patch6 -p1
+%patch7 -p1
+%patch8 -p1
+%patch9 -p1
 
 %patch200 -p0
 
@@ -565,6 +573,10 @@ fi
 %endif
 
 %changelog
+* Thu May 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-10.fc12
+- Fix XML attribute escaping (bug #499791)
+- Fix serious event handling issues causing guests to be destroyed (bug #499698)
+
 * Thu May 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-9.fc12
 - Fix qemu argv detection with latest qemu (bug #501923)
 
