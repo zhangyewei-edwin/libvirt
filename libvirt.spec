@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.3
-Release: 10%{?dist}%{?extra_release}
+Release: 11%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -79,6 +79,8 @@ Patch7: libvirt-0.6.3-xml-attribute-escaping.patch
 # Fix serious event handling issues causing guests to be destroyed (bz 499698)
 Patch8: libvirt-0.6.3-event-handling-1.patch
 Patch9: libvirt-0.6.3-event-handling-2.patch
+# Bring up the bridge, even if it doesn't have an IP address (bz 501912)
+Patch10: libvirt-0.6.3-bring-up-ipless-bridge.patch
 
 # Patches not for upstream.
 
@@ -243,6 +245,7 @@ of recent versions of Linux (and other OSes).
 %patch7 -p1
 %patch8 -p1
 %patch9 -p1
+%patch10 -p1
 
 %patch200 -p0
 
@@ -573,6 +576,9 @@ fi
 %endif
 
 %changelog
+* Mon May 25 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-11.fc12
+- Bring up the bridge, even if it doesn't have an IP address (bug #501912)
+
 * Thu May 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-10.fc12
 - Fix XML attribute escaping (bug #499791)
 - Fix serious event handling issues causing guests to be destroyed (bug #499698)
