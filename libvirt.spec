@@ -66,7 +66,7 @@ Source: libvirt-%{version}.tar.gz
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
-Patch200: libvirt-0.6.3-svirt-sound.patch
+Patch200: libvirt-0.6.4-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/

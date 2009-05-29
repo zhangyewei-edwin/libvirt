@@ -1,8 +1,8 @@
---- src/qemu_conf.c.orig	2009-04-02 11:50:10.000000000 +0200
-+++ src/qemu_conf.c	2009-04-03 17:46:59.000000000 +0200
-@@ -779,6 +779,20 @@ int qemudBuildCommandLine(virConnectPtr 
+--- src/qemu_conf.c.orig	2009-05-29 19:24:59.000000000 +0200
++++ src/qemu_conf.c	2009-05-29 19:19:39.000000000 +0200
+@@ -792,6 +792,20 @@ int qemudBuildCommandLine(virConnectPtr 
+     char uuid[VIR_UUID_STRING_BUFLEN];
      char domid[50];
-     char *pidfile;
      const char *cpu = NULL;
 +    int skipSound = 0;
 +
@@ -21,7 +21,7 @@
  
      uname_normalize(&ut);
  
-@@ -1425,7 +1439,8 @@ int qemudBuildCommandLine(virConnectPtr 
+@@ -1429,7 +1443,8 @@ int qemudBuildCommandLine(virConnectPtr 
      }
  
      /* Add sound hardware */
