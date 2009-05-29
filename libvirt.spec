@@ -54,33 +54,13 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.6.3
-Release: 11%{?dist}%{?extra_release}
+Version: 0.6.4
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 
 # Patches cherry-picked from upstream
-
-# Handle shared/readonly image labelling (bz 493692)
-Patch1: libvirt-0.6.3-shared-readonly-label.patch
-# Handle <hostdev managed='yes'> correctly (bz 499386)
-Patch2: libvirt-0.6.3-hostdev-managed.patch
-# Refresh qemu caps when getCapabilities is called (bz 460649)
-Patch3: libvirt-0.6.3-refresh-qemu-caps.patch
-# Enable migration with qemu 0.10 Enable (bz 499704)
-Patch4: libvirt-0.6.3-enable-qemu-0-10-migration.patch
-# Don't try to label a disk with no path (e.g. empty cdrom) (bz 499569)
-Patch5: libvirt-0.6.2-fix-nosource-label.patch
-# Fix qemu argv detection with latest qemu (bz 501923)
-Patch6: libvirt-0.6.3-fix-qemu-argv-detection-with-kvm-85.patch
-# Fix XML attribute escaping (bz 499791)
-Patch7: libvirt-0.6.3-xml-attribute-escaping.patch
-# Fix serious event handling issues causing guests to be destroyed (bz 499698)
-Patch8: libvirt-0.6.3-event-handling-1.patch
-Patch9: libvirt-0.6.3-event-handling-2.patch
-# Bring up the bridge, even if it doesn't have an IP address (bz 501912)
-Patch10: libvirt-0.6.3-bring-up-ipless-bridge.patch
 
 # Patches not for upstream.
 
@@ -236,16 +216,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
-%patch10 -p1
 
 %patch200 -p0
 
@@ -576,6 +546,12 @@ fi
 %endif
 
 %changelog
+* Fri May 29 2009 Daniel Veillard <veillard@redhat.com> - 0.6.4-1.fc12
+- Upstream release of 0.6.4
+- new APIs
+- fixes for latests QEmu/KVM versions
+- various assorted fixes
+
 * Mon May 25 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-11.fc12
 - Bring up the bridge, even if it doesn't have an IP address (bug #501912)
 
