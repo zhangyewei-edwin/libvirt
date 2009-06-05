@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.4
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -136,9 +136,6 @@ BuildRequires: avahi-devel
 BuildRequires: libselinux-devel
 BuildRequires: dnsmasq
 BuildRequires: bridge-utils
-%if %{with_qemu}
-BuildRequires: qemu
-%endif
 %if %{with_sasl}
 BuildRequires: cyrus-sasl-devel
 %endif
@@ -546,6 +543,9 @@ fi
 %endif
 
 %changelog
+* Fri Jun  5 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-2.fc12
+- Remove the qemu BuildRequires
+
 * Fri May 29 2009 Daniel Veillard <veillard@redhat.com> - 0.6.4-1.fc12
 - Upstream release of 0.6.4
 - new APIs
