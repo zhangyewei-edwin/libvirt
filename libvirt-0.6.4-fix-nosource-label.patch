@@ -1,0 +1,35 @@
+From 06f607a9c5cfd50433ae27cc7729c31f81d87f19 Mon Sep 17 00:00:00 2001
+From: Cole Robinson <crobinso@redhat.com>
+Date: Fri, 3 Jul 2009 10:40:55 +0100
+Subject: [PATCH 3/3] Skip labelling if no src path present
+
+Fixes startup of guest's with sourceless cdrom devices.
+
+Patch originall posted here:
+
+  https://bugzilla.redhat.com/499569
+
+but never sent upstream.
+
+Signed-off-by: Mark McLoughlin <markmc@redhat.com>
+---
+ src/security_selinux.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/src/security_selinux.c b/src/security_selinux.c
+index c2015a1..eb8d308 100644
+--- a/src/security_selinux.c
++++ b/src/security_selinux.c
+@@ -342,6 +342,9 @@ SELinuxSetSecurityImageLabel(virConnectPtr conn,
+ {
+     const virSecurityLabelDefPtr secdef = &vm->def->seclabel;
+ 
++    if (!disk->src)
++        return 0;
++
+     if (disk->shared) {
+         return SELinuxSetFilecon(conn, disk->src, default_image_context);
+     } else if (disk->readonly) {
+-- 
+1.6.2.5
+
