@@ -55,7 +55,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.4
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -66,6 +66,8 @@ Patch1: libvirt-0.6.4-shared-readonly-label.patch
 Patch2: libvirt-0.6.4-do-not-unnecessarily-try-to-change-a-file-context.patch
 # Don't try to label a disk with no path (e.g. empty cdrom) (bug #499569)
 Patch3: libvirt-0.6.4-fix-nosource-label.patch
+# Fix libvirtd crash with bad capabilities data (bug #505635)
+Patch4 :libvirt-0.6.4-fix-libvirtd-crash-with-bad-capabilities-data.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -220,6 +222,7 @@ of recent versions of Linux (and other OSes).
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
 
 %patch200 -p0
 
@@ -550,6 +553,9 @@ fi
 %endif
 
 %changelog
+* Fri Jul  3 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-4.fc12
+- Fix libvirtd crash with bad capabilities data (bug #505635)
+
 * Fri Jul  3 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-3.fc12
 - Handle shared/readonly image labelling (bug #493692)
 - Don't unnecessarily try to change a file context (bug #507555)
