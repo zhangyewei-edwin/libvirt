@@ -12,13 +12,15 @@
 %define with_python        0%{!?_without_python:1}
 %define with_libvirtd      0%{!?_without_libvirtd:1}
 %define with_uml           0%{!?_without_uml:1}
+%define with_one           0%{!?_without_one:1}
 %define with_network       0%{!?_without_network:1}
 %define with_storage_fs    0%{!?_without_storage_fs:1}
 %define with_storage_lvm   0%{!?_without_storage_lvm:1}
 %define with_storage_iscsi 0%{!?_without_storage_iscsi:1}
 %define with_storage_disk  0%{!?_without_storage_disk:1}
 %define with_numactl       0%{!?_without_numactl:1}
-
+# default to off
+%define with_capng         0%{!?_without_capng:0}
 
 # Xen is available only on i386 x86_64 ia64
 %ifnarch i386 i586 i686 x86_64 ia64
@@ -40,34 +42,30 @@
 %define with_xen_proxy 0
 %endif
 
+%if 0%{?fedora} >= 12
+%define with_capng     0%{!?_without_capng:1}
+%endif
+
 #
 # If building on RHEL switch on the specific support
 # for the specific Xen version
 #
 %if 0%{?fedora}
-%define with_rhel5 0
+%define with_rhel5  0
 %else
-%define with_rhel5 1
+%define with_rhel5  1
 %define with_polkit 0
+%define with_one    0
 %endif
 
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.6.4
-Release: 4%{?dist}%{?extra_release}
+Version: 0.6.5
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
-
-# Handle shared/readonly image labelling (bug #493692)
-Patch1: libvirt-0.6.4-shared-readonly-label.patch
-# Don't unnecessarily try to change a file context (bug #507555)
-Patch2: libvirt-0.6.4-do-not-unnecessarily-try-to-change-a-file-context.patch
-# Don't try to label a disk with no path (e.g. empty cdrom) (bug #499569)
-Patch3: libvirt-0.6.4-fix-nosource-label.patch
-# Fix libvirtd crash with bad capabilities data (bug #505635)
-Patch4 :libvirt-0.6.4-fix-libvirtd-crash-with-bad-capabilities-data.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -128,6 +126,9 @@ Requires: libselinux
 %if %{with_xen}
 BuildRequires: xen-devel
 %endif
+%if %{with_one}
+BuildRequires: xmlrpc-c-devel >= 1.14.0
+%endif
 BuildRequires: libxml2-devel
 BuildRequires: xhtml1-dtds
 BuildRequires: readline-devel
@@ -141,6 +142,9 @@ BuildRequires: avahi-devel
 BuildRequires: libselinux-devel
 BuildRequires: dnsmasq
 BuildRequires: bridge-utils
+%if %{with_qemu}
+BuildRequires: qemu
+%endif
 %if %{with_sasl}
 BuildRequires: cyrus-sasl-devel
 %endif
@@ -176,6 +180,10 @@ BuildRequires: parted-devel
 # For QEMU/LXC numa info
 BuildRequires: numactl-devel
 %endif
+%if %{with_capng}
+BuildRequires: capng-devel >= 0.5.0
+%endif
+
 Obsoletes: libvir <= 0.2
 Provides: libvir = %{version}-%{release}
 
@@ -218,11 +226,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
 
 %patch200 -p0
 
@@ -274,6 +277,10 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 %define _without_uml --without-uml
 %endif
 
+%if ! %{with_one}
+%define _without_one --without-one
+%endif
+
 %if %{with_rhel5}
 %define _with_rhel5_api --with-rhel5-api
 %endif
@@ -313,6 +320,7 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_python} \
            %{?_without_libvirtd} \
            %{?_without_uml} \
+           %{?_without_one} \
            %{?_without_network} \
            %{?_with_rhel5_api} \
            %{?_without_storage_fs} \
@@ -553,6 +561,11 @@ fi
 %endif
 
 %changelog
+* Fri Jul  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.5-1.fc12
+- Upstream release of 0.6.5
+- OpenNebula driver
+- many bug fixes
+
 * Fri Jul  3 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-4.fc12
 - Fix libvirtd crash with bad capabilities data (bug #505635)
 
