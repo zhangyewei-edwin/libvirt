@@ -62,7 +62,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.5
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -558,6 +558,9 @@ fi
 %endif
 
 %changelog
+* Fri Jul 10 2009 Richard W.M. Jones <rjones@redhat.com> - 0.6.5-2.fc12
+- Bump release number to rebuild against new libparted.
+
 * Fri Jul  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.5-1.fc12
 - Upstream release of 0.6.5
 - OpenNebula driver
