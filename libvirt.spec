@@ -62,7 +62,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.6.5
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -558,6 +558,9 @@ fi
 %endif
 
 %changelog
+* Sat Jul 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.5-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_12_Mass_Rebuild
+
 * Fri Jul 10 2009 Richard W.M. Jones <rjones@redhat.com> - 0.6.5-2.fc12
 - Bump release number to rebuild against new libparted.
 
