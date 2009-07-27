@@ -13,6 +13,8 @@
 %define with_libvirtd      0%{!?_without_libvirtd:1}
 %define with_uml           0%{!?_without_uml:1}
 %define with_one           0%{!?_without_one:1}
+# default to off
+%define with_phyp          0%{!?_without_phyp:0}
 %define with_network       0%{!?_without_network:1}
 %define with_storage_fs    0%{!?_without_storage_fs:1}
 %define with_storage_lvm   0%{!?_without_storage_lvm:1}
@@ -46,6 +48,14 @@
 %define with_capng     0%{!?_without_capng:1}
 %endif
 
+%if 0%{?fedora} >= 12
+%define qemu_user  qemu
+%define qemu_group  qemu
+%else
+%define qemu_user  root
+%define qemu_group  root
+%endif
+
 #
 # If building on RHEL switch on the specific support
 # for the specific Xen version
@@ -61,11 +71,11 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.6.5
-Release: 3%{?dist}%{?extra_release}
+Version: 0.7.0
+Release: 0.1.gitf055724%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: libvirt-%{version}.tar.gz
+Source: libvirt-0.7.0-0.1.gitf055724.tar.gz
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -73,6 +83,10 @@ Patch200: libvirt-0.6.4-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
+
+# The client side, i.e. shared libs and virsh are in a subpackage
+Requires: libvirt-client = %{version}-%{release}
+
 BuildRequires: python python-devel
 Requires: readline
 Requires: ncurses
@@ -99,6 +113,8 @@ BuildRequires: util-linux
 # For showmount in FS driver (netfs discovery)
 BuildRequires: nfs-utils
 Requires: nfs-utils
+# For glusterfs
+Requires: glusterfs-client >= 2.0.2
 %endif
 %if %{with_qemu}
 # From QEMU RPMs
@@ -180,16 +196,38 @@ BuildRequires: numactl-devel
 %if %{with_capng}
 BuildRequires: libcap-ng-devel >= 0.5.0
 %endif
-
-Obsoletes: libvir <= 0.2
-Provides: libvir = %{version}-%{release}
+%if %{with_phyp}
+BuildRequires: libssh-devel >= 0.3.1
+%endif
 
 # Fedora build root suckage
 BuildRequires: gawk
 
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
-of recent versions of Linux (and other OSes).
+of recent versions of Linux (and other OSes). The main package includes
+the libvirtd server exporting the virtualization support.
+
+%package client
+Summary: client side library and utilities of the libvirt library
+Group: Development/Libraries
+Requires: libxml2
+Requires: readline
+Requires: ncurses
+# So remote clients can access libvirt over SSH tunnel
+# (client invokes 'nc' against the UNIX socket on the server)
+Requires: nc
+%if %{with_sasl}
+Requires: cyrus-sasl
+# Not technically required, but makes 'out-of-box' config
+# work correctly & doesn't have onerous dependencies
+Requires: cyrus-sasl-md5
+%endif
+
+%description client
+Shared libraries and client binaries needed to access to the
+virtualization capabilities of recent versions of Linux (and other OSes).
+
 
 %package devel
 Summary: Libraries, includes, etc. to compile with the libvirt library
@@ -199,8 +237,6 @@ Requires: pkgconfig
 %if %{with_xen}
 Requires: xen-devel
 %endif
-Obsoletes: libvir-devel <= 0.2
-Provides: libvir-devel = %{version}-%{release}
 
 %description devel
 Includes and documentations for the C library providing an API to use
@@ -211,8 +247,6 @@ the virtualization capabilities of recent versions of Linux (and other OSes).
 Summary: Python bindings for the libvirt library
 Group: Development/Libraries
 Requires: libvirt = %{version}-%{release}
-Obsoletes: libvir-python <= 0.2
-Provides: libvir-python = %{version}-%{release}
 
 %description python
 The libvirt-python package contains a module that permits applications
@@ -256,6 +290,10 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 
 %if ! %{with_avahi}
 %define _without_avahi --without-avahi
+%endif
+
+%if ! %{with_phyp}
+%define _without_phyp --without-phyp
 %endif
 
 %if ! %{with_polkit}
@@ -318,6 +356,7 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_libvirtd} \
            %{?_without_uml} \
            %{?_without_one} \
+           %{?_without_phyp} \
            %{?_without_network} \
            %{?_with_rhel5_api} \
            %{?_without_storage_fs} \
@@ -326,9 +365,9 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_storage_disk} \
            %{?_without_numactl} \
            --with-init-script=redhat \
-           --with-qemud-pid-file=%{_localstatedir}/run/libvirt_qemud.pid \
-           --with-remote-file=%{_localstatedir}/run/libvirtd.pid
+           --with-remote-pid-file=%{_localstatedir}/run/libvirtd.pid
 make %{?_smp_mflags}
+gzip -9 ChangeLog
 
 %install
 rm -rf %{buildroot}
@@ -338,6 +377,7 @@ rm -rf %{buildroot}
 (cd docs/examples/python ; rm -rf .deps Makefile Makefile.in)
 (cd examples/hellolibvirt ; make clean ; rm -rf .deps .libs Makefile Makefile.in)
 (cd examples/domain-events/events-c ;  make clean ;rm -rf .deps .libs Makefile Makefile.in)
+(cd python/tests ; rm -f *.py?)
 
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
@@ -417,15 +457,10 @@ fi
 
 %postun -p /sbin/ldconfig
 
-%files -f %{name}.lang
+%files
 %defattr(-, root, root)
 
-%doc AUTHORS ChangeLog NEWS README COPYING.LIB TODO
-%{_mandir}/man1/virsh.1*
-%{_mandir}/man1/virt-xml-validate.1*
-%{_bindir}/virsh
-%{_bindir}/virt-xml-validate
-%{_libdir}/lib*.so.*
+%doc AUTHORS ChangeLog.gz NEWS README COPYING.LIB TODO
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/
 
 %if %{with_qemu}
@@ -445,25 +480,11 @@ fi
 %config(noreplace) %{_sysconfdir}/libvirt/qemu.conf
 %endif
 
-%if %{with_sasl}
-%config(noreplace) %{_sysconfdir}/sasl2/libvirt.conf
-%endif
-
 %if %{with_qemu}
 %dir %{_datadir}/libvirt/
 %dir %{_datadir}/libvirt/networks/
 %{_datadir}/libvirt/networks/default.xml
 %endif
-
-%dir %{_datadir}/libvirt/
-%dir %{_datadir}/libvirt/schemas/
-
-%{_datadir}/libvirt/schemas/domain.rng
-%{_datadir}/libvirt/schemas/network.rng
-%{_datadir}/libvirt/schemas/storagepool.rng
-%{_datadir}/libvirt/schemas/storagevol.rng
-%{_datadir}/libvirt/schemas/nodedev.rng
-%{_datadir}/libvirt/schemas/capability.rng
 
 %dir %{_localstatedir}/run/libvirt/
 
@@ -526,6 +547,31 @@ fi
 
 %doc docs/*.xml
 
+%files client -f %{name}.lang
+%defattr(-, root, root)
+%doc AUTHORS ChangeLog.gz NEWS README COPYING.LIB TODO
+
+%{_mandir}/man1/virsh.1*
+%{_mandir}/man1/virt-xml-validate.1*
+%{_bindir}/virsh
+%{_bindir}/virt-xml-validate
+%{_libdir}/lib*.so.*
+
+%dir %{_datadir}/libvirt/
+%dir %{_datadir}/libvirt/schemas/
+
+%{_datadir}/libvirt/schemas/domain.rng
+%{_datadir}/libvirt/schemas/network.rng
+%{_datadir}/libvirt/schemas/storagepool.rng
+%{_datadir}/libvirt/schemas/storagevol.rng
+%{_datadir}/libvirt/schemas/nodedev.rng
+%{_datadir}/libvirt/schemas/capability.rng
+%{_datadir}/libvirt/schemas/interface.rng
+
+%if %{with_sasl}
+%config(noreplace) %{_sysconfdir}/sasl2/libvirt.conf
+%endif
+
 %files devel
 %defattr(-, root, root)
 
@@ -555,9 +601,14 @@ fi
 %doc python/TODO
 %doc python/libvirtclass.txt
 %doc docs/examples/python
+# %dir %{_datadir}/doc/libvirt-%{version}-%{release}/examples
+# %{_datadir}/doc/libvirt-%{version}-%{release}/examples/*.py
 %endif
 
 %changelog
+* Mon Jul 27 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-0.1.gitf055724
+- prerelease of 0.7.0
+
 * Sat Jul 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.5-3
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_12_Mass_Rebuild
 
