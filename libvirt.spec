@@ -493,8 +493,9 @@ fi
 %dir %attr(0700, root, root) %{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
-%dir %{_localstatedir}/run/libvirt/qemu/
-%dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/qemu/
+%dir %attr(0700, %{qemu_user}, %{qemu_group}) %{_localstatedir}/run/libvirt/qemu/
+%dir %attr(0700, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/
+%dir %attr(0700, %{qemu_user}, %{qemu_group}) %{_localstatedir}/cache/libvirt/qemu/
 %endif
 %if %{with_lxc}
 %dir %{_localstatedir}/run/libvirt/lxc/
@@ -613,6 +614,7 @@ fi
 - Remove explicit libxml2 requires, again
 - Build with --without-capng if capng support is disabled
 - Remove explicit dir creating in makeinstall, replaced by attr in files
+- Set perms on /var/{run,lib,cache}/libvirt/qemu
 
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
 - Drop glusterfs dep to 2.0.1 (bug #514191)
