@@ -23,6 +23,7 @@
 %define with_numactl       0%{!?_without_numactl:1}
 # default to off
 %define with_capng         0%{!?_without_capng:0}
+%define with_netcf         0%{!?_without_netcf:1}
 
 # Xen is available only on i386 x86_64 ia64
 %ifnarch i386 i586 i686 x86_64 ia64
@@ -49,6 +50,10 @@
 %endif
 
 %if 0%{?fedora} >= 12
+%define with_netcf     0%{!?_without_netcf:1}
+%endif
+
+%if 0%{?fedora} >= 12
 %define qemu_user  qemu
 %define qemu_group  qemu
 %else
@@ -72,7 +77,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.2.gitf055724%{?dist}%{?extra_release}
+Release: 0.3.gitf055724%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.1.gitf055724.tar.gz
@@ -198,6 +203,9 @@ BuildRequires: libcap-ng-devel >= 0.5.0
 %endif
 %if %{with_phyp}
 BuildRequires: libssh-devel >= 0.3.1
+%endif
+%if %{with_netcf}
+BuildRequires: netcf-devel
 %endif
 
 # Fedora build root suckage
@@ -344,6 +352,10 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 %define _without_numactl --without-numactl
 %endif
 
+%if ! %{with_netcf}
+%define _without_netcf --without-netcf
+%endif
+
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
@@ -364,6 +376,7 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_storage_iscsi} \
            %{?_without_storage_disk} \
            %{?_without_numactl} \
+           %{?_without_netcf} \
            --with-init-script=redhat \
            --with-remote-pid-file=%{_localstatedir}/run/libvirtd.pid
 make %{?_smp_mflags}
@@ -606,6 +619,9 @@ fi
 %endif
 
 %changelog
+* Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.3.gitf055724
+- Enable netcf support
+
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
 - Drop glusterfs dep to 2.0.1 (bug #514191)
 
