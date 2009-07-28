@@ -63,7 +63,6 @@
 
 #
 # If building on RHEL switch on the specific support
-# for the specific Xen version
 #
 %if 0%{?fedora}
 %define with_rhel5  0
@@ -88,27 +87,16 @@ Patch200: libvirt-0.6.4-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
+BuildRequires: python python-devel
 
 # The client side, i.e. shared libs and virsh are in a subpackage
 Requires: libvirt-client = %{version}-%{release}
 
-BuildRequires: python python-devel
-Requires: readline
-Requires: ncurses
 Requires: dnsmasq
 Requires: bridge-utils
 Requires: iptables
 # needed for device enumeration
 Requires: hal
-# So remote clients can access libvirt over SSH tunnel
-# (client invokes 'nc' against the UNIX socket on the server)
-Requires: nc
-%if %{with_sasl}
-Requires: cyrus-sasl
-# Not technically required, but makes 'out-of-box' config
-# work correctly & doesn't have onerous dependencies
-Requires: cyrus-sasl-md5
-%endif
 %if %{with_polkit}
 Requires: PolicyKit >= 0.6
 %endif
@@ -235,7 +223,6 @@ Requires: cyrus-sasl-md5
 %description client
 Shared libraries and client binaries needed to access to the
 virtualization capabilities of recent versions of Linux (and other OSes).
-
 
 %package devel
 Summary: Libraries, includes, etc. to compile with the libvirt library
@@ -383,7 +370,7 @@ make %{?_smp_mflags}
 gzip -9 ChangeLog
 
 %install
-rm -rf %{buildroot}
+rm -fr %{buildroot}
 
 %makeinstall
 (cd docs/examples ; make clean ; rm -rf .deps Makefile Makefile.in)
@@ -621,6 +608,8 @@ fi
 %changelog
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.3.gitf055724
 - Enable netcf support
+- Move various requires to the libvirt-client sub-package
+- Sync some trivial cleanups from upstream spec file
 
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
 - Drop glusterfs dep to 2.0.1 (bug #514191)
