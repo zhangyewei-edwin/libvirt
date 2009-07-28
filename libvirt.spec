@@ -207,7 +207,6 @@ the libvirtd server exporting the virtualization support.
 %package client
 Summary: client side library and utilities of the libvirt library
 Group: Development/Libraries
-Requires: libxml2
 Requires: readline
 Requires: ncurses
 # So remote clients can access libvirt over SSH tunnel
@@ -339,6 +338,10 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
 %define _without_numactl --without-numactl
 %endif
 
+%if ! %{with_capng}
+%define _without_capng --without-capng
+%endif
+
 %if ! %{with_netcf}
 %define _without_netcf --without-netcf
 %endif
@@ -363,6 +366,7 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_storage_iscsi} \
            %{?_without_storage_disk} \
            %{?_without_numactl} \
+           %{?_without_capng} \
            %{?_without_netcf} \
            --with-init-script=redhat \
            --with-remote-pid-file=%{_localstatedir}/run/libvirtd.pid
@@ -610,6 +614,8 @@ fi
 - Enable netcf support
 - Move various requires to the libvirt-client sub-package
 - Sync some trivial cleanups from upstream spec file
+- Remove explicit libxml2 requires, again
+- Build with --without-capng if capng support is disabled
 
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
 - Drop glusterfs dep to 2.0.1 (bug #514191)
