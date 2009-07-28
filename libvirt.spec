@@ -579,7 +579,7 @@ fi
 %dir %{_includedir}/libvirt
 %{_includedir}/libvirt/*.h
 %{_libdir}/pkgconfig/libvirt.pc
-%dir %{_datadir}/gtk-doc/html/libvirt
+%dir %{_datadir}/gtk-doc/html/libvirt/
 %doc %{_datadir}/gtk-doc/html/libvirt/*.devhelp
 %doc %{_datadir}/gtk-doc/html/libvirt/*.html
 %doc %{_datadir}/gtk-doc/html/libvirt/*.png
@@ -601,8 +601,6 @@ fi
 %doc python/TODO
 %doc python/libvirtclass.txt
 %doc docs/examples/python
-# %dir %{_datadir}/doc/libvirt-%{version}-%{release}/examples
-# %{_datadir}/doc/libvirt-%{version}-%{release}/examples/*.py
 %endif
 
 %changelog
