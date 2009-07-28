@@ -72,7 +72,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.1.gitf055724%{?dist}%{?extra_release}
+Release: 0.2.gitf055724%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.1.gitf055724.tar.gz
@@ -114,7 +114,7 @@ BuildRequires: util-linux
 BuildRequires: nfs-utils
 Requires: nfs-utils
 # For glusterfs
-Requires: glusterfs-client >= 2.0.2
+Requires: glusterfs-client >= 2.0.1
 %endif
 %if %{with_qemu}
 # From QEMU RPMs
@@ -606,6 +606,9 @@ fi
 %endif
 
 %changelog
+* Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
+- Drop glusterfs dep to 2.0.1 (bug #514191)
+
 * Mon Jul 27 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-0.1.gitf055724
 - prerelease of 0.7.0
 
