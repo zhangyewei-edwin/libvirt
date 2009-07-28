@@ -389,13 +389,6 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
-install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/run/libvirt/
-# Default dir for disk images defined in SELinux policy
-install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/images/
-# Default dir for kernel+initrd images defined in SELinux policy
-install -d -m 0755 $RPM_BUILD_ROOT%{_localstatedir}/lib/libvirt/boot/
-# used for virDomainMemoryPeek
-install -d -m 0700 $RPM_BUILD_ROOT%{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
 # We don't want to install /etc/libvirt/qemu/networks in the main %files list
@@ -619,6 +612,7 @@ fi
 - Sync some trivial cleanups from upstream spec file
 - Remove explicit libxml2 requires, again
 - Build with --without-capng if capng support is disabled
+- Remove explicit dir creating in makeinstall, replaced by attr in files
 
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
 - Drop glusterfs dep to 2.0.1 (bug #514191)
