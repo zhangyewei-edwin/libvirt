@@ -368,6 +368,8 @@ iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
            %{?_without_numactl} \
            %{?_without_capng} \
            %{?_without_netcf} \
+           --with-qemu-user=%{qemu_user} \
+           --with-qemu-group=%{qemu_group} \
            --with-init-script=redhat \
            --with-remote-pid-file=%{_localstatedir}/run/libvirtd.pid
 make %{?_smp_mflags}
@@ -612,6 +614,7 @@ fi
 %changelog
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.3.gitf055724
 - Enable netcf support
+- Pass --with-qemu-user=qemu etc. to configure
 - Move various requires to the libvirt-client sub-package
 - Sync some trivial cleanups from upstream spec file
 - Remove explicit libxml2 requires, again
