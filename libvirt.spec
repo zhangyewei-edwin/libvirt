@@ -76,10 +76,12 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.3.gitf055724%{?dist}%{?extra_release}
+Release: 0.4.gitf055724%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.1.gitf055724.tar.gz
+
+Patch01: libvirt-convert-news-to-utf8.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -87,7 +89,7 @@ Patch200: libvirt-0.6.4-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
-BuildRequires: python python-devel
+BuildRequires: python-devel
 
 # The client side, i.e. shared libs and virsh are in a subpackage
 Requires: libvirt-client = %{version}-%{release}
@@ -130,8 +132,6 @@ Requires: iscsi-initiator-utils
 # For disk driver
 Requires: parted
 %endif
-# For svirt support
-Requires: libselinux
 %if %{with_xen}
 BuildRequires: xen-devel
 %endif
@@ -252,10 +252,9 @@ of recent versions of Linux (and other OSes).
 %prep
 %setup -q
 
-%patch200 -p0
+%patch01 -p1
 
-mv NEWS NEWS.old
-iconv -f ISO-8859-1 -t UTF-8 < NEWS.old > NEWS
+%patch200 -p0
 
 %build
 %if ! %{with_xen}
@@ -383,8 +382,6 @@ rm -fr %{buildroot}
 (cd docs/examples/python ; rm -rf .deps Makefile Makefile.in)
 (cd examples/hellolibvirt ; make clean ; rm -rf .deps .libs Makefile Makefile.in)
 (cd examples/domain-events/events-c ;  make clean ;rm -rf .deps .libs Makefile Makefile.in)
-(cd python/tests ; rm -f *.py?)
-
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
@@ -604,6 +601,12 @@ fi
 %endif
 
 %changelog
+* Wed Jul 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.4.gitf055724
+- Drop explicit libselinux requires, it is autorequired
+- Drop cleanup of python/tests, apparently not needed
+- Cherry-pick upstream patch to convert NEWS to UTF-8, drop iconv
+- Drop python BR; python-devel requires it
+
 * Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.3.gitf055724
 - Enable netcf support
 - Pass --with-qemu-user=qemu etc. to configure
