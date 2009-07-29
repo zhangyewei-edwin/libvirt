@@ -76,7 +76,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.4.gitf055724%{?dist}%{?extra_release}
+Release: 0.5.gitf055724%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.1.gitf055724.tar.gz
@@ -205,7 +205,7 @@ of recent versions of Linux (and other OSes). The main package includes
 the libvirtd server exporting the virtualization support.
 
 %package client
-Summary: client side library and utilities of the libvirt library
+Summary: Client side library and utilities of the libvirt library
 Group: Development/Libraries
 Requires: readline
 Requires: ncurses
@@ -422,7 +422,6 @@ chmod 0644 $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/libvirtd
 rm -fr %{buildroot}
 
 %post
-/sbin/ldconfig
 
 %if %{with_libvirtd}
 %if %{with_qemu}
@@ -451,7 +450,9 @@ if [ $1 = 0 ]; then
 fi
 %endif
 
-%postun -p /sbin/ldconfig
+%post client -p /sbin/ldconfig
+
+%postun client -p /sbin/ldconfig
 
 %files
 %defattr(-, root, root)
@@ -601,6 +602,10 @@ fi
 %endif
 
 %changelog
+* Wed Jul 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.5.gitf055724
+- Move ldconfig call to libvirt-client %post/%postun
+- Fix rpmlint warning about libvirt-client summary
+
 * Wed Jul 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.4.gitf055724
 - Drop explicit libselinux requires, it is autorequired
 - Drop cleanup of python/tests, apparently not needed
