@@ -78,12 +78,10 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.5.gitf055724%{?dist}%{?extra_release}
+Release: 0.6.gite195b43%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: libvirt-0.7.0-0.1.gitf055724.tar.gz
-
-Patch01: libvirt-convert-news-to-utf8.patch
+Source: libvirt-0.7.0-0.6.gite195b43.tar.gz
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -253,8 +251,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-
-%patch01 -p1
 
 %patch200 -p0
 
@@ -604,6 +600,10 @@ fi
 %endif
 
 %changelog
+* Wed Jul 29 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-0.6.gite195b43
+- another prerelease with qemu, uml and remote patches
+- drop the news patch as it's now UTF8 upstream
+
 * Wed Jul 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.5.gitf055724
 - Move ldconfig call to libvirt-client %post/%postun
 - Fix rpmlint warning about libvirt-client summary
