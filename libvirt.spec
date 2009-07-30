@@ -78,7 +78,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.6.gite195b43%{?dist}%{?extra_release}
+Release: 0.7.gite195b43%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.6.gite195b43.tar.gz
@@ -419,6 +419,18 @@ chmod 0644 $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/libvirtd
 %clean
 rm -fr %{buildroot}
 
+%pre
+%if 0%{?fedora} >= 12
+# Normally 'setup' adds this in /etc/passwd, but this is
+# here for case of upgrades from earlier Fedora. This
+# UID/GID pair is reserved for qemu:qemu
+getent group kvm >/dev/null || groupadd -g 36 -r kvm
+getent group qemu >/dev/null || groupadd -g 107 -r qemu
+getent passwd qemu >/dev/null || \
+  useradd -r -u 107 -g qemu -G kvm -d / -s /sbin/nologin \
+    -c "qemu user" qemu
+%endif
+
 %post
 
 %if %{with_libvirtd}
@@ -600,6 +612,9 @@ fi
 %endif
 
 %changelog
+* Thu Jul 30 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.0-0.7.gite195b43
+- Create qemu/kvm user & group to fix upgrades
+
 * Wed Jul 29 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-0.6.gite195b43
 - another prerelease with qemu, uml and remote patches
 - drop the news patch as it's now UTF8 upstream
