@@ -78,10 +78,13 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.7.gite195b43%{?dist}%{?extra_release}
+Release: 0.8.gite195b43%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.6.gite195b43.tar.gz
+
+# Should be in 0.7.0
+Patch01: libvirt-fix-permissions-problem-starting-qemu.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -251,6 +254,8 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+
+%patch01 -p1
 
 %patch200 -p0
 
@@ -612,6 +617,9 @@ fi
 %endif
 
 %changelog
+* Thu Jul 30 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.8.gite195b43
+- Add patch from upstream to fix qemu pidfile perms problem
+
 * Thu Jul 30 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.0-0.7.gite195b43
 - Create qemu/kvm user & group to fix upgrades
 
