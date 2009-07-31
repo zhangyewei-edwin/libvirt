@@ -78,7 +78,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.8.gite195b43%{?dist}%{?extra_release}
+Release: 0.9.gite195b43%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-0.7.0-0.6.gite195b43.tar.gz
@@ -501,7 +501,7 @@ fi
 %dir %{_localstatedir}/run/libvirt/
 
 %dir %{_localstatedir}/lib/libvirt/
-%dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/images/
+%dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/images/
 %dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/boot/
 %dir %attr(0700, root, root) %{_localstatedir}/cache/libvirt/
 
@@ -617,6 +617,9 @@ fi
 %endif
 
 %changelog
+* Fri Jul 31 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.9.gite195b43
+- Set perms on /var/lib/libvirt/images to 0711
+
 * Thu Jul 30 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.8.gite195b43
 - Add patch from upstream to fix qemu pidfile perms problem
 
