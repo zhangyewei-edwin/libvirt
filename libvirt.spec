@@ -78,13 +78,10 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 0.9.gite195b43%{?dist}%{?extra_release}
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: libvirt-0.7.0-0.6.gite195b43.tar.gz
-
-# Should be in 0.7.0
-Patch01: libvirt-fix-permissions-problem-starting-qemu.patch
+Source: libvirt-%{version}.tar.gz
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -254,8 +251,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-
-%patch01 -p1
 
 %patch200 -p0
 
@@ -617,6 +612,16 @@ fi
 %endif
 
 %changelog
+* Wed Aug  5 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-1.fc12
+- Upstream release of 0.7.0
+- ESX, VBox3, Power Hypervisor drivers
+- new net filesystem glusterfs
+- Storage cloning for LVM and Disk backends
+- interface implementation based on netcf
+- Support cgroups in QEMU driver
+- QEmu hotplug NIC support
+- a lot of fixes
+
 * Fri Jul 31 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.9.gite195b43
 - Set perms on /var/lib/libvirt/images to 0711
 
