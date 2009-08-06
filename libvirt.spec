@@ -78,10 +78,13 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
+
+# Make sure qemu can access kernel/initrd (bug #516034)
+Patch01: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -251,6 +254,8 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+
+%patch01 -p1
 
 %patch200 -p0
 
@@ -497,7 +502,7 @@ fi
 
 %dir %{_localstatedir}/lib/libvirt/
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/images/
-%dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/boot/
+%dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/boot/
 %dir %attr(0700, root, root) %{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
@@ -612,7 +617,11 @@ fi
 %endif
 
 %changelog
-* Wed Aug  5 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-1.fc12
+* Thu Aug  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-2
+- Make sure qemu can access kernel/initrd (bug #516034)
+- Set perms on /var/lib/libvirt/boot to 0711 (bug #516034)
+
+* Wed Aug  5 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-1
 - Upstream release of 0.7.0
 - ESX, VBox3, Power Hypervisor drivers
 - new net filesystem glusterfs
