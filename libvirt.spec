@@ -86,7 +86,7 @@ Source: libvirt-%{version}.tar.gz
 # Make sure qemu can access kernel/initrd (bug #516034)
 Patch01: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
 
-# Don't fail to start network if ipv6 modules is not loaded
+# Don't fail to start network if ipv6 modules is not loaded (bug #516497)
 Patch02: libvirt-0.7.0-handle-kernels-with-no-ipv6-support.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
@@ -622,7 +622,7 @@ fi
 
 %changelog
 * Mon Aug 10 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-3
-- Don't fail to start network if ipv6 modules is not loaded
+- Don't fail to start network if ipv6 modules is not loaded (#516497)
 
 * Thu Aug  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-2
 - Make sure qemu can access kernel/initrd (bug #516034)
