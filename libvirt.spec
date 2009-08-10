@@ -78,13 +78,16 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
 
 # Make sure qemu can access kernel/initrd (bug #516034)
 Patch01: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
+
+# Don't fail to start network if ipv6 modules is not loaded
+Patch02: libvirt-0.7.0-handle-kernels-with-no-ipv6-support.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -256,6 +259,7 @@ of recent versions of Linux (and other OSes).
 %setup -q
 
 %patch01 -p1
+%patch02 -p1
 
 %patch200 -p0
 
@@ -617,6 +621,9 @@ fi
 %endif
 
 %changelog
+* Mon Aug 10 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-3
+- Don't fail to start network if ipv6 modules is not loaded
+
 * Thu Aug  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-2
 - Make sure qemu can access kernel/initrd (bug #516034)
 - Set perms on /var/lib/libvirt/boot to 0711 (bug #516034)
