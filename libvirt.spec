@@ -93,6 +93,9 @@ Patch02: libvirt-0.7.0-handle-kernels-with-no-ipv6-support.patch
 # NB remove autoreconf hack & extra BRs when this goes away
 Patch03: libvirt-0.7.0-policy-kit-rewrite.patch
 
+# Log and ignore NUMA topology problems (rhbz #506590)
+Patch04: libvirt-0.7.0-numa-ignore-fail.patch
+
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
 Patch200: libvirt-0.6.4-svirt-sound.patch
@@ -277,6 +280,7 @@ of recent versions of Linux (and other OSes).
 %patch01 -p1
 %patch02 -p1
 %patch03 -p1
+%patch04 -p1
 
 %patch200 -p0
 
@@ -645,8 +649,9 @@ fi
 %endif
 
 %changelog
-* Thu Aug 13 2009  <berrange@dhcp-0-233.camlab.fab.redhat.com> - 0.7.0-4
+* Thu Aug 13 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.0-4
 - Rewrite policykit support (rhbz #499970)
+- Log and ignore NUMA topology problems (rhbz #506590)
 
 * Mon Aug 10 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-3
 - Don't fail to start network if ipv6 modules is not loaded (#516497)
