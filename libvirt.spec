@@ -222,7 +222,7 @@ BuildRequires: netcf-devel
 BuildRequires: gawk
 
 # Temp hack for patch 3
-BuildRequires: libtool autoconf automake gettext
+BuildRequires: libtool autoconf automake gettext cvs
 
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
