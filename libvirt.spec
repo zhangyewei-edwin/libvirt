@@ -78,7 +78,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -88,6 +88,10 @@ Patch01: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
 
 # Don't fail to start network if ipv6 modules is not loaded (bug #516497)
 Patch02: libvirt-0.7.0-handle-kernels-with-no-ipv6-support.patch
+
+# Policykit rewrite (bug #499970)
+# NB remove autoreconf hack & extra BRs when this goes away
+Patch03: libvirt-0.7.0-policy-kit-rewrite.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -106,7 +110,11 @@ Requires: iptables
 # needed for device enumeration
 Requires: hal
 %if %{with_polkit}
+%if 0%{?fedora} >= 12
+Requires: polkit >= 0.93
+%else
 Requires: PolicyKit >= 0.6
+%endif
 %endif
 %if %{with_storage_fs}
 # For mount/umount in FS driver
@@ -161,7 +169,12 @@ BuildRequires: bridge-utils
 BuildRequires: cyrus-sasl-devel
 %endif
 %if %{with_polkit}
+%if 0%{?fedora} >= 12
+# Only need the binary, not -devel
+BuildRequires: polkit >= 0.93
+%else
 BuildRequires: PolicyKit-devel >= 0.6
+%endif
 %endif
 %if %{with_storage_fs}
 # For mount/umount in FS driver
@@ -204,6 +217,9 @@ BuildRequires: netcf-devel
 
 # Fedora build root suckage
 BuildRequires: gawk
+
+# Temp hack for patch 3
+BuildRequires: libtool autoconf automake gettext
 
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -260,6 +276,7 @@ of recent versions of Linux (and other OSes).
 
 %patch01 -p1
 %patch02 -p1
+%patch03 -p1
 
 %patch200 -p0
 
@@ -351,6 +368,9 @@ of recent versions of Linux (and other OSes).
 %if ! %{with_netcf}
 %define _without_netcf --without-netcf
 %endif
+
+# Temp hack for patch 3
+autoreconf -if
 
 %configure %{?_without_xen} \
            %{?_without_qemu} \
@@ -541,7 +561,11 @@ fi
 %endif
 
 %if %{with_polkit}
+%if 0%{?fedora} >= 12
+%{_datadir}/polkit-1/actions/org.libvirt.unix.policy
+%else
 %{_datadir}/PolicyKit/policy/org.libvirt.unix.policy
+%endif
 %endif
 
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/
@@ -621,6 +645,9 @@ fi
 %endif
 
 %changelog
+* Thu Aug 13 2009  <berrange@dhcp-0-233.camlab.fab.redhat.com> - 0.7.0-4
+- Rewrite policykit support (rhbz #499970)
+
 * Mon Aug 10 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-3
 - Don't fail to start network if ipv6 modules is not loaded (#516497)
 
