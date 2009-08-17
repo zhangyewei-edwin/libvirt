@@ -1,16 +1,24 @@
-commit 19bac57b26c2d46ac8a7601158f210f34acdceac
-Author: Daniel P. Berrange <berrange@redhat.com>
-Date:   Thu Aug 13 11:56:31 2009 +0100
+From 663bf081dc6737c7fcc68a7ca1169aca60fbf8e5 Mon Sep 17 00:00:00 2001
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Thu, 13 Aug 2009 11:56:31 +0100
+Subject: [PATCH] Make LXC / UML drivers robust against NUMA topology brokenness
 
-    Make LXC / UML drivers robust against NUMA topology brokenness
-    
-    Some kernel versions expose broken NUMA topology for some machines.
-    This causes the LXC/UML drivers to fail to start. QEMU driver was
-    already fixed for this problem
-    
-    * src/lxc_conf.c: Log and ignore failure to populate NUMA info
-    * src/uml_conf.c: Log and ignore failure to populate NUMA info
-    * src/capabilities.c: Reset nnumaCell to 0 after freeing
+Some kernel versions expose broken NUMA topology for some machines.
+This causes the LXC/UML drivers to fail to start. QEMU driver was
+already fixed for this problem
+
+* src/lxc_conf.c: Log and ignore failure to populate NUMA info
+* src/uml_conf.c: Log and ignore failure to populate NUMA info
+* src/capabilities.c: Reset nnumaCell to 0 after freeing
+
+(cherry picked from commit 19bac57b26c2d46ac8a7601158f210f34acdceac)
+
+Fedora-patch: libvirt-0.7.0-numa-ignore-fail.patch
+---
+ src/capabilities.c |    1 +
+ src/lxc_conf.c     |   12 ++++++++++--
+ src/uml_conf.c     |   11 +++++++++--
+ 3 files changed, 20 insertions(+), 4 deletions(-)
 
 diff --git a/src/capabilities.c b/src/capabilities.c
 index c6766b6..193a9fe 100644
@@ -83,3 +91,6 @@ index 48e05a8..4f756d4 100644
  
      if ((guest = virCapabilitiesAddGuest(caps,
                                           "uml",
+-- 
+1.6.2.5
+

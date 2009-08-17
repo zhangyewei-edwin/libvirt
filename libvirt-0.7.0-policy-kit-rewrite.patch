@@ -1,6 +1,28 @@
-diff -rupN libvirt-0.7.0/configure.in libvirt-0.7.0.new/configure.in
---- libvirt-0.7.0/configure.in	2009-08-05 08:53:49.000000000 -0400
-+++ libvirt-0.7.0.new/configure.in	2009-08-13 08:37:22.393897620 -0400
+From d54fc5008d465d192101a0cb78fd02c437dff736 Mon Sep 17 00:00:00 2001
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Mon, 17 Aug 2009 08:32:08 +0100
+Subject: [PATCH] Policykit rewrite (bug #499970)
+
+Fedora-patch: libvirt-0.7.0-policy-kit-rewrite.patch
+---
+ configure.in            |   73 ++++++++++++++++++++++++++++--------------
+ qemud/Makefile.am       |   11 +++++-
+ qemud/libvirtd.policy   |   42 ------------------------
+ qemud/libvirtd.policy-0 |   42 ++++++++++++++++++++++++
+ qemud/libvirtd.policy-1 |   42 ++++++++++++++++++++++++
+ qemud/qemud.c           |    4 +-
+ qemud/qemud.h           |    4 +-
+ qemud/remote.c          |   81 ++++++++++++++++++++++++++++++++++++++++++++--
+ src/remote_internal.c   |    7 ++++
+ 9 files changed, 230 insertions(+), 76 deletions(-)
+ delete mode 100644 qemud/libvirtd.policy
+ create mode 100644 qemud/libvirtd.policy-0
+ create mode 100644 qemud/libvirtd.policy-1
+
+diff --git a/configure.in b/configure.in
+index 45fa9ed..d28c44a 100644
+--- a/configure.in
++++ b/configure.in
 @@ -641,40 +641,61 @@ AC_SUBST([SASL_LIBS])
  dnl PolicyKit library
  POLKIT_CFLAGS=
@@ -99,9 +121,48 @@ diff -rupN libvirt-0.7.0/configure.in libvirt-0.7.0.new/configure.in
  else
  AC_MSG_NOTICE([  polkit: no])
  fi
-diff -rupN libvirt-0.7.0/qemud/libvirtd.policy libvirt-0.7.0.new/qemud/libvirtd.policy
---- libvirt-0.7.0/qemud/libvirtd.policy	2009-07-22 09:37:32.000000000 -0400
-+++ libvirt-0.7.0.new/qemud/libvirtd.policy	1969-12-31 19:00:00.000000000 -0500
+diff --git a/qemud/Makefile.am b/qemud/Makefile.am
+index 959ff88..3d143da 100644
+--- a/qemud/Makefile.am
++++ b/qemud/Makefile.am
+@@ -21,7 +21,8 @@ EXTRA_DIST =						\
+ 	remote_protocol.x				\
+ 	libvirtd.conf					\
+ 	libvirtd.init.in				\
+-	libvirtd.policy					\
++	libvirtd.policy-0				\
++	libvirtd.policy-1				\
+ 	libvirtd.sasl					\
+ 	libvirtd.sysconf				\
+ 	libvirtd.aug                                    \
+@@ -147,7 +148,13 @@ endif
+ libvirtd_LDADD += ../src/libvirt.la
+ 
+ if HAVE_POLKIT
++if HAVE_POLKIT0
+ policydir = $(datadir)/PolicyKit/policy
++policyfile = libvirtd.policy-0
++else
++policydir = $(datadir)/polkit-1/actions
++policyfile = libvirtd.policy-1
++endif
+ endif
+ 
+ if HAVE_AVAHI
+@@ -197,7 +204,7 @@ endif
+ if HAVE_POLKIT
+ install-data-polkit:: install-init
+ 	mkdir -p $(DESTDIR)$(policydir)
+-	$(INSTALL_DATA) $(srcdir)/libvirtd.policy $(DESTDIR)$(policydir)/org.libvirt.unix.policy
++	$(INSTALL_DATA) $(srcdir)/$(policyfile) $(DESTDIR)$(policydir)/org.libvirt.unix.policy
+ uninstall-data-polkit:: install-init
+ 	rm -f $(DESTDIR)$(policydir)/org.libvirt.unix.policy
+ else
+diff --git a/qemud/libvirtd.policy b/qemud/libvirtd.policy
+deleted file mode 100644
+index b6da946..0000000
+--- a/qemud/libvirtd.policy
++++ /dev/null
 @@ -1,42 +0,0 @@
 -<!DOCTYPE policyconfig PUBLIC
 - "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
@@ -145,9 +206,11 @@ diff -rupN libvirt-0.7.0/qemud/libvirtd.policy libvirt-0.7.0.new/qemud/libvirtd.
 -      </defaults>
 -    </action>
 -</policyconfig>
-diff -rupN libvirt-0.7.0/qemud/libvirtd.policy-0 libvirt-0.7.0.new/qemud/libvirtd.policy-0
---- libvirt-0.7.0/qemud/libvirtd.policy-0	1969-12-31 19:00:00.000000000 -0500
-+++ libvirt-0.7.0.new/qemud/libvirtd.policy-0	2009-08-13 08:37:22.408883879 -0400
+diff --git a/qemud/libvirtd.policy-0 b/qemud/libvirtd.policy-0
+new file mode 100644
+index 0000000..b6da946
+--- /dev/null
++++ b/qemud/libvirtd.policy-0
 @@ -0,0 +1,42 @@
 +<!DOCTYPE policyconfig PUBLIC
 + "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
@@ -191,9 +254,11 @@ diff -rupN libvirt-0.7.0/qemud/libvirtd.policy-0 libvirt-0.7.0.new/qemud/libvirt
 +      </defaults>
 +    </action>
 +</policyconfig>
-diff -rupN libvirt-0.7.0/qemud/libvirtd.policy-1 libvirt-0.7.0.new/qemud/libvirtd.policy-1
---- libvirt-0.7.0/qemud/libvirtd.policy-1	1969-12-31 19:00:00.000000000 -0500
-+++ libvirt-0.7.0.new/qemud/libvirtd.policy-1	2009-08-13 08:37:22.412905763 -0400
+diff --git a/qemud/libvirtd.policy-1 b/qemud/libvirtd.policy-1
+new file mode 100644
+index 0000000..6fa3a5e
+--- /dev/null
++++ b/qemud/libvirtd.policy-1
 @@ -0,0 +1,42 @@
 +<!DOCTYPE policyconfig PUBLIC
 + "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
@@ -237,46 +302,11 @@ diff -rupN libvirt-0.7.0/qemud/libvirtd.policy-1 libvirt-0.7.0.new/qemud/libvirt
 +      </defaults>
 +    </action>
 +</policyconfig>
-diff -rupN libvirt-0.7.0/qemud/Makefile.am libvirt-0.7.0.new/qemud/Makefile.am
---- libvirt-0.7.0/qemud/Makefile.am	2009-07-22 09:37:32.000000000 -0400
-+++ libvirt-0.7.0.new/qemud/Makefile.am	2009-08-13 08:37:22.398915449 -0400
-@@ -21,7 +21,8 @@ EXTRA_DIST =						\
- 	remote_protocol.x				\
- 	libvirtd.conf					\
- 	libvirtd.init.in				\
--	libvirtd.policy					\
-+	libvirtd.policy-0				\
-+	libvirtd.policy-1				\
- 	libvirtd.sasl					\
- 	libvirtd.sysconf				\
- 	libvirtd.aug                                    \
-@@ -147,7 +148,13 @@ endif
- libvirtd_LDADD += ../src/libvirt.la
- 
- if HAVE_POLKIT
-+if HAVE_POLKIT0
- policydir = $(datadir)/PolicyKit/policy
-+policyfile = libvirtd.policy-0
-+else
-+policydir = $(datadir)/polkit-1/actions
-+policyfile = libvirtd.policy-1
-+endif
- endif
- 
- if HAVE_AVAHI
-@@ -197,7 +204,7 @@ endif
- if HAVE_POLKIT
- install-data-polkit:: install-init
- 	mkdir -p $(DESTDIR)$(policydir)
--	$(INSTALL_DATA) $(srcdir)/libvirtd.policy $(DESTDIR)$(policydir)/org.libvirt.unix.policy
-+	$(INSTALL_DATA) $(srcdir)/$(policyfile) $(DESTDIR)$(policydir)/org.libvirt.unix.policy
- uninstall-data-polkit:: install-init
- 	rm -f $(DESTDIR)$(policydir)/org.libvirt.unix.policy
- else
-diff -rupN libvirt-0.7.0/qemud/qemud.c libvirt-0.7.0.new/qemud/qemud.c
---- libvirt-0.7.0/qemud/qemud.c	2009-07-22 09:37:32.000000000 -0400
-+++ libvirt-0.7.0.new/qemud/qemud.c	2009-08-13 08:37:22.419878018 -0400
-@@ -895,7 +895,7 @@ static struct qemud_server *qemudNetwork
+diff --git a/qemud/qemud.c b/qemud/qemud.c
+index 3e551ca..50b0cdd 100644
+--- a/qemud/qemud.c
++++ b/qemud/qemud.c
+@@ -895,7 +895,7 @@ static struct qemud_server *qemudNetworkInit(struct qemud_server *server) {
      }
  #endif
  
@@ -285,7 +315,7 @@ diff -rupN libvirt-0.7.0/qemud/qemud.c libvirt-0.7.0.new/qemud/qemud.c
      if (auth_unix_rw == REMOTE_AUTH_POLKIT ||
          auth_unix_ro == REMOTE_AUTH_POLKIT) {
          DBusError derr;
-@@ -982,7 +982,7 @@ static struct qemud_server *qemudNetwork
+@@ -982,7 +982,7 @@ static struct qemud_server *qemudNetworkInit(struct qemud_server *server) {
              sock = sock->next;
          }
  
@@ -294,9 +324,10 @@ diff -rupN libvirt-0.7.0/qemud/qemud.c libvirt-0.7.0.new/qemud/qemud.c
          if (server->sysbus)
              dbus_connection_unref(server->sysbus);
  #endif
-diff -rupN libvirt-0.7.0/qemud/qemud.h libvirt-0.7.0.new/qemud/qemud.h
---- libvirt-0.7.0/qemud/qemud.h	2009-07-23 12:33:02.000000000 -0400
-+++ libvirt-0.7.0.new/qemud/qemud.h	2009-08-13 08:37:22.425909852 -0400
+diff --git a/qemud/qemud.h b/qemud/qemud.h
+index 254db44..e8ce209 100644
+--- a/qemud/qemud.h
++++ b/qemud/qemud.h
 @@ -34,7 +34,7 @@
  #include <sasl/sasl.h>
  #endif
@@ -315,9 +346,10 @@ diff -rupN libvirt-0.7.0/qemud/qemud.h libvirt-0.7.0.new/qemud/qemud.h
      DBusConnection *sysbus;
  #endif
  };
-diff -rupN libvirt-0.7.0/qemud/remote.c libvirt-0.7.0.new/qemud/remote.c
---- libvirt-0.7.0/qemud/remote.c	2009-07-23 12:33:02.000000000 -0400
-+++ libvirt-0.7.0.new/qemud/remote.c	2009-08-13 08:37:22.431865087 -0400
+diff --git a/qemud/remote.c b/qemud/remote.c
+index d32d513..490a807 100644
+--- a/qemud/remote.c
++++ b/qemud/remote.c
 @@ -43,7 +43,7 @@
  #include <fnmatch.h>
  #include "virterror_internal.h"
@@ -327,7 +359,7 @@ diff -rupN libvirt-0.7.0/qemud/remote.c libvirt-0.7.0.new/qemud/remote.c
  #include <polkit/polkit.h>
  #include <polkit-dbus/polkit-dbus.h>
  #endif
-@@ -3106,7 +3106,80 @@ remoteDispatchAuthSaslStep (struct qemud
+@@ -3106,7 +3106,80 @@ remoteDispatchAuthSaslStep (struct qemud_server *server ATTRIBUTE_UNUSED,
  #endif /* HAVE_SASL */
  
  
@@ -418,7 +450,7 @@ diff -rupN libvirt-0.7.0/qemud/remote.c libvirt-0.7.0.new/qemud/remote.c
  
  static int
  remoteDispatchAuthPolkit (struct qemud_server *server ATTRIBUTE_UNUSED,
-@@ -3231,7 +3304,7 @@ remoteDispatchAuthPolkit (struct qemud_s
+@@ -3231,7 +3304,7 @@ remoteDispatchAuthPolkit (struct qemud_server *server ATTRIBUTE_UNUSED,
      remoteDispatchAuthError(rerr);
      return -1;
  }
@@ -427,10 +459,11 @@ diff -rupN libvirt-0.7.0/qemud/remote.c libvirt-0.7.0.new/qemud/remote.c
  
  
  /***************************************************************
-diff -rupN libvirt-0.7.0/src/remote_internal.c libvirt-0.7.0.new/src/remote_internal.c
---- libvirt-0.7.0/src/remote_internal.c	2009-07-29 10:42:15.000000000 -0400
-+++ libvirt-0.7.0.new/src/remote_internal.c	2009-08-13 10:55:57.607899170 -0400
-@@ -6201,6 +6201,7 @@ remoteAuthPolkit (virConnectPtr conn, st
+diff --git a/src/remote_internal.c b/src/remote_internal.c
+index a58b768..e98c99b 100644
+--- a/src/remote_internal.c
++++ b/src/remote_internal.c
+@@ -6201,6 +6201,7 @@ remoteAuthPolkit (virConnectPtr conn, struct private_data *priv, int in_open,
                    virConnectAuthPtr auth)
  {
      remote_auth_polkit_ret ret;
@@ -438,7 +471,7 @@ diff -rupN libvirt-0.7.0/src/remote_internal.c libvirt-0.7.0.new/src/remote_inte
      int i, allowcb = 0;
      virConnectCredential cred = {
          VIR_CRED_EXTERNAL,
-@@ -6210,8 +6211,10 @@ remoteAuthPolkit (virConnectPtr conn, st
+@@ -6210,8 +6211,10 @@ remoteAuthPolkit (virConnectPtr conn, struct private_data *priv, int in_open,
          NULL,
          0,
      };
@@ -449,7 +482,7 @@ diff -rupN libvirt-0.7.0/src/remote_internal.c libvirt-0.7.0.new/src/remote_inte
      if (auth && auth->cb) {
          /* Check if the necessary credential type for PolicyKit is supported */
          for (i = 0 ; i < auth->ncredtype ; i++) {
-@@ -6220,6 +6223,7 @@ remoteAuthPolkit (virConnectPtr conn, st
+@@ -6220,6 +6223,7 @@ remoteAuthPolkit (virConnectPtr conn, struct private_data *priv, int in_open,
          }
  
          if (allowcb) {
@@ -457,7 +490,7 @@ diff -rupN libvirt-0.7.0/src/remote_internal.c libvirt-0.7.0.new/src/remote_inte
              /* Run the authentication callback */
              if ((*(auth->cb))(&cred, 1, auth->cbdata) < 0) {
                  virRaiseError (in_open ? NULL : conn, NULL, NULL, VIR_FROM_REMOTE,
-@@ -6233,6 +6237,9 @@ remoteAuthPolkit (virConnectPtr conn, st
+@@ -6233,6 +6237,9 @@ remoteAuthPolkit (virConnectPtr conn, struct private_data *priv, int in_open,
      } else {
          DEBUG0("No auth callback provided");
      }
@@ -467,3 +500,6 @@ diff -rupN libvirt-0.7.0/src/remote_internal.c libvirt-0.7.0.new/src/remote_inte
  
      memset (&ret, 0, sizeof ret);
      if (call (conn, priv, in_open, REMOTE_PROC_AUTH_POLKIT,
+-- 
+1.6.2.5
+

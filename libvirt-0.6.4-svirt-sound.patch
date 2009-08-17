@@ -1,6 +1,21 @@
---- src/qemu_conf.c.orig	2009-05-29 19:24:59.000000000 +0200
-+++ src/qemu_conf.c	2009-05-29 19:19:39.000000000 +0200
-@@ -792,6 +792,20 @@ int qemudBuildCommandLine(virConnectPtr 
+From f9355301cf4dda452308b616e8c00e59be5aec0a Mon Sep 17 00:00:00 2001
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Mon, 17 Aug 2009 08:32:08 +0100
+Subject: [PATCH] Disable sound cards when running sVirt
+
+Temporary hack till PulseAudio autostart problems are sorted out when
+SELinux enforcing (bz 486112)
+
+Fedora-patch: libvirt-0.6.4-svirt-sound.patch
+---
+ src/qemu_conf.c |   17 ++++++++++++++++-
+ 1 files changed, 16 insertions(+), 1 deletions(-)
+
+diff --git a/src/qemu_conf.c b/src/qemu_conf.c
+index 6b0b404..53186e0 100644
+--- a/src/qemu_conf.c
++++ b/src/qemu_conf.c
+@@ -1384,6 +1384,20 @@ int qemudBuildCommandLine(virConnectPtr conn,
      char uuid[VIR_UUID_STRING_BUFLEN];
      char domid[50];
      const char *cpu = NULL;
@@ -10,7 +25,7 @@
 +        driver->securityDriver->name &&
 +        STREQ(driver->securityDriver->name, "selinux") &&
 +        getuid() == 0) {
-+        static int soundWarned = 0; 
++        static int soundWarned = 0;
 +        skipSound = 1;
 +        if (def->nsounds &&
 +            !soundWarned) {
@@ -21,7 +36,7 @@
  
      uname_normalize(&ut);
  
-@@ -1429,7 +1443,8 @@ int qemudBuildCommandLine(virConnectPtr 
+@@ -2015,7 +2029,8 @@ int qemudBuildCommandLine(virConnectPtr conn,
      }
  
      /* Add sound hardware */
@@ -31,3 +46,6 @@
          int size = 100;
          char *modstr;
          if (VIR_ALLOC_N(modstr, size+1) < 0)
+-- 
+1.6.2.5
+

@@ -1,4 +1,6 @@
+From ddf0a7cb04debe60825d11186e68cc6de6fd1dd2 Mon Sep 17 00:00:00 2001
 From: Mark McLoughlin <markmc@redhat.com>
+Date: Mon, 10 Aug 2009 11:16:37 +0100
 Subject: [PATCH] Handle kernels with no ipv6 support
 
 If the ipv6 kernel module is not loaded, then we get this when starting
@@ -13,6 +15,10 @@ way.
 
 * src/network_driver.c: make networkDisableIPV6() not fail if the kernel
   has no ipv6 support
+
+(cherry picked from commit f5a8f969dd92ec2744e1eec5d35288d5fbcded22)
+
+Fedora-patch: libvirt-0.7.0-handle-kernels-with-no-ipv6-support.patch
 ---
  src/network_driver.c |    6 ++++++
  1 files changed, 6 insertions(+), 0 deletions(-)

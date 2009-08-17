@@ -1,4 +1,6 @@
+From 541cfdf5465ac3bba2c0c0901950547bc6638e47 Mon Sep 17 00:00:00 2001
 From: Mark McLoughlin <markmc@redhat.com>
+Date: Thu, 6 Aug 2009 15:14:19 +0100
 Subject: [PATCH] chown kernel/initrd before spawning qemu
 
 If we're running qemu unprivileged, we need to chown any supplied kernel
@@ -8,6 +10,10 @@ or initrd before spawning it.
   qemuDomainSetFileOwnership(), pass it a path string instead of a disk
   definition and use it for chowning the kernel/initrd in
   qemuDomainSetAllDeviceOwnership()
+
+(cherry picked from commit c42b39784534930791d1feb3de859d85a7848168)
+
+Fedora-patch: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
 ---
  src/qemu_driver.c |   20 ++++++++++++--------
  1 files changed, 12 insertions(+), 8 deletions(-)
