@@ -78,7 +78,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.0
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: libvirt-%{version}.tar.gz
@@ -116,6 +116,9 @@ Patch10: libvirt-allow-pci-hostdev-reset-to-reset-other-devices.patch
 
 # Add PCI host device hotplug support
 Patch11: libvirt-add-pci-hostdev-hotplug-support.patch
+
+# Fix migration completion with newer versions of qemu (#516187)
+Patch12: libvirt-fix-migration-completion-with-newer-qemu.patch
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -309,6 +312,7 @@ of recent versions of Linux (and other OSes).
 %patch09 -p1
 %patch10 -p1
 %patch11 -p1
+%patch12 -p1
 
 %patch200 -p1
 
@@ -677,6 +681,9 @@ fi
 %endif
 
 %changelog
+* Wed Aug 19 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-6
+- Fix migration completion with newer versions of qemu (#516187)
+
 * Wed Aug 19 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-5
 - Add PCI host device hotplug support
 - Allow PCI bus reset to reset other devices (#499678)
