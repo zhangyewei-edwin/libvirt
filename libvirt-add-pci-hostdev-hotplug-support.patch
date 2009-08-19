@@ -1,0 +1,465 @@
+From 332979bb680d833529ab9cecac6828c6ce54d731 Mon Sep 17 00:00:00 2001
+From: Mark McLoughlin <markmc@redhat.com>
+Date: Fri, 14 Aug 2009 08:31:10 +0100
+Subject: [PATCH] Add host PCI device hotplug support
+
+Attaching a host PCI device to a qemu guest is done with a
+straightforward 'pci_add pci_addr auto host host=XX:XX.X' command.
+
+Like with NIC and disk hotplug, we need to retain the guest PCI address
+assigned by qemu so that we can use it for hot-unplug.
+
+Identifying a device for detach is done using the host PCI address.
+
+Managed mode is handled by detaching/resetting the device before
+attaching it to the guest and re-attaching it after detaching it from
+the guest.
+
+(cherry picked from commit 7636ef4630fc15c3d559eceb5b5c4fb1524b7c5a)
+(cherry picked from commit 0c5b7b93a3cdb197c55d79c2605e9e19e3af43f5)
+(cherry picked from commit 60ff07585ca8f7e639fed477e2e2cf79ce1c5c21)
+(cherry picked from commit 4e12af5623e4a962a6bb911af06fa29aa85befba)
+(cherry picked from commit 4dbecff9fbd5b5d1154bc7a41a5d4dd00533b359)
+(cherry picked from commit 12edef9a6aca5bd9a2ea18b73ca862f615684d84)
+(cherry picked from commit 457e05062863a35c7efb35470886b9b83a49d04d)
+(cherry picked from commit e8ad33931296c67de0538e78d12e21706a826d37)
+
+Fedora-patch: libvirt-add-pci-hostdev-hotplug-support.patch
+---
+ src/domain_conf.c        |   33 +++++-
+ src/domain_conf.h        |   13 +++
+ src/libvirt_private.syms |    2 +
+ src/qemu_driver.c        |  266 ++++++++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 300 insertions(+), 14 deletions(-)
+
+diff --git a/src/domain_conf.c b/src/domain_conf.c
+index 2301a96..bad53f7 100644
+--- a/src/domain_conf.c
++++ b/src/domain_conf.c
+@@ -1977,7 +1977,8 @@ out:
+ static int
+ virDomainHostdevSubsysPciDefParseXML(virConnectPtr conn,
+                                      const xmlNodePtr node,
+-                                     virDomainHostdevDefPtr def) {
++                                     virDomainHostdevDefPtr def,
++                                     int flags) {
+ 
+     int ret = -1;
+     xmlNodePtr cur;
+@@ -2049,6 +2050,20 @@ virDomainHostdevSubsysPciDefParseXML(virConnectPtr conn,
+                                          _("pci address needs function id"));
+                     goto out;
+                 }
++            } else if ((flags & VIR_DOMAIN_XML_INTERNAL_STATUS) &&
++                       xmlStrEqual(cur->name, BAD_CAST "state")) {
++                char *devaddr = virXMLPropString(cur, "devaddr");
++                if (devaddr &&
++                    sscanf(devaddr, "%x:%x:%x",
++                           &def->source.subsys.u.pci.guest_addr.domain,
++                           &def->source.subsys.u.pci.guest_addr.bus,
++                           &def->source.subsys.u.pci.guest_addr.slot) < 3) {
++                    virDomainReportError(conn, VIR_ERR_INTERNAL_ERROR,
++                                         _("Unable to parse devaddr parameter '%s'"),
++                                         devaddr);
++                    VIR_FREE(devaddr);
++                    goto out;
++                }
+             } else {
+                 virDomainReportError(conn, VIR_ERR_INTERNAL_ERROR,
+                                      _("unknown pci source type '%s'"),
+@@ -2123,7 +2138,7 @@ virDomainHostdevDefParseXML(virConnectPtr conn,
+                 }
+                 if (def->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
+                     def->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI) {
+-                        if (virDomainHostdevSubsysPciDefParseXML(conn, cur, def) < 0)
++                        if (virDomainHostdevSubsysPciDefParseXML(conn, cur, def, flags) < 0)
+                             goto error;
+                 }
+             } else {
+@@ -3937,7 +3952,8 @@ virDomainGraphicsDefFormat(virConnectPtr conn,
+ static int
+ virDomainHostdevDefFormat(virConnectPtr conn,
+                           virBufferPtr buf,
+-                          virDomainHostdevDefPtr def)
++                          virDomainHostdevDefPtr def,
++                          int flags)
+ {
+     const char *mode = virDomainHostdevModeTypeToString(def->mode);
+     const char *type;
+@@ -3978,6 +3994,15 @@ virDomainHostdevDefFormat(virConnectPtr conn,
+                           def->source.subsys.u.pci.bus,
+                           def->source.subsys.u.pci.slot,
+                           def->source.subsys.u.pci.function);
++        if (flags & VIR_DOMAIN_XML_INTERNAL_STATUS) {
++            virBufferAddLit(buf, "      <state");
++            if (virHostdevHasValidGuestAddr(def))
++                virBufferVSprintf(buf, " devaddr='%.4x:%.2x:%.2x'",
++                                  def->source.subsys.u.pci.guest_addr.domain,
++                                  def->source.subsys.u.pci.guest_addr.bus,
++                                  def->source.subsys.u.pci.guest_addr.slot);
++            virBufferAddLit(buf, "/>\n");
++        }
+     }
+ 
+     virBufferAddLit(buf, "      </source>\n");
+@@ -4192,7 +4217,7 @@ char *virDomainDefFormat(virConnectPtr conn,
+             goto cleanup;
+ 
+     for (n = 0 ; n < def->nhostdevs ; n++)
+-        if (virDomainHostdevDefFormat(conn, &buf, def->hostdevs[n]) < 0)
++        if (virDomainHostdevDefFormat(conn, &buf, def->hostdevs[n], flags) < 0)
+             goto cleanup;
+ 
+     virBufferAddLit(&buf, "  </devices>\n");
+diff --git a/src/domain_conf.h b/src/domain_conf.h
+index 63fca76..44302be 100644
+--- a/src/domain_conf.h
++++ b/src/domain_conf.h
+@@ -391,6 +391,11 @@ struct _virDomainHostdevDef {
+                      unsigned bus;
+                      unsigned slot;
+                      unsigned function;
++                    struct {
++                        unsigned domain;
++                        unsigned bus;
++                        unsigned slot;
++                    } guest_addr;
+                 } pci;
+             } u;
+         } subsys;
+@@ -404,6 +409,14 @@ struct _virDomainHostdevDef {
+     char* target;
+ };
+ 
++static inline int
++virHostdevHasValidGuestAddr(virDomainHostdevDefPtr def)
++{
++    return def->source.subsys.u.pci.guest_addr.domain ||
++           def->source.subsys.u.pci.guest_addr.bus ||
++           def->source.subsys.u.pci.guest_addr.slot;
++}
++
+ /* Flags for the 'type' field in next struct */
+ enum virDomainDeviceType {
+     VIR_DOMAIN_DEVICE_DISK,
+diff --git a/src/libvirt_private.syms b/src/libvirt_private.syms
+index 4f1b01f..22131c4 100644
+--- a/src/libvirt_private.syms
++++ b/src/libvirt_private.syms
+@@ -88,6 +88,8 @@ virDomainGetRootFilesystem;
+ virDomainGraphicsTypeFromString;
+ virDomainGraphicsDefFree;
+ virDomainHostdevDefFree;
++virDomainHostdevModeTypeToString;
++virDomainHostdevSubsysTypeToString;
+ virDomainInputDefFree;
+ virDomainLifecycleTypeFromString;
+ virDomainLifecycleTypeToString;
+diff --git a/src/qemu_driver.c b/src/qemu_driver.c
+index cbc27c4..99dac52 100644
+--- a/src/qemu_driver.c
++++ b/src/qemu_driver.c
+@@ -5258,9 +5258,91 @@ cleanup:
+     return -1;
+ }
+ 
+-static int qemudDomainAttachHostDevice(virConnectPtr conn,
+-                                       virDomainObjPtr vm,
+-                                       virDomainDeviceDefPtr dev)
++static int qemudDomainAttachHostPciDevice(virConnectPtr conn,
++                                          struct qemud_driver *driver,
++                                          virDomainObjPtr vm,
++                                          virDomainDeviceDefPtr dev)
++{
++    virDomainHostdevDefPtr hostdev = dev->data.hostdev;
++    char *cmd, *reply;
++    unsigned domain, bus, slot;
++    pciDevice *pci;
++
++    if (VIR_REALLOC_N(vm->def->hostdevs, vm->def->nhostdevs+1) < 0) {
++        virReportOOMError(conn);
++        return -1;
++    }
++
++    pci = pciGetDevice(conn,
++                       hostdev->source.subsys.u.pci.domain,
++                       hostdev->source.subsys.u.pci.bus,
++                       hostdev->source.subsys.u.pci.slot,
++                       hostdev->source.subsys.u.pci.function);
++    if (!dev)
++        return -1;
++
++    if ((hostdev->managed && pciDettachDevice(conn, pci) < 0) ||
++        pciResetDevice(conn, pci, driver->activePciHostdevs) < 0) {
++        pciFreeDevice(conn, pci);
++        return -1;
++    }
++
++    if (pciDeviceListAdd(conn, driver->activePciHostdevs, pci) < 0) {
++        pciFreeDevice(conn, pci);
++        return -1;
++    }
++
++    cmd = reply = NULL;
++
++    if (virAsprintf(&cmd, "pci_add pci_addr=auto host host=%.2x:%.2x.%.1x",
++                    hostdev->source.subsys.u.pci.bus,
++                    hostdev->source.subsys.u.pci.slot,
++                    hostdev->source.subsys.u.pci.function) < 0) {
++        virReportOOMError(conn);
++        goto error;
++    }
++
++    if (qemudMonitorCommand(vm, cmd, &reply) < 0) {
++        qemudReportError(conn, dom, NULL, VIR_ERR_OPERATION_FAILED,
++                         "%s", _("cannot attach host pci device"));
++        goto error;
++    }
++
++    if (strstr(reply, "invalid type: host")) {
++        qemudReportError(conn, dom, NULL, VIR_ERR_NO_SUPPORT, "%s",
++                         _("PCI device assignment is not supported by this version of qemu"));
++        goto error;
++    }
++
++    if (qemudParsePciAddReply(vm, reply, &domain, &bus, &slot) < 0) {
++        qemudReportError(conn, dom, NULL, VIR_ERR_OPERATION_FAILED,
++                         _("parsing pci_add reply failed: %s"), reply);
++        goto error;
++    }
++
++    hostdev->source.subsys.u.pci.guest_addr.domain = domain;
++    hostdev->source.subsys.u.pci.guest_addr.bus    = bus;
++    hostdev->source.subsys.u.pci.guest_addr.slot   = slot;
++
++    vm->def->hostdevs[vm->def->nhostdevs++] = hostdev;
++
++    VIR_FREE(reply);
++    VIR_FREE(cmd);
++
++    return 0;
++
++error:
++    pciDeviceListDel(conn, driver->activePciHostdevs, pci);
++
++    VIR_FREE(reply);
++    VIR_FREE(cmd);
++
++    return -1;
++}
++
++static int qemudDomainAttachHostUsbDevice(virConnectPtr conn,
++                                          virDomainObjPtr vm,
++                                          virDomainDeviceDefPtr dev)
+ {
+     int ret;
+     char *cmd, *reply;
+@@ -5310,6 +5392,36 @@ static int qemudDomainAttachHostDevice(virConnectPtr conn,
+     return 0;
+ }
+ 
++static int qemudDomainAttachHostDevice(virConnectPtr conn,
++                                       struct qemud_driver *driver,
++                                       virDomainObjPtr vm,
++                                       virDomainDeviceDefPtr dev)
++{
++    virDomainHostdevDefPtr hostdev = dev->data.hostdev;
++
++    if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS) {
++        qemudReportError(conn, dom, NULL, VIR_ERR_NO_SUPPORT,
++                         _("hostdev mode '%s' not supported"),
++                         virDomainHostdevModeTypeToString(hostdev->mode));
++        return -1;
++    }
++
++    if (qemuDomainSetDeviceOwnership(conn, driver, dev, 0) < 0)
++        return -1;
++
++    switch (hostdev->source.subsys.type) {
++    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
++        return qemudDomainAttachHostPciDevice(conn, driver, vm, dev);
++    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
++        return qemudDomainAttachHostUsbDevice(conn, vm, dev);
++    default:
++        qemudReportError(conn, dom, NULL, VIR_ERR_NO_SUPPORT,
++                         _("hostdev subsys type '%s' not supported"),
++                         virDomainHostdevSubsysTypeToString(hostdev->source.subsys.type));
++        return -1;
++    }
++}
++
+ static int qemudDomainAttachDevice(virDomainPtr dom,
+                                    const char *xml) {
+     struct qemud_driver *driver = dom->conn->privateData;
+@@ -5411,13 +5523,8 @@ static int qemudDomainAttachDevice(virDomainPtr dom,
+         }
+     } else if (dev->type == VIR_DOMAIN_DEVICE_NET) {
+         ret = qemudDomainAttachNetDevice(dom->conn, driver, vm, dev, qemuCmdFlags);
+-    } else if (dev->type == VIR_DOMAIN_DEVICE_HOSTDEV &&
+-               dev->data.hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
+-               dev->data.hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB) {
+-        if (qemuDomainSetDeviceOwnership(dom->conn, driver, dev, 0) < 0)
+-            goto cleanup;
+-
+-        ret = qemudDomainAttachHostDevice(dom->conn, vm, dev);
++    } else if (dev->type == VIR_DOMAIN_DEVICE_HOSTDEV) {
++        ret = qemudDomainAttachHostDevice(dom->conn, driver, vm, dev);
+     } else {
+         qemudReportError(dom->conn, dom, NULL, VIR_ERR_NO_SUPPORT,
+                          _("device type '%s' cannot be attached"),
+@@ -5630,6 +5737,143 @@ cleanup:
+     return ret;
+ }
+ 
++static int qemudDomainDetachHostPciDevice(virConnectPtr conn,
++                                          struct qemud_driver *driver,
++                                          virDomainObjPtr vm,
++                                          virDomainDeviceDefPtr dev)
++{
++    virDomainHostdevDefPtr detach;
++    char *cmd, *reply;
++    int i, ret;
++    pciDevice *pci;
++
++    for (i = 0 ; i < vm->def->nhostdevs ; i++) {
++        unsigned domain   = vm->def->hostdevs[i]->source.subsys.u.pci.domain;
++        unsigned bus      = vm->def->hostdevs[i]->source.subsys.u.pci.bus;
++        unsigned slot     = vm->def->hostdevs[i]->source.subsys.u.pci.slot;
++        unsigned function = vm->def->hostdevs[i]->source.subsys.u.pci.function;
++
++        if (dev->data.hostdev->source.subsys.u.pci.domain   == domain &&
++            dev->data.hostdev->source.subsys.u.pci.bus      == bus &&
++            dev->data.hostdev->source.subsys.u.pci.slot     == slot &&
++            dev->data.hostdev->source.subsys.u.pci.function == function) {
++            detach = vm->def->hostdevs[i];
++            break;
++        }
++    }
++
++    if (!detach) {
++        qemudReportError(conn, NULL, NULL, VIR_ERR_OPERATION_FAILED,
++                         _("host pci device %.4x:%.2x:%.2x.%.1x not found"),
++                         dev->data.hostdev->source.subsys.u.pci.domain,
++                         dev->data.hostdev->source.subsys.u.pci.bus,
++                         dev->data.hostdev->source.subsys.u.pci.slot,
++                         dev->data.hostdev->source.subsys.u.pci.function);
++        return -1;
++    }
++
++    if (!virHostdevHasValidGuestAddr(detach)) {
++        qemudReportError(conn, NULL, NULL, VIR_ERR_OPERATION_FAILED,
++                         "%s", _("hostdev cannot be detached - device state missing"));
++        return -1;
++    }
++
++    if (virAsprintf(&cmd, "pci_del pci_addr=%.4x:%.2x:%.2x",
++                    detach->source.subsys.u.pci.guest_addr.domain,
++                    detach->source.subsys.u.pci.guest_addr.bus,
++                    detach->source.subsys.u.pci.guest_addr.slot) < 0) {
++        virReportOOMError(conn);
++        return -1;
++    }
++
++    if (qemudMonitorCommand(vm, cmd, &reply) < 0) {
++        qemudReportError(conn, dom, NULL, VIR_ERR_OPERATION_FAILED,
++                         "%s", _("cannot detach host pci device"));
++        VIR_FREE(cmd);
++        return -1;
++    }
++
++    DEBUG("%s: pci_del reply: %s", vm->def->name,  reply);
++
++    /* If the command fails due to a wrong PCI address qemu prints
++     * 'invalid pci address'; nothing is printed on success */
++    if (strstr(reply, "Invalid pci address")) {
++        qemudReportError(conn, NULL, NULL, VIR_ERR_OPERATION_FAILED,
++                         _("failed to detach host pci device: invalid PCI address %.4x:%.2x:%.2x: %s"),
++                         detach->source.subsys.u.pci.guest_addr.domain,
++                         detach->source.subsys.u.pci.guest_addr.bus,
++                         detach->source.subsys.u.pci.guest_addr.slot,
++                         reply);
++        VIR_FREE(reply);
++        VIR_FREE(cmd);
++        return -1;
++    }
++
++    VIR_FREE(reply);
++    VIR_FREE(cmd);
++
++    ret = 0;
++
++    pci = pciGetDevice(conn,
++                       detach->source.subsys.u.pci.domain,
++                       detach->source.subsys.u.pci.bus,
++                       detach->source.subsys.u.pci.slot,
++                       detach->source.subsys.u.pci.function);
++    if (!pci)
++        ret = -1;
++    else {
++        pciDeviceListDel(conn, driver->activePciHostdevs, pci);
++        if (pciResetDevice(conn, pci, driver->activePciHostdevs) < 0)
++            ret = -1;
++        if (detach->managed && pciReAttachDevice(conn, pci) < 0)
++            ret = -1;
++        pciFreeDevice(conn, pci);
++    }
++
++    if (i != --vm->def->nhostdevs)
++        memmove(&vm->def->hostdevs[i],
++                &vm->def->hostdevs[i+1],
++                sizeof(*vm->def->hostdevs) * (vm->def->nhostdevs-i));
++    if (VIR_REALLOC_N(vm->def->hostdevs, vm->def->nhostdevs) < 0) {
++        virReportOOMError(conn);
++        ret = -1;
++    }
++
++    return ret;
++}
++
++static int qemudDomainDetachHostDevice(virConnectPtr conn,
++                                       struct qemud_driver *driver,
++                                       virDomainObjPtr vm,
++                                       virDomainDeviceDefPtr dev)
++{
++    virDomainHostdevDefPtr hostdev = dev->data.hostdev;
++    int ret;
++
++    if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS) {
++        qemudReportError(conn, dom, NULL, VIR_ERR_NO_SUPPORT,
++                         _("hostdev mode '%s' not supported"),
++                         virDomainHostdevModeTypeToString(hostdev->mode));
++        return -1;
++    }
++
++    switch (hostdev->source.subsys.type) {
++    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
++        ret = qemudDomainDetachHostPciDevice(conn, driver, vm, dev);
++        break;
++    default:
++        qemudReportError(conn, dom, NULL, VIR_ERR_NO_SUPPORT,
++                         _("hostdev subsys type '%s' not supported"),
++                         virDomainHostdevSubsysTypeToString(hostdev->source.subsys.type));
++        return -1;
++    }
++
++    if (qemuDomainSetDeviceOwnership(conn, driver, dev, 1) < 0)
++        VIR_WARN0("Fail to restore disk device ownership");
++
++    return ret;
++}
++
+ static int qemudDomainDetachDevice(virDomainPtr dom,
+                                    const char *xml) {
+     struct qemud_driver *driver = dom->conn->privateData;
+@@ -5670,6 +5914,8 @@ static int qemudDomainDetachDevice(virDomainPtr dom,
+             VIR_WARN0("Fail to restore disk device ownership");
+     } else if (dev->type == VIR_DOMAIN_DEVICE_NET) {
+         ret = qemudDomainDetachNetDevice(dom->conn, vm, dev);
++    } else if (dev->type == VIR_DOMAIN_DEVICE_HOSTDEV) {
++        ret = qemudDomainDetachHostDevice(dom->conn, driver, vm, dev);
+     } else
+         qemudReportError(dom->conn, dom, NULL, VIR_ERR_NO_SUPPORT,
+                          "%s", _("only SCSI or virtio disk device can be detached dynamically"));
+-- 
+1.6.2.5
+

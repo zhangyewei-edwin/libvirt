@@ -96,6 +96,27 @@ Patch03: libvirt-0.7.0-policy-kit-rewrite.patch
 # Log and ignore NUMA topology problems (rhbz #506590)
 Patch04: libvirt-0.7.0-numa-ignore-fail.patch
 
+# Minor 'virsh nodedev-list --tree' annoyance, fix from upstream
+Patch05: libvirt-add-space-to-nodedev-list-tree.patch
+
+# Fixes list corruption after disk hot-unplug
+Patch06: libvirt-fix-device-list-update-after-detach.patch
+
+# Re-attach PCI host devices after guest shuts down (bug #499561)
+Patch07: libvirt-reattach-pci-hostdevs-after-guest-shutdown.patch
+
+# Allow PM reset on multi-function PCI devices (bug #515689)
+Patch08: libvirt-allow-pm-reset-on-multi-function-pci-devices.patch
+
+# Fix stupid PCI reset error message (#499678)
+Patch09: libvirt-improve-pci-hostdev-reset-error-message.patch
+
+# Allow PCI bus reset to reset other devices (#499678)
+Patch10: libvirt-allow-pci-hostdev-reset-to-reset-other-devices.patch
+
+# Add PCI host device hotplug support
+Patch11: libvirt-add-pci-hostdev-hotplug-support.patch
+
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
 Patch200: libvirt-0.6.4-svirt-sound.patch
@@ -281,6 +302,13 @@ of recent versions of Linux (and other OSes).
 %patch02 -p1
 %patch03 -p1
 %patch04 -p1
+%patch05 -p1
+%patch06 -p1
+%patch07 -p1
+%patch08 -p1
+%patch09 -p1
+%patch10 -p1
+%patch11 -p1
 
 %patch200 -p1
 
@@ -649,6 +677,15 @@ fi
 %endif
 
 %changelog
+* Wed Aug 19 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-5
+- Add PCI host device hotplug support
+- Allow PCI bus reset to reset other devices (#499678)
+- Fix stupid PCI reset error message (bug #499678)
+- Allow PM reset on multi-function PCI devices (bug #515689)
+- Re-attach PCI host devices after guest shuts down (bug #499561)
+- Fix list corruption after disk hot-unplug
+- Fix minor 'virsh nodedev-list --tree' annoyance
+
 * Thu Aug 13 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.0-4
 - Rewrite policykit support (rhbz #499970)
 - Log and ignore NUMA topology problems (rhbz #506590)
