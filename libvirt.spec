@@ -81,7 +81,7 @@ Version: 0.7.0
 Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: libvirt-%{version}.tar.gz
+Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 
 # Make sure qemu can access kernel/initrd (bug #516034)
 Patch01: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
