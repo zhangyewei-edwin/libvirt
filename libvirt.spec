@@ -12,6 +12,7 @@
 %define with_libvirtd      0%{!?_without_libvirtd:1}
 %define with_uml           0%{!?_without_uml:1}
 %define with_one           0%{!?_without_one:1}
+%define with_phyp          0%{!?_without_phyp:1}
 %define with_network       0%{!?_without_network:1}
 %define with_storage_fs    0%{!?_without_storage_fs:1}
 %define with_storage_lvm   0%{!?_without_storage_lvm:1}
@@ -23,9 +24,6 @@
 %define with_polkit        0%{!?_without_polkit:0}
 %define with_capng         0%{!?_without_capng:0}
 %define with_netcf         0%{!?_without_netcf:0}
-
-# default to off
-%define with_phyp          0%{!?_without_phyp:0}
 
 # Xen is available only on i386 x86_64 ia64
 %ifnarch i386 i586 i686 x86_64 ia64
@@ -74,55 +72,19 @@
 %define with_one    0
 %endif
 
+%define git_snapshot git3ef2e05
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.7.0
-Release: 6%{?dist}%{?extra_release}
+Version: 0.7.1
+Release: 0.1.%{git_snapshot}%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-
-# Make sure qemu can access kernel/initrd (bug #516034)
-Patch01: libvirt-0.7.0-chown-kernel-initrd-before-spawning-qemu.patch
-
-# Don't fail to start network if ipv6 modules is not loaded (bug #516497)
-Patch02: libvirt-0.7.0-handle-kernels-with-no-ipv6-support.patch
-
-# Policykit rewrite (bug #499970)
-# NB remove autoreconf hack & extra BRs when this goes away
-Patch03: libvirt-0.7.0-policy-kit-rewrite.patch
-
-# Log and ignore NUMA topology problems (rhbz #506590)
-Patch04: libvirt-0.7.0-numa-ignore-fail.patch
-
-# Minor 'virsh nodedev-list --tree' annoyance, fix from upstream
-Patch05: libvirt-add-space-to-nodedev-list-tree.patch
-
-# Fixes list corruption after disk hot-unplug
-Patch06: libvirt-fix-device-list-update-after-detach.patch
-
-# Re-attach PCI host devices after guest shuts down (bug #499561)
-Patch07: libvirt-reattach-pci-hostdevs-after-guest-shutdown.patch
-
-# Allow PM reset on multi-function PCI devices (bug #515689)
-Patch08: libvirt-allow-pm-reset-on-multi-function-pci-devices.patch
-
-# Fix stupid PCI reset error message (#499678)
-Patch09: libvirt-improve-pci-hostdev-reset-error-message.patch
-
-# Allow PCI bus reset to reset other devices (#499678)
-Patch10: libvirt-allow-pci-hostdev-reset-to-reset-other-devices.patch
-
-# Add PCI host device hotplug support
-Patch11: libvirt-add-pci-hostdev-hotplug-support.patch
-
-# Fix migration completion with newer versions of qemu (#516187)
-Patch12: libvirt-fix-migration-completion-with-newer-qemu.patch
+Source: http://libvirt.org/sources/libvirt-%{version}-%{git_snapshot}.tar.gz
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
-Patch200: libvirt-0.6.4-svirt-sound.patch
+Patch00: libvirt-0.6.4-svirt-sound.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -150,7 +112,9 @@ BuildRequires: util-linux
 BuildRequires: nfs-utils
 Requires: nfs-utils
 # For glusterfs
+%if 0%{?fedora} >= 11
 Requires: glusterfs-client >= 2.0.1
+%endif
 %endif
 %if %{with_qemu}
 # From QEMU RPMs
@@ -236,7 +200,7 @@ BuildRequires: numactl-devel
 BuildRequires: libcap-ng-devel >= 0.5.0
 %endif
 %if %{with_phyp}
-BuildRequires: libssh-devel >= 0.3.1
+BuildRequires: libssh2-devel
 %endif
 %if %{with_netcf}
 BuildRequires: netcf-devel
@@ -244,9 +208,6 @@ BuildRequires: netcf-devel
 
 # Fedora build root suckage
 BuildRequires: gawk
-
-# Temp hack for patch 3
-BuildRequires: libtool autoconf automake gettext cvs
 
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -301,20 +262,7 @@ of recent versions of Linux (and other OSes).
 %prep
 %setup -q
 
-%patch01 -p1
-%patch02 -p1
-%patch03 -p1
-%patch04 -p1
-%patch05 -p1
-%patch06 -p1
-%patch07 -p1
-%patch08 -p1
-%patch09 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
-
-%patch200 -p1
+%patch00 -p1
 
 %build
 %if ! %{with_xen}
@@ -404,9 +352,6 @@ of recent versions of Linux (and other OSes).
 %if ! %{with_netcf}
 %define _without_netcf --without-netcf
 %endif
-
-# Temp hack for patch 3
-autoreconf -if
 
 %configure %{?_without_xen} \
            %{?_without_qemu} \
@@ -566,7 +511,7 @@ fi
 %dir %attr(0700, root, root) %{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
-%dir %attr(0700, %{qemu_user}, %{qemu_group}) %{_localstatedir}/run/libvirt/qemu/
+%dir %attr(0700, root, root) %{_localstatedir}/run/libvirt/qemu/
 %dir %attr(0700, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/
 %dir %attr(0700, %{qemu_user}, %{qemu_group}) %{_localstatedir}/cache/libvirt/qemu/
 %endif
@@ -644,6 +589,8 @@ fi
 %{_datadir}/libvirt/schemas/nodedev.rng
 %{_datadir}/libvirt/schemas/capability.rng
 %{_datadir}/libvirt/schemas/interface.rng
+%{_datadir}/libvirt/schemas/secret.rng
+%{_datadir}/libvirt/schemas/storageencryption.rng
 
 %if %{with_sasl}
 %config(noreplace) %{_sysconfdir}/sasl2/libvirt.conf
@@ -681,6 +628,10 @@ fi
 %endif
 
 %changelog
+* Sun Sep  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-0.1.gitg3ef2e05
+- Update to pre-release git snapshot of 0.7.1
+- Drop upstreamed patches
+
 * Wed Aug 19 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-6
 - Fix migration completion with newer versions of qemu (#516187)
 
