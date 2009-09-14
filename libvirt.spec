@@ -18,6 +18,7 @@
 %define with_storage_lvm   0%{!?_without_storage_lvm:1}
 %define with_storage_iscsi 0%{!?_without_storage_iscsi:1}
 %define with_storage_disk  0%{!?_without_storage_disk:1}
+%define with_storage_mpath 0%{!?_without_storage_mpath:1}
 %define with_numactl       0%{!?_without_numactl:1}
 
 # default to off - selectively enabled below
@@ -72,12 +73,12 @@
 %define with_one    0
 %endif
 
-%define git_snapshot git3ef2e05
+%define git_snapshot gitfac3f4c
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.1
-Release: 0.1.%{git_snapshot}%{?dist}%{?extra_release}
+Release: 0.2.%{git_snapshot}%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}-%{git_snapshot}.tar.gz
@@ -119,6 +120,11 @@ Requires: glusterfs-client >= 2.0.1
 %if %{with_qemu}
 # From QEMU RPMs
 Requires: /usr/bin/qemu-img
+# For image compression
+Requires: gzip
+Requires: bzip2
+Requires: lzop
+Requires: xz
 %else
 %if %{with_xen}
 # From Xen RPMs
@@ -136,6 +142,10 @@ Requires: iscsi-initiator-utils
 %if %{with_storage_disk}
 # For disk driver
 Requires: parted
+%endif
+%if %{with_storage_mpath}
+# For multipath support
+Requires: device-mapper
 %endif
 %if %{with_xen}
 BuildRequires: xen-devel
@@ -191,6 +201,10 @@ BuildRequires: iscsi-initiator-utils
 %if %{with_storage_disk}
 # For disk driver
 BuildRequires: parted-devel
+%endif
+%if %{with_storage_mpath}
+# For Multipath support
+BuildRequires: device-mapper-devel
 %endif
 %if %{with_numactl}
 # For QEMU/LXC numa info
@@ -341,6 +355,10 @@ of recent versions of Linux (and other OSes).
 %define _without_storage_disk --without-storage-disk
 %endif
 
+%if ! %{with_storage_mpath}
+%define _without_storage_mpath --without-storage-mpath
+%endif
+
 %if ! %{with_numactl}
 %define _without_numactl --without-numactl
 %endif
@@ -372,6 +390,7 @@ of recent versions of Linux (and other OSes).
            %{?_without_storage_lvm} \
            %{?_without_storage_iscsi} \
            %{?_without_storage_disk} \
+           %{?_without_storage_mpath} \
            %{?_without_numactl} \
            %{?_without_capng} \
            %{?_without_netcf} \
@@ -460,6 +479,9 @@ fi
 %endif
 
 /sbin/chkconfig --add libvirtd
+if [ "$1" -ge "1" ]; then
+	/sbin/service libvirtd condrestart > /dev/null 2>&1
+fi
 %endif
 
 %preun
@@ -628,6 +650,13 @@ fi
 %endif
 
 %changelog
+* Mon Sep 14 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-0.2.gitfac3f4c
+- Update to newer snapshot of 0.7.1
+- Stop libvirt using untrusted 'info vcpus' PID data (#520864)
+- Support relabelling of USB and PCI devices
+- Enable multipath storage support
+- Restart libvirtd upon RPM upgrade
+
 * Sun Sep  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-0.1.gitg3ef2e05
 - Update to pre-release git snapshot of 0.7.1
 - Drop upstreamed patches
