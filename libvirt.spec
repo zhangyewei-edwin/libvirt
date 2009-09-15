@@ -73,15 +73,14 @@
 %define with_one    0
 %endif
 
-%define git_snapshot gitfac3f4c
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.1
-Release: 0.2.%{git_snapshot}%{?dist}%{?extra_release}
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: http://libvirt.org/sources/libvirt-%{version}-%{git_snapshot}.tar.gz
+Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 
 # Temporary hack till PulseAudio autostart problems are sorted
 # out when SELinux enforcing (bz 486112)
@@ -650,6 +649,16 @@ fi
 %endif
 
 %changelog
+* Tue Sep 15 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-1
+- Upstream release of 0.7.1
+- ESX, VBox driver updates
+- mutipath support
+- support for encrypted (qcow) volume
+- compressed save image format for Qemu/KVM
+- QEmu host PCI device hotplug support
+- configuration of huge pages in guests
+- a lot of fixes
+
 * Mon Sep 14 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-0.2.gitfac3f4c
 - Update to newer snapshot of 0.7.1
 - Stop libvirt using untrusted 'info vcpus' PID data (#520864)
