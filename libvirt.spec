@@ -769,7 +769,7 @@ fi
 %endif
 
 %changelog
-* Thu Sep 17 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-4%
+* Thu Sep 17 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-4
 - A couple of hot-unplug memory handling fixes (#523953)
 
 * Thu Sep 17 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-3
