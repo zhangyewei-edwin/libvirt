@@ -1,60 +1,132 @@
 # -*- rpm-spec -*-
 
-%define with_xen           0%{!?_without_xen:1}
-%define with_xen_proxy     0%{!?_without_xen_proxy:1}
-%define with_qemu          0%{!?_without_qemu:1}
-%define with_openvz        0%{!?_without_openvz:1}
-%define with_lxc           0%{!?_without_lxc:1}
-%define with_vbox          0%{!?_without_vbox:1}
-%define with_sasl          0%{!?_without_sasl:1}
-%define with_avahi         0%{!?_without_avahi:1}
-%define with_python        0%{!?_without_python:1}
-%define with_libvirtd      0%{!?_without_libvirtd:1}
-%define with_uml           0%{!?_without_uml:1}
-%define with_one           0%{!?_without_one:1}
-%define with_phyp          0%{!?_without_phyp:1}
-%define with_network       0%{!?_without_network:1}
-%define with_storage_fs    0%{!?_without_storage_fs:1}
-%define with_storage_lvm   0%{!?_without_storage_lvm:1}
-%define with_storage_iscsi 0%{!?_without_storage_iscsi:1}
-%define with_storage_disk  0%{!?_without_storage_disk:1}
-%define with_storage_mpath 0%{!?_without_storage_mpath:1}
-%define with_numactl       0%{!?_without_numactl:1}
+# A client only build will create a libvirt.so only containing
+# the generic RPC driver, and test driver and no libvirtd
+# Default to a full server + client build
+%define client_only        0
 
-# default to off - selectively enabled below
+# Now turn off server build in certain cases
+
+# RHEL-5 builds are client-only for s390, ppc
+%if 0%{?rhel} == 5
+%ifnarch i386 i586 i686 x86_64 ia64
+%define client_only        1
+%endif
+%endif
+
+# Disable all server side drivers if client only build requested
+%if %{client_only}
+%define server_drivers     0
+%else
+%define server_drivers     1
+%endif
+
+
+# Now set the defaults for all the important features, independant
+# of any particular OS
+
+# First the daemon itself
+%define with_libvirtd      0%{!?_without_libvirtd:%{server_drivers}}
+%define with_avahi         0%{!?_without_avahi:%{server_drivers}}
+
+# Then the hypervisor drivers
+%define with_xen           0%{!?_without_xen:%{server_drivers}}
+%define with_xen_proxy     0%{!?_without_xen_proxy:%{server_drivers}}
+%define with_qemu          0%{!?_without_qemu:%{server_drivers}}
+%define with_openvz        0%{!?_without_openvz:%{server_drivers}}
+%define with_lxc           0%{!?_without_lxc:%{server_drivers}}
+%define with_vbox          0%{!?_without_vbox:%{server_drivers}}
+%define with_uml           0%{!?_without_uml:%{server_drivers}}
+%define with_one           0%{!?_without_one:%{server_drivers}}
+%define with_phyp          0%{!?_without_phyp:%{server_drivers}}
+%define with_esx           0%{!?_without_esx:%{server_drivers}}
+
+# Then the secondary host drivers
+%define with_network       0%{!?_without_network:%{server_drivers}}
+%define with_storage_fs    0%{!?_without_storage_fs:%{server_drivers}}
+%define with_storage_lvm   0%{!?_without_storage_lvm:%{server_drivers}}
+%define with_storage_iscsi 0%{!?_without_storage_iscsi:%{server_drivers}}
+%define with_storage_disk  0%{!?_without_storage_disk:%{server_drivers}}
+%define with_storage_mpath 0%{!?_without_storage_mpath:%{server_drivers}}
+%define with_numactl       0%{!?_without_numactl:%{server_drivers}}
+%define with_selinux       0%{!?_without_selinux:%{server_drivers}}
+%define with_hal           0%{!?_without_hal:%{server_drivers}}
+
+# A few optional bits off by default, we enable later
 %define with_polkit        0%{!?_without_polkit:0}
 %define with_capng         0%{!?_without_capng:0}
 %define with_netcf         0%{!?_without_netcf:0}
+
+# Non-server/HV driver defaults which are always enabled
+%define with_python        0%{!?_without_python:1}
+%define with_sasl          0%{!?_without_sasl:1}
+
+
+# Finally set the OS / architecture specific special cases
 
 # Xen is available only on i386 x86_64 ia64
 %ifnarch i386 i586 i686 x86_64 ia64
 %define with_xen 0
 %endif
 
+
+# RHEL doesn't ship OpenVZ, VBox, UML, OpenNebula, PowerHypervisor or ESX
+%if 0%{?rhel}
+%define with_openvz 0
+%define with_vbox 0
+%define with_uml 0
+%define with_one 0
+%define with_phyp 0
+%define with_esx 0
+%endif
+
+# RHEL-5 has restricted QEMU to x86_64 only and is too old for LXC
+%if 0%{?rhel} == 5
+%ifnarch x86_64
+%define with_qemu 0
+%endif
+%define with_lxc 0
+%endif
+
+# RHEL-6 has restricted QEMU to x86_64 only, stopped including Xen
+# on all archs. Other archs all have LXC available though
+%if 0%{?rhel} >= 6
+%ifnarch x86_64
+%define with_qemu 0
+%endif
+%define with_xen 0
+%endif
+# If Xen isn't turned on, we shouldn't build the xen proxy either
 %if ! %{with_xen}
 %define with_xen_proxy 0
 %endif
 
+# Fedora doesn't have any QEMU on ppc64 - only ppc
 %if 0%{?fedora}
 %ifarch ppc64
 %define with_qemu 0
 %endif
 %endif
 
-%if 0%{?fedora} >= 8
+# PolicyKit was introduced in Fedora 8 / RHEL-6 or newer, allowing
+# the setuid Xen proxy to be killed off
+%if 0%{?fedora} >= 8 || 0%{?rhel} >= 6
 %define with_polkit    0%{!?_without_polkit:1}
 %define with_xen_proxy 0
 %endif
 
-%if 0%{?fedora} >= 12
+# libcapng is used to manage capabilities in Fedora 12 / RHEL-6 or newer
+%if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
 %define with_capng     0%{!?_without_capng:1}
 %endif
 
-%if 0%{?fedora} >= 12
-%define with_netcf     0%{!?_without_netcf:1}
+# netcf is used to manage network interfaces in Fedora 12 / RHEL-6 or newer
+%if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
+%define with_netcf     0%{!?_without_netcf:%{server_drivers}}
 %endif
 
-%if 0%{?fedora} >= 12
+# Force QEMU to run as non-root
+%if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
 %define qemu_user  qemu
 %define qemu_group  qemu
 %else
@@ -62,22 +134,20 @@
 %define qemu_group  root
 %endif
 
-#
-# If building on RHEL switch on the specific support
-#
-%if 0%{?fedora}
-%define with_rhel5  0
-%else
+
+# The RHEL-5 Xen package has some feature backports. This
+# flag is set to enable use of those special bits on RHEL-5
+%if 0%{?rhel} == 5
 %define with_rhel5  1
-%define with_polkit 0
-%define with_one    0
+%else
+%define with_rhel5  0
 %endif
 
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.1
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -93,13 +163,21 @@ BuildRequires: python-devel
 # The client side, i.e. shared libs and virsh are in a subpackage
 Requires: libvirt-client = %{version}-%{release}
 
-Requires: dnsmasq
+# Used by many of the drivers, so turn it on whenever the
+# daemon is present
+%if %{with_libvirtd}
 Requires: bridge-utils
+%endif
+%if %{with_network}
+Requires: dnsmasq
 Requires: iptables
+%endif
 # needed for device enumeration
+%if %{with_hal}
 Requires: hal
+%endif
 %if %{with_polkit}
-%if 0%{?fedora} >= 12
+%if 0%{?fedora} >= 12 || 0%{?rhel} >=6
 Requires: polkit >= 0.93
 %else
 Requires: PolicyKit >= 0.6
@@ -158,18 +236,24 @@ BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: gnutls-devel
+%if %{with_hal}
 BuildRequires: hal-devel
+%endif
 %if %{with_avahi}
 BuildRequires: avahi-devel
 %endif
+%if %{with_selinux}
 BuildRequires: libselinux-devel
+%endif
+%if %{with_network}
 BuildRequires: dnsmasq
+%endif
 BuildRequires: bridge-utils
 %if %{with_sasl}
 BuildRequires: cyrus-sasl-devel
 %endif
 %if %{with_polkit}
-%if 0%{?fedora} >= 12
+%if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
 # Only need the binary, not -devel
 BuildRequires: polkit >= 0.93
 %else
@@ -200,10 +284,19 @@ BuildRequires: iscsi-initiator-utils
 %if %{with_storage_disk}
 # For disk driver
 BuildRequires: parted-devel
+%if 0%{?rhel} == 5
+# Broken RHEL-5 parted RPM is missing a dep
+BuildRequires: e2fsprogs-devel
+%endif
 %endif
 %if %{with_storage_mpath}
 # For Multipath support
+%if 0%{?rhel} == 5
+# Broken RHEL-5 packaging has header files in main RPM :-(
+BuildRequires: device-mapper
+%else
 BuildRequires: device-mapper-devel
+%endif
 %endif
 %if %{with_numactl}
 # For QEMU/LXC numa info
@@ -310,6 +403,10 @@ of recent versions of Linux (and other OSes).
 %define _without_phyp --without-phyp
 %endif
 
+%if ! %{with_esx}
+%define _without_esx --without-esx
+%endif
+
 %if ! %{with_polkit}
 %define _without_polkit --without-polkit
 %endif
@@ -370,6 +467,14 @@ of recent versions of Linux (and other OSes).
 %define _without_netcf --without-netcf
 %endif
 
+%if ! %{with_selinux}
+%define _without_selinux --without-selinux
+%endif
+
+%if ! %{with_hal}
+%define _without_hal --without-hal
+%endif
+
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
@@ -383,6 +488,7 @@ of recent versions of Linux (and other OSes).
            %{?_without_uml} \
            %{?_without_one} \
            %{?_without_phyp} \
+           %{?_without_esx} \
            %{?_without_network} \
            %{?_with_rhel5_api} \
            %{?_without_storage_fs} \
@@ -393,6 +499,8 @@ of recent versions of Linux (and other OSes).
            %{?_without_numactl} \
            %{?_without_capng} \
            %{?_without_netcf} \
+           %{?_without_selinux} \
+           %{?_without_hal} \
            --with-qemu-user=%{qemu_user} \
            --with-qemu-group=%{qemu_group} \
            --with-init-script=redhat \
@@ -413,7 +521,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
 
-%if %{with_qemu}
+%if %{with_network}
 # We don't want to install /etc/libvirt/qemu/networks in the main %files list
 # because if the admin wants to delete the default network completely, we don't
 # want to end up re-incarnating it on every RPM upgrade.
@@ -427,6 +535,8 @@ sed -i -e "/<uuid>/d" $RPM_BUILD_ROOT%{_datadir}/libvirt/networks/default.xml
 %else
 rm -f $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/default.xml
 rm -f $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/autostart/default.xml
+%endif
+%if ! %{with_qemu}
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/libvirtd_qemu.aug
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
 %endif
@@ -434,6 +544,10 @@ rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
 
 %if ! %{with_python}
 rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-python-%{version}
+%endif
+
+%if %{client_only}
+rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-%{version}
 %endif
 
 %if ! %{with_qemu}
@@ -448,9 +562,9 @@ chmod 0644 $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/libvirtd
 rm -fr %{buildroot}
 
 %pre
-%if 0%{?fedora} >= 12
+%if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
 # Normally 'setup' adds this in /etc/passwd, but this is
-# here for case of upgrades from earlier Fedora. This
+# here for case of upgrades from earlier Fedora/RHEL. This
 # UID/GID pair is reserved for qemu:qemu
 getent group kvm >/dev/null || groupadd -g 36 -r kvm
 getent group qemu >/dev/null || groupadd -g 107 -r qemu
@@ -462,7 +576,7 @@ getent passwd qemu >/dev/null || \
 %post
 
 %if %{with_libvirtd}
-%if %{with_qemu}
+%if %{with_network}
 # We want to install the default network for initial RPM installs
 # or on the first upgrade from a non-network aware libvirt only.
 # We check this by looking to see if the daemon is already installed
@@ -479,7 +593,7 @@ fi
 
 /sbin/chkconfig --add libvirtd
 if [ "$1" -ge "1" ]; then
-	/sbin/service libvirtd condrestart > /dev/null 2>&1
+    /sbin/service libvirtd condrestart > /dev/null 2>&1
 fi
 %endif
 
@@ -495,31 +609,31 @@ fi
 
 %postun client -p /sbin/ldconfig
 
+%if %{with_libvirtd}
 %files
 %defattr(-, root, root)
 
 %doc AUTHORS ChangeLog.gz NEWS README COPYING.LIB TODO
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/
 
-%if %{with_qemu}
+%if %{with_network}
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/networks/
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/qemu/networks/autostart
 %endif
 
-%if %{with_libvirtd}
 %{_sysconfdir}/rc.d/init.d/libvirtd
 %config(noreplace) %{_sysconfdir}/sysconfig/libvirtd
 %config(noreplace) %{_sysconfdir}/libvirt/libvirtd.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/libvirtd
-%endif
 
 %if %{with_qemu}
 %config(noreplace) %{_sysconfdir}/libvirt/qemu.conf
 %endif
 
-%if %{with_qemu}
 %dir %{_datadir}/libvirt/
+
+%if %{with_network}
 %dir %{_datadir}/libvirt/networks/
 %{_datadir}/libvirt/networks/default.xml
 %endif
@@ -557,13 +671,11 @@ fi
 %{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
 %endif
 
-%if %{with_libvirtd}
 %{_datadir}/augeas/lenses/libvirtd.aug
 %{_datadir}/augeas/lenses/tests/test_libvirtd.aug
-%endif
 
 %if %{with_polkit}
-%if 0%{?fedora} >= 12
+%if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
 %{_datadir}/polkit-1/actions/org.libvirt.unix.policy
 %else
 %{_datadir}/PolicyKit/policy/org.libvirt.unix.policy
@@ -578,17 +690,15 @@ fi
 %if %{with_xen_proxy}
 %attr(4755, root, root) %{_libexecdir}/libvirt_proxy
 %endif
-
 %if %{with_lxc}
 %attr(0755, root, root) %{_libexecdir}/libvirt_lxc
 %endif
 
-%if %{with_libvirtd}
 %attr(0755, root, root) %{_libexecdir}/libvirt_parthelper
 %attr(0755, root, root) %{_sbindir}/libvirtd
-%endif
 
 %doc docs/*.xml
+%endif
 
 %files client -f %{name}.lang
 %defattr(-, root, root)
@@ -649,6 +759,9 @@ fi
 %endif
 
 %changelog
+* Thu Sep 17 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-2
+- revamp of spec file for modularity and RHELs
+
 * Tue Sep 15 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-1
 - Upstream release of 0.7.1
 - ESX, VBox driver updates
@@ -694,7 +807,6 @@ fi
 - Set perms on /var/lib/libvirt/boot to 0711 (bug #516034)
 
 * Wed Aug  5 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-1
-- Upstream release of 0.7.0
 - ESX, VBox3, Power Hypervisor drivers
 - new net filesystem glusterfs
 - Storage cloning for LVM and Disk backends
@@ -703,309 +815,61 @@ fi
 - QEmu hotplug NIC support
 - a lot of fixes
 
-* Fri Jul 31 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.9.gite195b43
-- Set perms on /var/lib/libvirt/images to 0711
+* Fri Jul  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.5-1
+- release of 0.6.5
 
-* Thu Jul 30 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.8.gite195b43
-- Add patch from upstream to fix qemu pidfile perms problem
+* Fri May 29 2009 Daniel Veillard <veillard@redhat.com> - 0.6.4-1
+- release of 0.6.4
+- various new APIs
 
-* Thu Jul 30 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.0-0.7.gite195b43
-- Create qemu/kvm user & group to fix upgrades
-
-* Wed Jul 29 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-0.6.gite195b43
-- another prerelease with qemu, uml and remote patches
-- drop the news patch as it's now UTF8 upstream
-
-* Wed Jul 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.5.gitf055724
-- Move ldconfig call to libvirt-client %post/%postun
-- Fix rpmlint warning about libvirt-client summary
-- Fix disabling polkit and netcf on older fedoras
-
-* Wed Jul 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.4.gitf055724
-- Drop explicit libselinux requires, it is autorequired
-- Drop cleanup of python/tests, apparently not needed
-- Cherry-pick upstream patch to convert NEWS to UTF-8, drop iconv
-- Drop python BR; python-devel requires it
-
-* Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.3.gitf055724
-- Enable netcf support
-- Pass --with-qemu-user=qemu etc. to configure
-- Move various requires to the libvirt-client sub-package
-- Sync some trivial cleanups from upstream spec file
-- Remove explicit libxml2 requires, again
-- Build with --without-capng if capng support is disabled
-- Remove explicit dir creating in makeinstall, replaced by attr in files
-- Set perms on /var/{run,lib,cache}/libvirt/qemu
-
-* Tue Jul 28 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.0-0.2.gitf055724
-- Drop glusterfs dep to 2.0.1 (bug #514191)
-
-* Mon Jul 27 2009 Daniel Veillard <veillard@redhat.com> - 0.7.0-0.1.gitf055724
-- prerelease of 0.7.0
-
-* Sat Jul 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.5-3
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_12_Mass_Rebuild
-
-* Fri Jul 10 2009 Richard W.M. Jones <rjones@redhat.com> - 0.6.5-2.fc12
-- Bump release number to rebuild against new libparted.
-
-* Fri Jul  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.5-1.fc12
-- Upstream release of 0.6.5
-- OpenNebula driver
-- many bug fixes
-
-* Fri Jul  3 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-4.fc12
-- Fix libvirtd crash with bad capabilities data (bug #505635)
-
-* Fri Jul  3 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-3.fc12
-- Handle shared/readonly image labelling (bug #493692)
-- Don't unnecessarily try to change a file context (bug #507555)
-- Don't try to label a disk with no path (e.g. empty cdrom) (bug #499569)
-
-* Fri Jun  5 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.4-2.fc12
-- Remove the qemu BuildRequires
-
-* Fri May 29 2009 Daniel Veillard <veillard@redhat.com> - 0.6.4-1.fc12
-- Upstream release of 0.6.4
-- new APIs
-- fixes for latests QEmu/KVM versions
-- various assorted fixes
-
-* Mon May 25 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-11.fc12
-- Bring up the bridge, even if it doesn't have an IP address (bug #501912)
-
-* Thu May 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-10.fc12
-- Fix XML attribute escaping (bug #499791)
-- Fix serious event handling issues causing guests to be destroyed (bug #499698)
-
-* Thu May 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-9.fc12
-- Fix qemu argv detection with latest qemu (bug #501923)
-
-* Sun May 10 2009 Cole Robinson <crobinso@redhat.com> - 0.6.2-8.fc12
-- Don't try to label a disk with no path (e.g. empty cdrom) (bug #499569)
-
-* Thu May  7 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-7.fc12
-- Enable migration for qemu 0.10 (bug #499704)
-
-* Wed May  6 2009 Cole Robinson <crobinso@redhat.com> - 0.6.3-6.fc12
-- Refresh qemu caps when getCapabilities is called (bug #460649)
-
-* Wed May  6 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.3-5.fc12
-- Fix handling of <hostdev managed='yes'> (bug #499386)
-
-* Tue May  5 2009 Daniel Berrange <berrange@redhat.com> - 0.6.3-4.fc12
-- Fix readonly/shared disk image labelling (rhbz #493692)
-
-* Tue Apr 28 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-3.fc12
-- was also missing /usr/share/gtk-doc/html/libvirt in -devel
-
-* Tue Apr 28 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-2.fc12
-- fix packaging bug #496945 libvirt should own /var/cache/libvirt
-
-* Fri Apr 24 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-1.fc12
+* Fri Apr 24 2009 Daniel Veillard <veillard@redhat.com> - 0.6.3-1
 - release of 0.6.3
 - VirtualBox driver
-- new virt-xml-validate command
-- assorted bug fixes
 
-* Thu Apr 16 2009 Mark McLoughlin <markmc@redhat.com> - 0.6.2-2.fc12
-- Fix qemu drive format specification (#496092)
-
-* Fri Apr  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.2-1.fc11
+* Fri Apr  3 2009 Daniel Veillard <veillard@redhat.com> - 0.6.2-1
 - release of 0.6.2
-- memory ballooning in QEMU
-- SCSI HBA storage pool support
-- support SASL auth for VNC server
-- PCI passthrough in Xen driver
-- assorted bug fixes
 
-* Fri Apr  3 2009 Daniel P. Berrange  <berrange@redhat.com> - 0.6.1-6.fc11
-- Fix typo in previous patch
+* Fri Mar  4 2009 Daniel Veillard <veillard@redhat.com> - 0.6.1-1
+- release of 0.6.1
 
-* Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-5.fc11
-- Don't relabel shared/readonly disks
-- Disable sound cards when running sVirt
+* Sat Jan 31 2009 Daniel Veillard <veillard@redhat.com> - 0.6.0-1
+- release of 0.6.0
 
-* Tue Mar 17 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-4.fc11
-- Fix memory allocation for xend lookup
-- Avoid crash if storage volume deletion fails
-- Fix multiple FD leaks
-- Fix bug in dispatch FD events when a callback is marked deleted
-- Fix parsing of storage volume owner/group/mode
-- Fix memory allocation for virDomainGetVcpus RPC handler
-- Avoid deadlock in setting vCPU count
-- Use correct driver name in Xen block detach
+* Tue Nov 25 2008 Daniel Veillard <veillard@redhat.com> - 0.5.0-1
+- release of 0.5.0
 
-* Mon Mar  9 2009 Cole Robinson <crobinso@redhat.com> - 0.6.1-3.fc11
-- Add Requires: libselinux
+* Tue Sep 23 2008 Daniel Veillard <veillard@redhat.com> - 0.4.6-1
+- release of 0.4.6
 
-* Fri Mar  6 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.1-2.fc11
-- Fix crash after storage vol deletion fails
-- Add patch to enable VNC SASL authentication
+* Mon Sep  8 2008 Daniel Veillard <veillard@redhat.com> - 0.4.5-1
+- release of 0.4.5
 
-* Wed Mar  4 2009 Daniel Veillard <veillard@redhat.com> - 0.6.1-1.fc11
-- upstream release 0.6.1
-- support for node device detach reattach and reset
-- sVirt mandatory access control support
-- many bug fixes and small improvements
+* Wed Jun 25 2008 Daniel Veillard <veillard@redhat.com> - 0.4.4-1
+- release of 0.4.4
+- mostly a few bug fixes from 0.4.3
 
-* Mon Mar  2 2009 Daniel Veillard <veillard@redhat.com> - 0.6.0-6.fc11
-- make sure Xen is handled in i586 new default 32bits x86 packages
+* Thu Jun 12 2008 Daniel Veillard <veillard@redhat.com> - 0.4.3-1
+- release of 0.4.3
+- lots of bug fixes and small improvements
 
-* Wed Feb 25 2009 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.6.0-5.fc11
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_11_Mass_Rebuild
+* Tue Apr  8 2008 Daniel Veillard <veillard@redhat.com> - 0.4.2-1
+- release of 0.4.2
+- lots of bug fixes and small improvements
 
-* Wed Feb 18 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.0-4.fc11
-- Fix QEMU startup timeout/race (rhbz #484649)
-- Setup DBus threading. Don't allow dbus to call _exit / change SIGPIPE (rhbz #484553)
-- Fix timeout when autostarting session daemon
-
-* Wed Feb 11 2009 Richard W.M. Jones <rjones@redhat.com> - 0.6.0-3.fc11
-- Multiple fixes to remove rpmlint warnings/errors (rhbz #226055)
-
-* Fri Feb  6 2009 Daniel P. Berrange <berrange@redhat.com> - 0.6.0-2.fc11
-- Fix libvirtd --timeout usage
-- Fix RPC call problems and QEMU startup handling (rhbz #484414)
-- Fix unowned directories (rhbz #483442)
-
-* Sat Jan 31 2009 Daniel Veillard <veillard@redhat.com> - 0.6.0-1.fc11
-- upstream release 0.6.0
-- thread safety of API
-- allow QEmu/KVM domains to survive daemon restart
-- extended logging capabilities
-- support copy on write storage volumes for QEmu/KVM
-- support of storage cache control options for QEmu/KVM
-- a lot of bug fixes
-
-* Wed Dec 17 2008 Daniel Veillard <veillard@redhat.com> - 0.5.1-2.fc11
-- fix missing read-only access checks, fixes CVE-2008-5086
-
-* Fri Dec  5 2008 Daniel Veillard <veillard@redhat.com> - 0.5.1-1.fc11
-- upstream release 0.5.1
-- mostly bugfixes e.g #473071
-- some driver improvments
-
-* Sat Nov 29 2008 Ignacio Vazquez-Abrams <ivazqueznet+rpm@gmail.com> - 0.5.0-2
-- Rebuild for Python 2.6
-
-* Wed Nov 26 2008 Daniel Veillard <veillard@redhat.com> - 0.5.0-1.fc11
-- upstream release 0.5.0
-- domain lifecycle event support
-- node device enumeration
-- KVM/QEmu migration support
-- improved LXC support
-- SDL display configuration
-- User Mode Linux driver (Daniel Berrange)
-
-* Wed Sep 24 2008 Daniel Veillard <veillard@redhat.com> - 0.4.6-3.fc10
-- apply the python makefile patch for #463733
-
-* Wed Sep 24 2008 Daniel Veillard <veillard@redhat.com> - 0.4.6-2.fc10
-- upstream release 0.4.6
-- fixes some problems with 0.4.5
-
-* Tue Sep  9 2008 Daniel Veillard <veillard@redhat.com> - 0.4.5-2.fc10
-- fix a crash if a QEmu/KVM domain is defined without an emulator path
-
-* Mon Sep  8 2008 Daniel Veillard <veillard@redhat.com> - 0.4.5-1.fc10
-- upstream release 0.4.5
-- a lot of bug fixes
-- major updates to QEmu/KVM and Linux containers drivers
-- support for OpenVZ if installed
-
-* Thu Aug  7 2008 Tom "spot" Callaway <tcallawa@redhat.com> - 0.4.4-3.fc10
-- fix license tag
-
-* Tue Jul  8 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.4-2.fc10
-- Fix booting of CDROM images with KVM (rhbz #452355)
-
-* Wed Jun 25 2008 Daniel Veillard <veillard@redhat.com> - 0.4.4-1.fc10
-- upstream release 0.4.4
-- fix a few bugs in previous release
-
-* Thu Jun 12 2008 Daniel Veillard <veillard@redhat.com> - 0.4.3-1.fc10
-- upstream release 0.4.3
-- many bug fixes
-- many small improvements
-- serious xenner fixes
-
-* Wed Jun  4 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-6.fc10
-- Disable lokkit support again (#449996, #447633)
-- Ensure %-fedora is evaluated correctly
-
-* Thu May 15 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-5.fc10
-- Rebuild with policy enabled (rhbz #446616)
-
-* Fri May  9 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.2-4.fc10
-- Added directory for initrd/kernel images for SELinux policy
-
-* Mon Apr 28 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-3.fc10
-- Simplify the way arch conditionals are handled
-
-* Mon Apr 28 2008 Mark McLoughlin <markmc@redhat.com> - 0.4.2-2.fc10
-- Enable lokkit support (#443796)
-
-* Tue Apr  8 2008 Daniel Veillard <veillard@redhat.com> - 0.4.2-1.fc9
-- upstream release 0.4.2
-- many bug fixes
-- localization updates
-
-* Thu Apr  4 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-7.fc9
-- Don't run polkit-auth as root
-- Don't request polkit auth if client is root
-
-* Fri Mar 28 2008 Chris Lalancette <clalance@redhat.com> - 0.4.1-6.fc9
-- When dumping XML for a storage pool, make the <source> directory tag
-  match the <dir> tag used for specifying the pool in the first place
-
-* Thu Mar 27 2008 Chris Lalancette <clalance@redhat.com> - 0.4.1-5.fc9
-- Do iscsiadm sendtarget before trying to do login
-- Do sysfs scanning for iSCSI LUNs instead of trying to parse them from
-  iscsiadm session output
-
-* Thu Mar 13 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-4.fc9
-- Fix QEMU tap device setup
-- Fix Xen boot device XML processing
-- Fixed QEMU cdrom media change
-
-* Mon Mar 10 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.1-3.fc9
-- Fixed daemon startup when run with --daemon flag
-
-* Mon Mar  3 2008 Daniel Veillard <veillard@redhat.com> - 0.4.1-2.fc9
-- 2 patches found just after the release
-
-* Mon Mar  3 2008 Daniel Veillard <veillard@redhat.com> - 0.4.1-1.fc9
+* Mon Mar  3 2008 Daniel Veillard <veillard@redhat.com> - 0.4.1-1
 - Release of 0.4.1
 - Storage APIs
 - xenner support
 - lots of assorted improvements, bugfixes and cleanups
 - documentation and localization improvements
 
-* Wed Feb 20 2008 Fedora Release Engineering <rel-eng@fedoraproject.org> - 0.4.0-5
-- Autorebuild for GCC 4.3
-
-* Fri Jan 18 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.0-4.fc9
-- Fix SSH tunnelling (rhbz #428743)
-- Fix back-compat for nodeinfo call changes.
-
-* Sun Jan 13 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.0-3.fc9
-- Fix crash when no auth callback
-
-* Wed Jan  2 2008 Daniel P. Berrange <berrange@redhat.com> - 0.4.0-2.fc9
-- Fix reading large config files (rhbz #426425)
-- Fix crash when connecting to a PolicyKit enabled server with not auth callback (rhbz #427107)
-
-* Tue Dec 18 2007 Daniel Veillard <veillard@redhat.com> - 0.4.0-1.fc8
+* Tue Dec 18 2007 Daniel Veillard <veillard@redhat.com> - 0.4.0-1
 - Release of 0.4.0
 - SASL based authentication
 - PolicyKit authentication
 - improved NUMA and statistics support
 - lots of assorted improvements, bugfixes and cleanups
 - documentation and localization improvements
-
-* Mon Oct 15 2007 Daniel P. Berrange <berrange@redhat.com> - 0.3.3-2.fc8
-- Added QEMU driver config file support
-- Added example config files
 
 * Sun Sep 30 2007 Daniel Veillard <veillard@redhat.com> - 0.3.3-1
 - Release of 0.3.3
@@ -1014,40 +878,28 @@ fi
 - lots of assorted improvements, bugfixes and cleanups
 - documentation and localization improvements
 
-* Fri Aug 24 2007 Daniel Veillard <veillard@redhat.com> - 0.3.2-2.fc8
-- also build on arches where Xen is not available
-
-* Tue Aug 21 2007 Daniel Veillard <veillard@redhat.com> - 0.3.2-1.fc8
+* Tue Aug 21 2007 Daniel Veillard <veillard@redhat.com> - 0.3.2-1
 - Release of 0.3.2
 - API for domains migration
 - APIs for collecting statistics on disks and interfaces
 - lots of assorted bugfixes and cleanups
 - documentation and localization improvements
 
-* Thu Aug 16 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-4.fc8
-- Fixes missing Requires for libvirt-devel
-
-* Thu Jul 26 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-3.fc8
-- adds fix for bug #249594
-
-* Wed Jul 25 2007 Jesse Keating <jkeating@redhat.com> - 0.3.1-2
-- Rebuild for RH #249435
-
-* Tue Jul 24 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-1.fc8
+* Tue Jul 24 2007 Daniel Veillard <veillard@redhat.com> - 0.3.1-1
 - Release of 0.3.1
 - localtime clock support
 - PS/2 and USB input devices
 - lots of assorted bugfixes and cleanups
 - documentation and localization improvements
 
-* Mon Jul  9 2007 Daniel Veillard <veillard@redhat.com> - 0.3.0-1.fc8
+* Mon Jul  9 2007 Daniel Veillard <veillard@redhat.com> - 0.3.0-1
 - Release of 0.3.0
 - Secure remote access support
 - unification of daemons
 - lots of assorted bugfixes and cleanups
 - documentation and localization improvements
 
-* Fri Jun  8 2007 Daniel Veillard <veillard@redhat.com> - 0.2.3-1.fc8
+* Fri Jun  8 2007 Daniel Veillard <veillard@redhat.com> - 0.2.3-1
 - Release of 0.2.3
 - lot of assorted bugfixes and cleanups
 - support for Xen-3.1
@@ -1116,7 +968,7 @@ fi
 - it's pkgconfig not pgkconfig !
 
 * Mon Nov  6 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-2
-- fixing spec file, added %-dist, -devel requires pkgconfig and xen-devel
+- fixing spec file, added %dist, -devel requires pkgconfig and xen-devel
 - Resolves: rhbz#202320
 
 * Mon Oct 16 2006 Daniel Veillard <veillard@redhat.com> 0.1.8-1
@@ -1157,7 +1009,7 @@ fi
 - add patch to address dom0_ops API breakage in Xen 3.0.3 tree
 
 * Mon Aug 28 2006 Jeremy Katz <katzj@redhat.com> - 0.1.4-4
-- add patch to support paravirt framebuffer in Xen 
+- add patch to support paravirt framebuffer in Xen
 
 * Mon Aug 21 2006 Daniel Veillard <veillard@redhat.com> 0.1.4-3
 - another patch to fix network handling in non-HVM guests
@@ -1230,7 +1082,7 @@ fi
 - fixes some problems in 0.0.3 due to the change of names
 
 * Wed Feb  8 2006 Daniel Veillard <veillard@redhat.com> 0.0.3-1
-- changed library name to libvirt from libvir, complete and test the python 
+- changed library name to libvirt from libvir, complete and test the python
   bindings
 
 * Sun Jan 29 2006 Daniel Veillard <veillard@redhat.com> 0.0.2-1
