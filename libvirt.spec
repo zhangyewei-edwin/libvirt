@@ -69,6 +69,10 @@
 %define with_xen 0
 %endif
 
+# Numactl is not available on s390[x]
+%ifarch s390 s390x
+%define with_numactl 0
+%endif
 
 # RHEL doesn't ship OpenVZ, VBox, UML, OpenNebula, PowerHypervisor or ESX
 %if 0%{?rhel}
@@ -147,7 +151,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.1
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -759,6 +763,9 @@ fi
 %endif
 
 %changelog
+* Thu Sep 17 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-3
+- disable numactl on s390[x]
+
 * Thu Sep 17 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-2
 - revamp of spec file for modularity and RHELs
 
