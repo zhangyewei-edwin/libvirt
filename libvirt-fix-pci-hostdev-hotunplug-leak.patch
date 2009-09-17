@@ -1,4 +1,4 @@
-From 0538387bbdb426de88b54a8c45153c5644209698 Mon Sep 17 00:00:00 2001
+From 9ef0cb152e92db1aa87d89529812328935c8535a Mon Sep 17 00:00:00 2001
 From: Mark McLoughlin <markmc@redhat.com>
 Date: Thu, 17 Sep 2009 15:32:45 +0100
 Subject: [PATCH] Fix leak in PCI hostdev hot-unplug

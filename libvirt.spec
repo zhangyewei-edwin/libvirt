@@ -160,7 +160,7 @@ Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 # out when SELinux enforcing (bz 486112)
 Patch00: libvirt-0.6.4-svirt-sound.patch
 
-# A couple of hot-unplug memory handling fixes (#523960)
+# A couple of hot-unplug memory handling fixes (#523953)
 Patch01: libvirt-fix-net-hotunplug-double-free.patch
 Patch02: libvirt-fix-pci-hostdev-hotunplug-leak.patch
 
@@ -770,7 +770,7 @@ fi
 
 %changelog
 * Thu Sep 17 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-4%
-- A couple of hot-unplug memory handling fixes (#523960)
+- A couple of hot-unplug memory handling fixes (#523953)
 
 * Thu Sep 17 2009 Daniel Veillard <veillard@redhat.com> - 0.7.1-3
 - disable numactl on s390[x]

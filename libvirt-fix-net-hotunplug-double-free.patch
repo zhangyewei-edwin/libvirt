@@ -1,4 +1,4 @@
-From 9b926eb4c485bd81b0b553107dbb037c2188cd23 Mon Sep 17 00:00:00 2001
+From 18067a3cde7183fd17eea199fac2e49edfe1cb22 Mon Sep 17 00:00:00 2001
 From: Mark McLoughlin <markmc@redhat.com>
 Date: Thu, 17 Sep 2009 15:31:08 +0100
 Subject: [PATCH] Fix net/disk hot-unplug segfault
@@ -8,7 +8,7 @@ the device definition.
 
 Reported by Michal Nowak here:
 
-  https://bugzilla.redhat.com/523960
+  https://bugzilla.redhat.com/523953
 
 * src/qemu_driver.c: fix double free
 
