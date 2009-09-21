@@ -151,7 +151,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.1
-Release: 4%{?dist}%{?extra_release}
+Release: 5%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -163,6 +163,12 @@ Patch00: libvirt-0.6.4-svirt-sound.patch
 # A couple of hot-unplug memory handling fixes (#523953)
 Patch01: libvirt-fix-net-hotunplug-double-free.patch
 Patch02: libvirt-fix-pci-hostdev-hotunplug-leak.patch
+
+# Don't set a bogus error in virDrvSupportsFeature()
+Patch03: libvirt-fix-drv-supports-feature-bogus-error.patch
+
+# Fix raw save format
+Patch04: libvirt-fix-qemu-raw-format-save.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -379,6 +385,8 @@ of recent versions of Linux (and other OSes).
 %patch00 -p1
 %patch01 -p1
 %patch02 -p1
+%patch03 -p1
+%patch04 -p1
 
 %build
 %if ! %{with_xen}
@@ -769,6 +777,10 @@ fi
 %endif
 
 %changelog
+* Mon Sep 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-5
+- Don't set a bogus error in virDrvSupportsFeature()
+- Fix raw save format
+
 * Thu Sep 17 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-4
 - A couple of hot-unplug memory handling fixes (#523953)
 

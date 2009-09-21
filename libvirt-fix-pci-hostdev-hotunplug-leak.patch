@@ -1,10 +1,12 @@
-From 9ef0cb152e92db1aa87d89529812328935c8535a Mon Sep 17 00:00:00 2001
+From d04ac8624f5fabe7587982796f2e2161220b0fcc Mon Sep 17 00:00:00 2001
 From: Mark McLoughlin <markmc@redhat.com>
 Date: Thu, 17 Sep 2009 15:32:45 +0100
 Subject: [PATCH] Fix leak in PCI hostdev hot-unplug
 
 * src/qemu_driver.c: sync the hostdev hot-unplug code with the disk/net
   code.
+
+(cherry-picked from commit a70da51ff76ed860bfc0cdee2e1d556da997c557)
 
 Fedora-patch: libvirt-fix-pci-hostdev-hotunplug-leak.patch
 ---

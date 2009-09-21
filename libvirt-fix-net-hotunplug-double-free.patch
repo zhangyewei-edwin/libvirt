@@ -1,4 +1,4 @@
-From 18067a3cde7183fd17eea199fac2e49edfe1cb22 Mon Sep 17 00:00:00 2001
+From d09ff3c35c29d14760d5ea03559042cc024e09ab Mon Sep 17 00:00:00 2001
 From: Mark McLoughlin <markmc@redhat.com>
 Date: Thu, 17 Sep 2009 15:31:08 +0100
 Subject: [PATCH] Fix net/disk hot-unplug segfault
@@ -11,6 +11,8 @@ Reported by Michal Nowak here:
   https://bugzilla.redhat.com/523953
 
 * src/qemu_driver.c: fix double free
+
+(cherry-picked from commit 8881ae1bf8783006777429403cc543c33187175d)
 
 Fedora-patch: libvirt-fix-net-hotunplug-double-free.patch
 ---
