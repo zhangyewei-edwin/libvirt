@@ -151,7 +151,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.1
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -777,6 +777,9 @@ fi
 %endif
 
 %changelog
+* Mon Sep 21 2009 Chris Weyl <cweyl@alumni.drew.edu> - 0.7.1-6
+- rebuild for libssh2 1.2
+
 * Mon Sep 21 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-5
 - Don't set a bogus error in virDrvSupportsFeature()
 - Fix raw save format
