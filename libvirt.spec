@@ -150,47 +150,11 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.7.1
-Release: 12%{?dist}%{?extra_release}
+Version: 0.7.2
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-
-# A couple of hot-unplug memory handling fixes (#523953)
-Patch01: libvirt-fix-net-hotunplug-double-free.patch
-Patch02: libvirt-fix-pci-hostdev-hotunplug-leak.patch
-
-# Don't set a bogus error in virDrvSupportsFeature()
-Patch03: libvirt-fix-drv-supports-feature-bogus-error.patch
-
-# Fix raw save format
-Patch04: libvirt-fix-qemu-raw-format-save.patch
-
-# Fix USB device passthrough (#422683)
-Patch05: libvirt-fix-usb-device-passthrough.patch
-
-# Disable sound backend (#524499, #508317)
-Patch06: libvirt-disable-audio-backend.patch
-
-# Re-label qcow2 backing files (#497131)
-Patch07: libvirt-svirt-relabel-qcow2-backing-files.patch
-
-# Change logrotate config to weekly (#526769)
-Patch08: libvirt-change-logrotate-config-to-weekly.patch
-Patch09: libvirt-logrotate-create-lxc-uml-dirs.patch
-
-# Add several PCI hot-unplug typo fixes from upstream
-Patch10: libvirt-fix-device-detach-typo1.patch
-Patch11: libvirt-fix-device-detach-typo2.patch
-Patch12: libvirt-fix-device-detach-typo3.patch
-
-# Fix libvirtd memory leak during error reply sending (#528162)
-Patch13: libvirt-fix-libvirtd-leak-in-error-reply.patch
-
-# Fix restore of qemu guest using raw save format (#523158)
-Patch14: libvirt-fix-qemu-restore-from-raw1.patch
-Patch15: libvirt-fix-qemu-restore-from-raw2.patch
-
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python-devel
@@ -350,9 +314,6 @@ BuildRequires: netcf-devel
 # Fedora build root suckage
 BuildRequires: gawk
 
-# Needed for libvirt-logrotate-create-lxc-uml-dirs.patch
-BuildRequires: automake
-
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
 of recent versions of Linux (and other OSes). The main package includes
@@ -406,26 +367,7 @@ of recent versions of Linux (and other OSes).
 %prep
 %setup -q
 
-%patch01 -p1
-%patch02 -p1
-%patch03 -p1
-%patch04 -p1
-%patch05 -p1
-%patch06 -p1
-%patch07 -p1
-%patch08 -p1
-%patch09 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
-%patch13 -p1
-%patch14 -p1
-%patch15 -p1
-
 %build
-# Needed for libvirt-logrotate-create-lxc-uml-dirs.patch
-automake
-
 %if ! %{with_xen}
 %define _without_xen --without-xen
 %endif
@@ -567,10 +509,10 @@ gzip -9 ChangeLog
 rm -fr %{buildroot}
 
 %makeinstall
-(cd docs/examples ; make clean ; rm -rf .deps Makefile Makefile.in)
-(cd docs/examples/python ; rm -rf .deps Makefile Makefile.in)
-(cd examples/hellolibvirt ; make clean ; rm -rf .deps .libs Makefile Makefile.in)
-(cd examples/domain-events/events-c ;  make clean ;rm -rf .deps .libs Makefile Makefile.in)
+for i in domain-events/events-c dominfo domsuspend hellolibvirt python
+do
+  (cd examples/$i ; make clean ; rm -rf .deps .libs Makefile Makefile.in)
+done
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
@@ -597,6 +539,11 @@ rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
 %endif
 %find_lang %{name}
 
+%if ! %{with_lxc}
+rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/libvirtd_lxc.aug
+rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_lxc.aug
+%endif
+
 %if ! %{with_python}
 rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-python-%{version}
 %endif
@@ -607,6 +554,9 @@ rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-%{version}
 
 %if ! %{with_qemu}
 rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu.conf
+%endif
+%if ! %{with_lxc}
+rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/lxc.conf
 %endif
 
 %if %{with_libvirtd}
@@ -688,6 +638,9 @@ fi
 %if %{with_qemu}
 %config(noreplace) %{_sysconfdir}/libvirt/qemu.conf
 %endif
+%if %{with_lxc}
+%config(noreplace) %{_sysconfdir}/libvirt/lxc.conf
+%endif
 
 %dir %{_datadir}/libvirt/
 
@@ -729,6 +682,11 @@ fi
 %{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
 %endif
 
+%if %{with_lxc}
+%{_datadir}/augeas/lenses/libvirtd_lxc.aug
+%{_datadir}/augeas/lenses/tests/test_libvirtd_lxc.aug
+%endif
+
 %{_datadir}/augeas/lenses/libvirtd.aug
 %{_datadir}/augeas/lenses/tests/test_libvirtd.aug
 
@@ -762,8 +720,10 @@ fi
 
 %{_mandir}/man1/virsh.1*
 %{_mandir}/man1/virt-xml-validate.1*
+%{_mandir}/man1/virt-pki-validate.1*
 %{_bindir}/virsh
 %{_bindir}/virt-xml-validate
+%{_bindir}/virt-pki-validate
 %{_libdir}/lib*.so.*
 
 %dir %{_datadir}/libvirt/
@@ -797,9 +757,12 @@ fi
 %doc %{_datadir}/gtk-doc/html/libvirt/*.css
 
 %doc docs/*.html docs/html docs/*.gif
-%doc docs/examples
 %doc docs/libvirt-api.xml
-%doc examples
+%doc examples/hellolibvirt
+%doc examples/domain-events/events-c
+%doc examples/dominfo
+%doc examples/domsuspend
+%doc examples/xml
 
 %if %{with_python}
 %files python
@@ -810,11 +773,18 @@ fi
 %{_libdir}/python*/site-packages/libvirtmod*
 %doc python/tests/*.py
 %doc python/TODO
-%doc python/libvirtclass.txt
-%doc docs/examples/python
+%doc examples/python
+%doc examples/domain-events/events-python
 %endif
 
 %changelog
+* Wed Oct 14 2009 Daniel Veillard <veillard@redhat.com> - 0.7.2-1
+- Upstream release of 0.7.2
+- Allow to define ESX domains
+- Allows suspend and resulme of LXC domains
+- API for data streams
+- many bug fixes
+
 * Tue Oct 13 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.1-12
 - Fix restore of qemu guest using raw save format (#523158)
 
