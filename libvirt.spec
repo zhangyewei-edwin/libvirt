@@ -155,6 +155,10 @@ Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
+
+# Fix qemu machine types handling
+Patch01: libvirt-qemu-machine-type-fixes2.patch
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python-devel
@@ -366,6 +370,8 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+
+%patch01 -p1
 
 %build
 %if ! %{with_xen}
@@ -780,6 +786,7 @@ fi
 %changelog
 * Thu Oct 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.2-2
 - Make libvirt-devel require libvirt-client, not libvirt
+- Fix qemu machine types handling
 
 * Wed Oct 14 2009 Daniel Veillard <veillard@redhat.com> - 0.7.2-1
 - Upstream release of 0.7.2
