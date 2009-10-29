@@ -151,13 +151,16 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.2
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 
 # Fix qemu machine types handling
 Patch01: libvirt-qemu-machine-type-fixes2.patch
+
+# Avoid compressing small log files (#531030)
+Patch02: libvirt-logrotate-avoid-compressing-small-logs.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -372,6 +375,7 @@ of recent versions of Linux (and other OSes).
 %setup -q
 
 %patch01 -p1
+%patch02 -p1
 
 %build
 %if ! %{with_xen}
@@ -784,6 +788,9 @@ fi
 %endif
 
 %changelog
+* Thu Oct 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.2-3
+- Avoid compressing small log files (#531030)
+
 * Thu Oct 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.2-2
 - Make libvirt-devel require libvirt-client, not libvirt
 - Fix qemu machine types handling
