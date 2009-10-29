@@ -151,7 +151,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.2
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -341,7 +341,7 @@ virtualization capabilities of recent versions of Linux (and other OSes).
 %package devel
 Summary: Libraries, includes, etc. to compile with the libvirt library
 Group: Development/Libraries
-Requires: libvirt = %{version}-%{release}
+Requires: libvirt-client = %{version}-%{release}
 Requires: pkgconfig
 %if %{with_xen}
 Requires: xen-devel
@@ -778,6 +778,9 @@ fi
 %endif
 
 %changelog
+* Thu Oct 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.2-2
+- Make libvirt-devel require libvirt-client, not libvirt
+
 * Wed Oct 14 2009 Daniel Veillard <veillard@redhat.com> - 0.7.2-1
 - Upstream release of 0.7.2
 - Allow to define ESX domains
