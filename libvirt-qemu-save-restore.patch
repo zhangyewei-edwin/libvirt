@@ -1,0 +1,168 @@
+From 076fffe1514b72ffc9a041f7f68348f5487ee8ba Mon Sep 17 00:00:00 2001
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Wed, 11 Nov 2009 12:07:00 +0000
+Subject: [PATCH] Fix save and restore with non-privileged guests and SELinux
+
+When running qemu:///system instance, libvirtd runs as root,
+but QEMU may optionally be configured to run non-root. When
+then saving a guest to a state file, the file is initially
+created as root, and thus QEMU cannot write to it. It is also
+missing labelling required to allow access via SELinux.
+
+* src/qemu/qemu_driver.c: Set ownership on save image before
+  running migrate command in virDomainSave impl. Call out to
+  security driver to set save image labelling
+* src/security/security_driver.h: Add driver APIs for setting
+  and restoring saved state file labelling
+* src/security/security_selinux.c: Implement saved state file
+  labelling for SELinux
+
+(cherry picked from commit bc0010b3d149df00406b82c37eb59874d8525af4)
+
+Fedora-patch: libvirt-qemu-save-restore.patch
+---
+ src/qemu/qemu_driver.c          |   35 ++++++++++++++++++++++++++++++++---
+ src/security/security_driver.h  |    7 +++++++
+ src/security/security_selinux.c |   23 +++++++++++++++++++++++
+ 3 files changed, 62 insertions(+), 3 deletions(-)
+
+diff --git a/src/qemu/qemu_driver.c b/src/qemu/qemu_driver.c
+index c544c4b..171ac8f 100644
+--- a/src/qemu/qemu_driver.c
++++ b/src/qemu/qemu_driver.c
+@@ -3146,6 +3146,7 @@ static int qemudDomainSave(virDomainPtr dom,
+     char *xml = NULL;
+     struct qemud_save_header header;
+     int ret = -1;
++    int rc;
+     virDomainEventPtr event = NULL;
+ 
+     memset(&header, 0, sizeof(header));
+@@ -3226,9 +3227,22 @@ static int qemudDomainSave(virDomainPtr dom,
+     }
+     fd = -1;
+ 
++    if (driver->privileged &&
++        chown(path, driver->user, driver->group) < 0) {
++        virReportSystemError(NULL, errno,
++                             _("unable to set ownership of '%s' to user %d:%d"),
++                             path, driver->user, driver->group);
++        goto cleanup;
++    }
++
++    if (driver->securityDriver &&
++        driver->securityDriver->domainSetSavedStateLabel &&
++        driver->securityDriver->domainSetSavedStateLabel(dom->conn, vm, path) == -1)
++        goto cleanup;
++
+     if (header.compressed == QEMUD_SAVE_FORMAT_RAW) {
+         const char *args[] = { "cat", NULL };
+-        ret = qemuMonitorMigrateToCommand(vm, 0, args, path);
++        rc = qemuMonitorMigrateToCommand(vm, 0, args, path);
+     } else {
+         const char *prog = qemudSaveCompressionTypeToString(header.compressed);
+         const char *args[] = {
+@@ -3236,12 +3250,27 @@ static int qemudDomainSave(virDomainPtr dom,
+             "-c",
+             NULL
+         };
+-        ret = qemuMonitorMigrateToCommand(vm, 0, args, path);
++        rc = qemuMonitorMigrateToCommand(vm, 0, args, path);
+     }
+ 
+-    if (ret < 0)
++    if (rc < 0)
+         goto cleanup;
+ 
++    if (driver->privileged &&
++        chown(path, 0, 0) < 0) {
++        virReportSystemError(NULL, errno,
++                             _("unable to set ownership of '%s' to user %d:%d"),
++                             path, 0, 0);
++        goto cleanup;
++    }
++
++    if (driver->securityDriver &&
++        driver->securityDriver->domainRestoreSavedStateLabel &&
++        driver->securityDriver->domainRestoreSavedStateLabel(dom->conn, path) == -1)
++        goto cleanup;
++
++    ret = 0;
++
+     /* Shut it down */
+     qemudShutdownVMDaemon(dom->conn, driver, vm);
+     event = virDomainEventNewFromObj(vm,
+diff --git a/src/security/security_driver.h b/src/security/security_driver.h
+index fde2978..5514962 100644
+--- a/src/security/security_driver.h
++++ b/src/security/security_driver.h
+@@ -42,6 +42,11 @@ typedef int (*virSecurityDomainRestoreHostdevLabel) (virConnectPtr conn,
+ typedef int (*virSecurityDomainSetHostdevLabel) (virConnectPtr conn,
+                                                  virDomainObjPtr vm,
+                                                  virDomainHostdevDefPtr dev);
++typedef int (*virSecurityDomainSetSavedStateLabel) (virConnectPtr conn,
++                                                    virDomainObjPtr vm,
++                                                    const char *savefile);
++typedef int (*virSecurityDomainRestoreSavedStateLabel) (virConnectPtr conn,
++                                                        const char *savefile);
+ typedef int (*virSecurityDomainGenLabel) (virConnectPtr conn,
+                                           virDomainObjPtr sec);
+ typedef int (*virSecurityDomainReserveLabel) (virConnectPtr conn,
+@@ -71,6 +76,8 @@ struct _virSecurityDriver {
+     virSecurityDomainRestoreLabel domainRestoreSecurityLabel;
+     virSecurityDomainRestoreHostdevLabel domainRestoreSecurityHostdevLabel;
+     virSecurityDomainSetHostdevLabel domainSetSecurityHostdevLabel;
++    virSecurityDomainSetSavedStateLabel domainSetSavedStateLabel;
++    virSecurityDomainRestoreSavedStateLabel domainRestoreSavedStateLabel;
+ 
+     /*
+      * This is internally managed driver state and should only be accessed
+diff --git a/src/security/security_selinux.c b/src/security/security_selinux.c
+index 7e0f71a..4f2d1d3 100644
+--- a/src/security/security_selinux.c
++++ b/src/security/security_selinux.c
+@@ -525,6 +525,7 @@ done:
+     return ret;
+ }
+ 
++
+ static int
+ SELinuxRestoreSecurityPCILabel(virConnectPtr conn,
+                                pciDevice *dev ATTRIBUTE_UNUSED,
+@@ -625,6 +626,26 @@ SELinuxRestoreSecurityLabel(virConnectPtr conn,
+     return rc;
+ }
+ 
++
++static int
++SELinuxSetSavedStateLabel(virConnectPtr conn,
++                          virDomainObjPtr vm,
++                          const char *savefile)
++{
++    const virSecurityLabelDefPtr secdef = &vm->def->seclabel;
++
++    return SELinuxSetFilecon(conn, savefile, secdef->imagelabel);
++}
++
++
++static int
++SELinuxRestoreSavedStateLabel(virConnectPtr conn,
++                              const char *savefile)
++{
++    return SELinuxRestoreSecurityFileLabel(conn, savefile);
++}
++
++
+ static int
+ SELinuxSecurityVerify(virConnectPtr conn, virDomainDefPtr def)
+ {
+@@ -694,4 +715,6 @@ virSecurityDriver virSELinuxSecurityDriver = {
+     .domainSetSecurityLabel     = SELinuxSetSecurityLabel,
+     .domainSetSecurityHostdevLabel = SELinuxSetSecurityHostdevLabel,
+     .domainRestoreSecurityHostdevLabel = SELinuxRestoreSecurityHostdevLabel,
++    .domainSetSavedStateLabel = SELinuxSetSavedStateLabel,
++    .domainRestoreSavedStateLabel = SELinuxRestoreSavedStateLabel,
+ };
+-- 
+1.6.2.5
+

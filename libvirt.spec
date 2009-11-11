@@ -151,7 +151,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.2
-Release: 3%{?dist}%{?extra_release}
+Release: 4%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -161,6 +161,9 @@ Patch01: libvirt-qemu-machine-type-fixes2.patch
 
 # Avoid compressing small log files (#531030)
 Patch02: libvirt-logrotate-avoid-compressing-small-logs.patch
+
+# Fix QEMU save/restore permissions / labelling
+Patch03: libvirt-qemu-save-restore.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -376,6 +379,7 @@ of recent versions of Linux (and other OSes).
 
 %patch01 -p1
 %patch02 -p1
+%patch03 -p1
 
 %build
 %if ! %{with_xen}
@@ -788,6 +792,9 @@ fi
 %endif
 
 %changelog
+* Wed Nov 11 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.2-4
+- Fix QEMU save/restore permissions / labelling
+
 * Thu Oct 29 2009 Mark McLoughlin <markmc@redhat.com> - 0.7.2-3
 - Avoid compressing small log files (#531030)
 
