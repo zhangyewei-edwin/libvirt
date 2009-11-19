@@ -155,7 +155,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.2
-Release: 5%{?dist}%{?extra_release}
+Release: 6%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -168,6 +168,7 @@ Patch02: libvirt-logrotate-avoid-compressing-small-logs.patch
 
 # Fix QEMU save/restore permissions / labelling
 Patch03: libvirt-qemu-save-restore.patch
+Patch04: libvirt-qemu-save-restore-2.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -384,6 +385,7 @@ of recent versions of Linux (and other OSes).
 %patch01 -p1
 %patch02 -p1
 %patch03 -p1
+%patch04 -p1
 
 %build
 %if ! %{with_xen}
@@ -796,6 +798,9 @@ fi
 %endif
 
 %changelog
+* Thu Nov 19 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.2-6
+- Really fix restore file labelling this time
+
 * Wed Nov 11 2009 Daniel P. Berrange <berrange@redhat.com> - 0.7.2-5
 - Disable numactl on s390[x]. Again.
 

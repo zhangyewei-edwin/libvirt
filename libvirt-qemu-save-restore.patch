@@ -1,4 +1,4 @@
-From 076fffe1514b72ffc9a041f7f68348f5487ee8ba Mon Sep 17 00:00:00 2001
+From 1151cdcad3f4b68478b076832843338256b94644 Mon Sep 17 00:00:00 2001
 From: Daniel P. Berrange <berrange@redhat.com>
 Date: Wed, 11 Nov 2009 12:07:00 +0000
 Subject: [PATCH] Fix save and restore with non-privileged guests and SELinux
@@ -164,5 +164,5 @@ index 7e0f71a..4f2d1d3 100644
 +    .domainRestoreSavedStateLabel = SELinuxRestoreSavedStateLabel,
  };
 -- 
-1.6.2.5
+1.6.5.2
 

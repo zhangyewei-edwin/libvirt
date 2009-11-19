@@ -1,0 +1,118 @@
+From 096fc1216eb2654bbff376dcc5bb8177d6498f82 Mon Sep 17 00:00:00 2001
+From: Daniel P. Berrange <berrange@redhat.com>
+Date: Thu, 19 Nov 2009 12:16:30 +0000
+Subject: [PATCH] Fix labelling on QEMU restore images
+
+Even though QEMU does not directly open the saved image when
+restoring, it must be correctly labelled to allow QEMU to
+read from it because labelling is passed around with open
+file descriptors.
+
+The labelling should not allow writing to the saved image
+again, only reading.
+
+* src/qemu/qemu_driver.c: Label the save image when restoring
+* src/security/security_driver.h: Add a virSecurityDomainSetSavedStateLabelRO
+  method for labelling a saved image for restore
+* src/security/security_selinux.c: Implement labelling of RO
+  save images for restore
+
+Fedora-patch: libvirt-qemu-save-restore-2.patch
+---
+ src/qemu/qemu_driver.c          |   11 ++++++++++-
+ src/security/security_driver.h  |    5 +++++
+ src/security/security_selinux.c |   11 +++++++++++
+ 3 files changed, 26 insertions(+), 1 deletions(-)
+
+diff --git a/src/qemu/qemu_driver.c b/src/qemu/qemu_driver.c
+index 171ac8f..e6abb05 100644
+--- a/src/qemu/qemu_driver.c
++++ b/src/qemu/qemu_driver.c
+@@ -3266,7 +3266,7 @@ static int qemudDomainSave(virDomainPtr dom,
+ 
+     if (driver->securityDriver &&
+         driver->securityDriver->domainRestoreSavedStateLabel &&
+-        driver->securityDriver->domainRestoreSavedStateLabel(dom->conn, path) == -1)
++        driver->securityDriver->domainRestoreSavedStateLabel(dom->conn, vm, path) == -1)
+         goto cleanup;
+ 
+     ret = 0;
+@@ -3813,6 +3813,11 @@ static int qemudDomainRestore(virConnectPtr conn,
+     }
+     def = NULL;
+ 
++    if (driver->securityDriver &&
++        driver->securityDriver->domainSetSavedStateLabelRO &&
++        driver->securityDriver->domainSetSavedStateLabelRO(conn, vm, path) == -1)
++        goto cleanup;
++
+     if (header.version == 2) {
+         const char *intermediate_argv[3] = { NULL, "-dc", NULL };
+         const char *prog = qemudSaveCompressionTypeToString(header.compressed);
+@@ -3847,6 +3852,10 @@ static int qemudDomainRestore(virConnectPtr conn,
+         close(intermediatefd);
+     close(fd);
+     fd = -1;
++    if (driver->securityDriver &&
++        driver->securityDriver->domainRestoreSavedStateLabel &&
++        driver->securityDriver->domainRestoreSavedStateLabel(conn, vm, path) == -1)
++        VIR_WARN("Unable to restore labelling on %s", path);
+     if (ret < 0) {
+         if (!vm->persistent) {
+             virDomainRemoveInactive(&driver->domains,
+diff --git a/src/security/security_driver.h b/src/security/security_driver.h
+index 5514962..5144976 100644
+--- a/src/security/security_driver.h
++++ b/src/security/security_driver.h
+@@ -45,7 +45,11 @@ typedef int (*virSecurityDomainSetHostdevLabel) (virConnectPtr conn,
+ typedef int (*virSecurityDomainSetSavedStateLabel) (virConnectPtr conn,
+                                                     virDomainObjPtr vm,
+                                                     const char *savefile);
++typedef int (*virSecurityDomainSetSavedStateLabelRO) (virConnectPtr conn,
++                                                      virDomainObjPtr vm,
++                                                      const char *savefile);
+ typedef int (*virSecurityDomainRestoreSavedStateLabel) (virConnectPtr conn,
++                                                        virDomainObjPtr vm,
+                                                         const char *savefile);
+ typedef int (*virSecurityDomainGenLabel) (virConnectPtr conn,
+                                           virDomainObjPtr sec);
+@@ -77,6 +81,7 @@ struct _virSecurityDriver {
+     virSecurityDomainRestoreHostdevLabel domainRestoreSecurityHostdevLabel;
+     virSecurityDomainSetHostdevLabel domainSetSecurityHostdevLabel;
+     virSecurityDomainSetSavedStateLabel domainSetSavedStateLabel;
++    virSecurityDomainSetSavedStateLabelRO domainSetSavedStateLabelRO;
+     virSecurityDomainRestoreSavedStateLabel domainRestoreSavedStateLabel;
+ 
+     /*
+diff --git a/src/security/security_selinux.c b/src/security/security_selinux.c
+index 4f2d1d3..0c130e5 100644
+--- a/src/security/security_selinux.c
++++ b/src/security/security_selinux.c
+@@ -639,7 +639,17 @@ SELinuxSetSavedStateLabel(virConnectPtr conn,
+ 
+ 
+ static int
++SELinuxSetSavedStateLabelRO(virConnectPtr conn,
++                            virDomainObjPtr vm ATTRIBUTE_UNUSED,
++                            const char *savefile)
++{
++    return SELinuxSetFilecon(conn, savefile, default_content_context);
++}
++
++
++static int
+ SELinuxRestoreSavedStateLabel(virConnectPtr conn,
++                              virDomainObjPtr vm ATTRIBUTE_UNUSED,
+                               const char *savefile)
+ {
+     return SELinuxRestoreSecurityFileLabel(conn, savefile);
+@@ -716,5 +726,6 @@ virSecurityDriver virSELinuxSecurityDriver = {
+     .domainSetSecurityHostdevLabel = SELinuxSetSecurityHostdevLabel,
+     .domainRestoreSecurityHostdevLabel = SELinuxRestoreSecurityHostdevLabel,
+     .domainSetSavedStateLabel = SELinuxSetSavedStateLabel,
++    .domainSetSavedStateLabelRO = SELinuxSetSavedStateLabelRO,
+     .domainRestoreSavedStateLabel = SELinuxRestoreSavedStateLabel,
+ };
+-- 
+1.6.5.2
+
