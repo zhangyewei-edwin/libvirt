@@ -162,7 +162,7 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.7.3
+Version: 0.7.4
 Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
@@ -802,7 +802,8 @@ fi
 %endif
 
 %changelog
-* Fri Nov 20 2009 Daniel Veillard <veillard@redhat.com> - 0.7.3-1
+* Fri Nov 20 2009 Daniel Veillard <veillard@redhat.com> - 0.7.4-1
+- upstream release of 0.7.4
 - udev node device backend
 - API to check object properties
 - better QEmu monitor processing
