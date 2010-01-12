@@ -169,7 +169,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.5
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -815,6 +815,9 @@ fi
 %endif
 
 %changelog
+* Tue Jan 12 2010 Daniel P. Berrange <berrange@redhat.com> - 0.7.5-2
+- Rebuild for libparted soname change
+
 * Wed Dec 23 2009 Daniel Veillard <veillard@redhat.com> - 0.7.5-1
 - Add new API virDomainMemoryStats
 - Public API and domain extension for CPU flags
