@@ -1,3 +1,4 @@
+%define _default_patch_fuzz 2 \n\n
 # -*- rpm-spec -*-
 
 # A client only build will create a libvirt.so only containing
@@ -169,7 +170,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.5
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -815,6 +816,10 @@ fi
 %endif
 
 %changelog
+* Thu Jan 14 2010 Chris Weyl <cweyl@alumni.drew.edu> 0.7.5-3
+- bump for libssh2 rebuild
+
+
 * Tue Jan 12 2010 Daniel P. Berrange <berrange@redhat.com> - 0.7.5-2
 - Rebuild for libparted soname change
 
