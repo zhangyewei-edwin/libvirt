@@ -816,9 +816,16 @@ fi
 %endif
 
 %changelog
+* Wed Feb  3 2010 Daniel Veillard <veillard@redhat.com> - 0.7.6-1
+- upstream release of 0.7.6
+- Use QEmu new device adressing when possible
+- Implement CPU topology support for QEMU driver
+- Implement SCSI controller hotplug/unplug for QEMU
+- Implement support for multi IQN
+- a lot of fixes and improvements
+
 * Thu Jan 14 2010 Chris Weyl <cweyl@alumni.drew.edu> 0.7.5-3
 - bump for libssh2 rebuild
-
 
 * Tue Jan 12 2010 Daniel P. Berrange <berrange@redhat.com> - 0.7.5-2
 - Rebuild for libparted soname change
