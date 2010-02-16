@@ -170,7 +170,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.6
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -343,6 +343,10 @@ BuildRequires: netcf-devel >= 0.1.4
 # Fedora build root suckage
 BuildRequires: gawk
 
+# --no-add-needed changes
+BuildRequires: autoconf automake libtool
+Patch0: libvirt-0.7.6-add-needed.patch
+
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
 of recent versions of Linux (and other OSes). The main package includes
@@ -395,6 +399,7 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch0 -p1 -b .add-needed
 
 %build
 %if ! %{with_xen}
@@ -509,6 +514,7 @@ of recent versions of Linux (and other OSes).
 %define _without_yajl --without-yajl
 %endif
 
+autoreconf -v --install
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
@@ -816,6 +822,9 @@ fi
 %endif
 
 %changelog
+* Tue Feb 16 2010 Adam Jackson <ajax@redhat.com> 0.7.6-2
+- libvirt-0.7.6-add-needed.patch: Fix FTBFS from --no-add-needed
+
 * Wed Feb  3 2010 Daniel Veillard <veillard@redhat.com> - 0.7.6-1
 - upstream release of 0.7.6
 - Use QEmu new device adressing when possible
