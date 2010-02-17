@@ -249,7 +249,7 @@ Requires: device-mapper
 BuildRequires: xen-devel
 %endif
 %if %{with_one}
-BuildRequires: xmlrpc-c-devel >= 1.14.0
+BuildRequires: xmlrpc-c-devel >= 1.14.0 xmlrpc-c-client
 %endif
 BuildRequires: libxml2-devel
 BuildRequires: xhtml1-dtds
@@ -824,6 +824,7 @@ fi
 %changelog
 * Tue Feb 16 2010 Adam Jackson <ajax@redhat.com> 0.7.6-2
 - libvirt-0.7.6-add-needed.patch: Fix FTBFS from --no-add-needed
+- Add BuildRequires: xmlrpc-c-client for libxmlrpc_client.so
 
 * Wed Feb  3 2010 Daniel Veillard <veillard@redhat.com> - 0.7.6-1
 - upstream release of 0.7.6
