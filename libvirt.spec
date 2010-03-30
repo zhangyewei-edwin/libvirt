@@ -169,7 +169,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.7.7
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -821,6 +821,9 @@ fi
 %endif
 
 %changelog
+* Tue Mar 30 2010 Richard W.M. Jones <rjones@redhat.com> - 0.7.7-3.fc14
+- No change, just rebuild against new libparted with bumped soname.
+
 * Mon Mar 22 2010 Cole Robinson <crobinso@redhat.com> - 0.7.7-2.fc14
 - Fix USB devices by product with security enabled (bz 574136)
 - Set kernel/initrd in security driver, fixes some URL installs (bz 566425)
