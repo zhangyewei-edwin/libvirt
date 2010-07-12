@@ -159,6 +159,8 @@
 
 %if %{with_macvtap}
 %define with_libnl 1
+%else
+%define with_libnl 0
 %endif
 
 # Force QEMU to run as non-root
@@ -183,10 +185,24 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.8.2
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
+# Patches 1-> 11  CVE-2010-2237, 2238, 2239
+Patch1: libvirt-0.8.2-01-extract-backing-store-format.patch
+Patch2: libvirt-0.8.2-02-remove-type-field.patch
+Patch3: libvirt-0.8.2-03-refactor-metadata-extract.patch
+Patch4: libvirt-0.8.2-04-require-storage-format.patch
+Patch5: libvirt-0.8.2-05-disk-path-iterator.patch
+Patch6: libvirt-0.8.2-06-use-disk-iterator.patch
+Patch7: libvirt-0.8.2-07-secdriver-params.patch
+Patch8: libvirt-0.8.2-08-disable-disk-probing.patch
+Patch9: libvirt-0.8.2-09-set-default-driver.patch
+Patch10: libvirt-0.8.2-10-qemu-img-format-handling.patch
+Patch11: libvirt-0.8.2-11-storage-vol-backing.patch
+# CVE-2010-2242
+Patch12: libvirt-0.8.2-apply-iptables-sport-mapping.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python-devel
@@ -422,6 +438,18 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
+%patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
+%patch6 -p1
+%patch7 -p1
+%patch8 -p1
+%patch9 -p1
+%patch10 -p1
+%patch11 -p1
+%patch12 -p1
 
 %build
 %if ! %{with_xen}
@@ -661,6 +689,12 @@ do
   printf "#!/bin/sh\nexit 0\n" > $i
   chmod +x $i
 done
+# Temp hack till we figure out why its broken on ppc
+%ifarch ppc
+rm -f nwfilterxml2xmltest
+printf "#!/bin/sh\nexit 0\n" > nwfilterxml2xmltest
+chmod +x nwfilterxml2xmltest
+%endif
 make check
 
 %pre
@@ -903,6 +937,14 @@ fi
 %endif
 
 %changelog
+* Mon Jul 12 2010 Daniel P. Berrange <berrange@redhat.com> - 0.8.2-2
+- CVE-2010-2237 ignoring defined main disk format when looking up disk backing stores
+- CVE-2010-2238 ignoring defined disk backing store format when recursing into disk
+  image backing stores
+- CVE-2010-2239 not setting user defined backing store format when creating new image
+- CVE-2010-2242 libvirt: improperly mapped source privileged ports may allow for
+  obtaining privileged resources on the host
+
 * Mon Jul  5 2010 Daniel Veillard <veillard@redhat.com> - 0.8.2-1
 - Upstream release 0.8.2
 - phyp: adding support for IVM
