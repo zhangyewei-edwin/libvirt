@@ -185,7 +185,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.8.2
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -937,6 +937,9 @@ fi
 %endif
 
 %changelog
+* Wed Jul 21 2010 David Malcolm <dmalcolm@redhat.com> - 0.8.2-3
+- Rebuilt for https://fedoraproject.org/wiki/Features/Python_2.7/MassRebuild
+
 * Mon Jul 12 2010 Daniel P. Berrange <berrange@redhat.com> - 0.8.2-2
 - CVE-2010-2237 ignoring defined main disk format when looking up disk backing stores
 - CVE-2010-2238 ignoring defined disk backing store format when recursing into disk
