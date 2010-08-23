@@ -1,0 +1,12 @@
+diff -rup libvirt-0.8.3.orig/src/qemu/qemu_conf.c libvirt-0.8.3.new/src/qemu/qemu_conf.c
+--- libvirt-0.8.3.orig/src/qemu/qemu_conf.c	2010-08-04 13:21:27.000000000 +0100
++++ libvirt-0.8.3.new/src/qemu/qemu_conf.c	2010-08-23 21:08:13.239794362 +0100
+@@ -3651,7 +3651,7 @@ int qemudBuildCommandLine(virConnectPtr 
+ {
+     int i;
+     char memory[50];
+-    char boot[VIR_DOMAIN_BOOT_LAST];
++    char boot[VIR_DOMAIN_BOOT_LAST+1];
+     struct utsname ut;
+     int disableKQEMU = 0;
+     int disableKVM = 0;
