@@ -184,25 +184,11 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.8.2
-Release: 3%{?dist}%{?extra_release}
+Version: 0.8.3
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-# Patches 1-> 11  CVE-2010-2237, 2238, 2239
-Patch1: libvirt-0.8.2-01-extract-backing-store-format.patch
-Patch2: libvirt-0.8.2-02-remove-type-field.patch
-Patch3: libvirt-0.8.2-03-refactor-metadata-extract.patch
-Patch4: libvirt-0.8.2-04-require-storage-format.patch
-Patch5: libvirt-0.8.2-05-disk-path-iterator.patch
-Patch6: libvirt-0.8.2-06-use-disk-iterator.patch
-Patch7: libvirt-0.8.2-07-secdriver-params.patch
-Patch8: libvirt-0.8.2-08-disable-disk-probing.patch
-Patch9: libvirt-0.8.2-09-set-default-driver.patch
-Patch10: libvirt-0.8.2-10-qemu-img-format-handling.patch
-Patch11: libvirt-0.8.2-11-storage-vol-backing.patch
-# CVE-2010-2242
-Patch12: libvirt-0.8.2-apply-iptables-sport-mapping.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python-devel
@@ -216,7 +202,7 @@ Requires: %{name}-client = %{version}-%{release}
 Requires: bridge-utils
 %endif
 %if %{with_network}
-Requires: dnsmasq
+Requires: dnsmasq >= 2.41
 Requires: iptables
 %endif
 %if %{with_nwfilter}
@@ -314,7 +300,7 @@ BuildRequires: avahi-devel
 BuildRequires: libselinux-devel
 %endif
 %if %{with_network}
-BuildRequires: dnsmasq
+BuildRequires: dnsmasq >= 2.41
 %endif
 BuildRequires: bridge-utils
 %if %{with_sasl}
@@ -438,18 +424,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
 
 %build
 %if ! %{with_xen}
@@ -613,7 +587,7 @@ gzip -9 ChangeLog
 rm -fr %{buildroot}
 
 %makeinstall
-for i in domain-events/events-c dominfo domsuspend hellolibvirt python xml/nwfilter
+for i in domain-events/events-c dominfo domsuspend hellolibvirt openauth python xml/nwfilter
 do
   (cd examples/$i ; make clean ; rm -rf .deps .libs Makefile Makefile.in)
 done
@@ -862,6 +836,8 @@ fi
 %attr(0755, root, root) %{_libexecdir}/libvirt_parthelper
 %attr(0755, root, root) %{_sbindir}/libvirtd
 
+%{_mandir}/man8/libvirtd.8*
+
 %doc docs/*.xml
 %endif
 
@@ -921,6 +897,7 @@ fi
 %doc examples/domain-events/events-c
 %doc examples/dominfo
 %doc examples/domsuspend
+%doc examples/openauth
 %doc examples/xml
 
 %if %{with_python}
@@ -937,6 +914,9 @@ fi
 %endif
 
 %changelog
+* Mon Aug 23 2010 Daniel P. Berrange <berrange@redhat.com> - 0.8.3-1
+- Upstream release 0.8.3
+
 * Wed Jul 21 2010 David Malcolm <dmalcolm@redhat.com> - 0.8.2-3
 - Rebuilt for https://fedoraproject.org/wiki/Features/Python_2.7/MassRebuild
 
