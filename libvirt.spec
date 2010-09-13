@@ -64,6 +64,7 @@
 %define with_nwfilter      0%{!?_without_nwfilter:0}
 %define with_libpcap       0%{!?_without_libpcap:0}
 %define with_macvtap       0%{!?_without_macvtap:0}
+%define with_libnl         0%{!?_without_libnl:0}
 
 # Non-server/HV driver defaults which are always enabled
 %define with_python        0%{!?_without_python:1}
@@ -159,8 +160,6 @@
 
 %if %{with_macvtap}
 %define with_libnl 1
-%else
-%define with_libnl 0
 %endif
 
 # Force QEMU to run as non-root
@@ -184,12 +183,11 @@
 
 Summary: Library providing a simple API virtualization
 Name: libvirt
-Version: 0.8.3
-Release: 2%{?dist}%{?extra_release}
+Version: 0.8.4
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-Patch1: %{name}-%{version}-boot-menu.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 BuildRequires: python-devel
@@ -425,7 +423,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -647,10 +644,6 @@ rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/logrotate.d/libvirtd.lxc
 %endif
 %if ! %{with_uml}
 rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/logrotate.d/libvirtd.uml
-%endif
-
-%if %{with_libvirtd}
-chmod 0644 $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/libvirtd
 %endif
 
 %clean
@@ -916,6 +909,9 @@ fi
 %endif
 
 %changelog
+* Mon Sep 13 2010 Daniel Veillard <veillard@redhat.com> - 0.8.4-1
+- Upstream release 0.8.4
+
 * Mon Aug 23 2010 Daniel P. Berrange <berrange@redhat.com> - 0.8.3-2
 - Fix potential overflow in boot menu code
 
