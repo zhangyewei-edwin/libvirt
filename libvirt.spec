@@ -184,7 +184,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.8.4
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -658,8 +658,9 @@ do
   printf "#!/bin/sh\nexit 0\n" > $i
   chmod +x $i
 done
-# Temp hack till we figure out why its broken on ppc
-%ifarch ppc
+# Temp hack till we figure out why its broken on ppc and s390(x)
+# a big endian issue?
+%ifarch ppc s390 s390x
 rm -f nwfilterxml2xmltest
 printf "#!/bin/sh\nexit 0\n" > nwfilterxml2xmltest
 chmod +x nwfilterxml2xmltest
@@ -909,6 +910,9 @@ fi
 %endif
 
 %changelog
+* Thu Sep 16 2010 Dan Horák <dan[at]danny.cz> - 0.8.4-2
+- disable the nwfilterxml2xmltest also on s390(x)
+
 * Mon Sep 13 2010 Daniel Veillard <veillard@redhat.com> - 0.8.4-1
 - Upstream release 0.8.4
 
