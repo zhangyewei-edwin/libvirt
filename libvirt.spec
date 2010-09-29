@@ -184,7 +184,7 @@
 Summary: Library providing a simple API virtualization
 Name: libvirt
 Version: 0.8.4
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -910,6 +910,9 @@ fi
 %endif
 
 %changelog
+* Wed Sep 29 2010 jkeating - 0.8.4-3
+- Rebuilt for gcc bug 634757
+
 * Thu Sep 16 2010 Dan Horák <dan[at]danny.cz> - 0.8.4-2
 - disable the nwfilterxml2xmltest also on s390(x)
 
