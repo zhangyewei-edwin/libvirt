@@ -175,6 +175,11 @@
 %define with_dtrace 1
 %endif
 
+# temporary workaround since 0.8.5 fails with xen on F15 missing MAX_VIRT_CPUS
+%if 0%{?fedora} >= 15
+%define with_xen 0
+%endif
+
 # Force QEMU to run as non-root
 %if 0%{?fedora} >= 12 || 0%{?rhel} >= 6
 %define qemu_user  qemu
