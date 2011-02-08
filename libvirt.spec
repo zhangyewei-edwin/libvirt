@@ -204,7 +204,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.8.7
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -963,6 +963,9 @@ fi
 %endif
 
 %changelog
+* Tue Feb 08 2011 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.8.7-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_15_Mass_Rebuild
+
 * Thu Jan  6 2011 Daniel Veillard <veillard@redhat.com> - 0.8.7-1
 - Preliminary support for VirtualBox 4.0
 - IPv6 support
