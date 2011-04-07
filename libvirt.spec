@@ -133,6 +133,8 @@
 # Fedora doesn't have new enough Xen for libxl until F16
 %if 0%{?fedora} < 16
 %define with_libxl 0
+%else
+%define with_libxl 1
 %endif
 
 # PolicyKit was introduced in Fedora 8 / RHEL-6 or newer
