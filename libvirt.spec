@@ -133,8 +133,6 @@
 # Fedora doesn't have new enough Xen for libxl until F16
 %if 0%{?fedora} < 16
 %define with_libxl 0
-%else
-%define with_libxl 1
 %endif
 
 # PolicyKit was introduced in Fedora 8 / RHEL-6 or newer
@@ -224,6 +222,9 @@ Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
+Patch1: libvirt-0.9.0-libxl_log_dir.patch
+# Required by above patch
+BuildRequires: autoconf automake libtool gettext-devel
 
 # All runtime requirements for the libvirt package (runtime requrements
 # for subpackages are listed later in those subpackages)
@@ -312,6 +313,10 @@ BuildRequires: python-devel
 
 %if %{with_xen}
 BuildRequires: xen-devel
+# temporary explicit requireent missing from xen-4.1.0
+%if %{with_libxl}
+BuildRequires: libuuid-devel
+%endif
 %endif
 BuildRequires: libxml2-devel
 BuildRequires: xhtml1-dtds
@@ -500,6 +505,7 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -645,6 +651,7 @@ of recent versions of Linux (and other OSes).
 %define with_packager_version --with-packager-version="%{release}"
 
 
+autoreconf -if
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
