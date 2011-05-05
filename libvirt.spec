@@ -215,16 +215,13 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.0
+Version: 0.9.1
 Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
-Patch1: libvirt-0.9.0-libxl_log_dir.patch
-# Required by above patch
-BuildRequires: autoconf automake libtool gettext-devel
 
 # All runtime requirements for the libvirt package (runtime requrements
 # for subpackages are listed later in those subpackages)
@@ -505,7 +502,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -651,7 +647,6 @@ of recent versions of Linux (and other OSes).
 %define with_packager_version --with-packager-version="%{release}"
 
 
-autoreconf -if
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
@@ -904,10 +899,11 @@ fi
 %{_sysconfdir}/libvirt/nwfilter/*.xml
 
 %{_sysconfdir}/rc.d/init.d/libvirtd
+%doc daemon/libvirtd.upstart
 %config(noreplace) %{_sysconfdir}/sysconfig/libvirtd
 %config(noreplace) %{_sysconfdir}/libvirt/libvirtd.conf
 %if %{with_dtrace}
-%{_datadir}/systemtap/tapsets/libvirtd.stp
+%{_datadir}/systemtap/tapset/libvirtd.stp
 %endif
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/qemu/
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/lxc/
@@ -1075,6 +1071,14 @@ fi
 %endif
 
 %changelog
+* Thu May  5 2011 Daniel Veillard <veillard@redhat.com> - 0.9.1-1
+- support various persistent domain updates
+- improvements on memory APIs
+- Add virDomainEventRebootNew
+- various improvements to libxl driver
+- Spice: support audio, images and stream compression
+- Various improvements and bug fixes
+
 * Thu Apr  7 2011 Daniel Veillard <veillard@redhat.com> - 0.9.0-1
 - Support cputune cpu usage tuning
 - Add public APIs for storage volume upload/download
