@@ -216,7 +216,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.1
-Release: 1%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -446,6 +446,11 @@ BuildRequires: nfs-utils
 # Fedora build root suckage
 BuildRequires: gawk
 
+# RWMJ - so that people can try out virt-dmesg.
+Patch1: 0001-json-Avoid-passing-large-positive-64-bit-integers-to.patch
+Patch2: 0001-qemudDomainMemoryPeek-change-ownership-selinux-label.patch
+Patch3: 0002-remote-remove-bogus-virDomainFree.patch
+
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
 of recent versions of Linux (and other OSes). The main package includes
@@ -502,6 +507,10 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+
+%patch1 -p1
+%patch2 -p1
+%patch3 -p1
 
 %build
 %if ! %{with_xen}
@@ -936,7 +945,7 @@ fi
 
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/images/
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/boot/
-%dir %attr(0700, root, root) %{_localstatedir}/cache/libvirt/
+%dir %attr(0711, root, root) %{_localstatedir}/cache/libvirt/
 
 %if %{with_qemu}
 %dir %attr(0700, root, root) %{_localstatedir}/run/libvirt/qemu/
@@ -1071,6 +1080,14 @@ fi
 %endif
 
 %changelog
+* Wed May 25 2011 Richard W.M. Jones <rjones@redhat.com> - 0.9.1-3
+- Add upstream patches:
+    0001-json-Avoid-passing-large-positive-64-bit-integers-to.patch
+    0001-qemudDomainMemoryPeek-change-ownership-selinux-label.patch
+    0002-remote-remove-bogus-virDomainFree.patch
+  so that users can try out virt-dmesg.
+- Change /var/cache mode to 0711.
+
 * Thu May  5 2011 Daniel Veillard <veillard@redhat.com> - 0.9.1-1
 - support various persistent domain updates
 - improvements on memory APIs
