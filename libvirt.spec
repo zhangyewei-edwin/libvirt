@@ -76,6 +76,7 @@
 %define with_audit         0%{!?_without_audit:0}
 %define with_dtrace        0%{!?_without_dtrace:0}
 %define with_cgconfig      0%{!?_without_cgconfig:0}
+%define with_sanlock       0%{!?_without_sanlock:0}
 
 # Non-server/HV driver defaults which are always enabled
 %define with_python        0%{!?_without_python:1}
@@ -162,6 +163,11 @@
 %define with_yajl     0%{!?_without_yajl:%{server_drivers}}
 %endif
 
+# Enable sanlock library for lock management with QEMU
+%if 0%{?fedora} >= 15 || 0%{?rhel} >= 6
+%define with_sanlock  0%{!?_without_sanlock:%{server_drivers}}
+%endif
+
 # Enable libpcap library
 %if %{with_qemu}
 %define with_nwfilter 0%{!?_without_nwfilter:%{server_drivers}}
@@ -215,8 +221,8 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.1
-Release: 3%{?dist}%{?extra_release}
+Version: 0.9.2
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -336,6 +342,9 @@ BuildRequires: libpciaccess-devel >= 0.10.9
 %if %{with_yajl}
 BuildRequires: yajl-devel
 %endif
+%if %{with_sanlock}
+BuildRequires: sanlock-devel
+%endif
 %if %{with_libpcap}
 BuildRequires: libpcap-devel
 %endif
@@ -446,11 +455,6 @@ BuildRequires: nfs-utils
 # Fedora build root suckage
 BuildRequires: gawk
 
-# RWMJ - so that people can try out virt-dmesg.
-Patch1: 0001-json-Avoid-passing-large-positive-64-bit-integers-to.patch
-Patch2: 0001-qemudDomainMemoryPeek-change-ownership-selinux-label.patch
-Patch3: 0002-remote-remove-bogus-virDomainFree.patch
-
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
 of recent versions of Linux (and other OSes). The main package includes
@@ -492,6 +496,18 @@ Requires: xen-devel
 Includes and documentations for the C library providing an API to use
 the virtualization capabilities of recent versions of Linux (and other OSes).
 
+%if %{with_sanlock}
+%package lock-sanlock
+Summary: Sanlock lock manager plugin for QEMU driver
+Group: Development/Libraries
+Requires: sanlock
+Requires: %{name} = %{version}-%{release}
+
+%description lock-sanlock
+Includes the Sanlock lock manager plugin for the QEMU
+driver
+%endif
+
 %if %{with_python}
 %package python
 Summary: Python bindings for the libvirt library
@@ -507,10 +523,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
 
 %build
 %if ! %{with_xen}
@@ -633,6 +645,10 @@ of recent versions of Linux (and other OSes).
 %define _without_yajl --without-yajl
 %endif
 
+%if ! %{with_sanlock}
+%define _without_sanlock --without-sanlock
+%endif
+
 %if ! %{with_libpcap}
 %define _without_libpcap --without-libpcap
 %endif
@@ -686,6 +702,7 @@ of recent versions of Linux (and other OSes).
            %{?_without_hal} \
            %{?_without_udev} \
            %{?_without_yajl} \
+           %{?_without_sanlock} \
            %{?_without_libpcap} \
            %{?_without_macvtap} \
            %{?_without_audit} \
@@ -711,6 +728,8 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/*.a
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.la
 rm -f $RPM_BUILD_ROOT%{_libdir}/python*/site-packages/*.a
+rm -f $RPM_BUILD_ROOT%{_libdir}/libvirt/lock-driver/*.la
+rm -f $RPM_BUILD_ROOT%{_libdir}/libvirt/lock-driver/*.a
 
 %if %{with_network}
 install -d -m 0755 $RPM_BUILD_ROOT%{_datadir}/lib/libvirt/dnsmasq/
@@ -1006,6 +1025,12 @@ fi
 %doc docs/*.xml
 %endif
 
+%if %{with_sanlock}
+%files lock-sanlock
+%defattr(-, root, root)
+%attr(0755, root, root) %{_libdir}/libvirt/lock-driver/sanlock.so
+%endif
+
 %files client -f %{name}.lang
 %defattr(-, root, root)
 %doc AUTHORS ChangeLog.gz NEWS README COPYING.LIB TODO
@@ -1080,6 +1105,17 @@ fi
 %endif
 
 %changelog
+* Mon Jun  6 2011 Daniel Veillard <veillard@redhat.com> - 0.9.2-1
+- Framework for lock manager plugins
+- API for network config change transactions
+- flags for setting memory parameters
+- virDomainGetState public API
+- qemu: allow blkstat/blkinfo calls during migration
+- Introduce migration v3 API
+- Defining the Screenshot public API
+- public API for NMI injection
+- Various improvements and bug fixes
+
 * Wed May 25 2011 Richard W.M. Jones <rjones@redhat.com> - 0.9.1-3
 - Add upstream patches:
     0001-json-Avoid-passing-large-positive-64-bit-integers-to.patch
