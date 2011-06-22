@@ -222,7 +222,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.2
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -428,7 +428,11 @@ BuildRequires: libcap-ng-devel >= 0.5.0
 BuildRequires: libssh2-devel
 %endif
 %if %{with_netcf}
+%if 0%{?fedora} >= 16 || 0%{?rhel} >= 6
+BuildRequires: netcf-devel >= 0.1.8
+%else
 BuildRequires: netcf-devel >= 0.1.4
+%endif
 %endif
 %if %{with_esx}
 %if 0%{?fedora} >= 9 || 0%{?rhel} >= 6
@@ -1105,6 +1109,12 @@ fi
 %endif
 
 %changelog
+* Tue Jun 21 2011 Laine Stump <laine@redhat.com> - 0.9.2-2
+- add rule to require netcf-0.1.8 during build so that new transactional
+  network change APIs are included.
+- document that CVE-2011-2178 has been fixed (by virtue of rebase
+  to 0.9.2 - see https://bugzilla.redhat.com/show_bug.cgi?id=709777)
+
 * Mon Jun  6 2011 Daniel Veillard <veillard@redhat.com> - 0.9.2-1
 - Framework for lock manager plugins
 - API for network config change transactions
