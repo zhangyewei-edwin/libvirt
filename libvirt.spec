@@ -222,7 +222,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.2
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -1109,6 +1109,9 @@ fi
 %endif
 
 %changelog
+* Wed Jun 29 2011 Richard W.M. Jones <rjones@redhat.com> - 0.9.2-3
+- Rebuild because of libparted soname bump (libparted.so.0 -> libparted.so.1).
+
 * Tue Jun 21 2011 Laine Stump <laine@redhat.com> - 0.9.2-2
 - add rule to require netcf-0.1.8 during build so that new transactional
   network change APIs are included.
