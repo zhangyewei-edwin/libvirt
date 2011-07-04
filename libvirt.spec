@@ -164,7 +164,10 @@
 %endif
 
 # Enable sanlock library for lock management with QEMU
-%if 0%{?fedora} >= 16 || 0%{?rhel} >= 6
+# temporary remove sanlock support in F16 as it seems too old
+# checking for sanlock_restrict in -lsanlock... no
+
+%if 0%{?fedora} > 16 || 0%{?rhel} >= 6
 %define with_sanlock  0%{!?_without_sanlock:%{server_drivers}}
 %endif
 
