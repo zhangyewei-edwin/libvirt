@@ -44,13 +44,13 @@
 %define with_lxc           0%{!?_without_lxc:%{server_drivers}}
 %define with_vbox          0%{!?_without_vbox:%{server_drivers}}
 %define with_uml           0%{!?_without_uml:%{server_drivers}}
-%define with_xenapi        0%{!?_without_xenapi:%{server_drivers}}
 %define with_libxl         0%{!?_without_libxl:%{server_drivers}}
+%define with_vmware        0%{!?_without_vmware:%{server_drivers}}
 
 # Then the hypervisor drivers that talk a native remote protocol
 %define with_phyp          0%{!?_without_phyp:1}
 %define with_esx           0%{!?_without_esx:1}
-%define with_vmware        0%{!?_without_vmware:1}
+%define with_xenapi        0%{!?_without_xenapi:1}
 
 # Then the secondary host drivers
 %define with_network       0%{!?_without_network:%{server_drivers}}
@@ -164,7 +164,7 @@
 %endif
 
 # Enable sanlock library for lock management with QEMU
-%if 0%{?fedora} >= 17 || 0%{?rhel} >= 6
+%if 0%{?fedora} >= 16 || 0%{?rhel} >= 6
 %define with_sanlock  0%{!?_without_sanlock:%{server_drivers}}
 %endif
 
@@ -221,8 +221,8 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.2
-Release: 3%{?dist}%{?extra_release}
+Version: 0.9.3
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -1020,7 +1020,10 @@ fi
 %attr(0755, root, root) %{_libexecdir}/libvirt_lxc
 %endif
 
+%if %{with_storage_disk}
 %attr(0755, root, root) %{_libexecdir}/libvirt_parthelper
+%endif
+
 %attr(0755, root, root) %{_libexecdir}/libvirt_iohelper
 %attr(0755, root, root) %{_sbindir}/libvirtd
 
@@ -1032,7 +1035,12 @@ fi
 %if %{with_sanlock}
 %files lock-sanlock
 %defattr(-, root, root)
+%config(noreplace) %{_sysconfdir}/libvirt/qemu-sanlock.conf
 %attr(0755, root, root) %{_libdir}/libvirt/lock-driver/sanlock.so
+%{_datadir}/augeas/lenses/libvirt_sanlock.aug
+%{_datadir}/augeas/lenses/tests/test_libvirt_sanlock.aug
+%{_sbindir}/virt-sanlock-cleanup
+%{_mandir}/man8/virt-sanlock-cleanup.8*
 %endif
 
 %files client -f %{name}.lang
@@ -1109,6 +1117,19 @@ fi
 %endif
 
 %changelog
+* Mon Jul  4 2011 Daniel Veillard <veillard@redhat.com> - 0.9.3-1
+- new API virDomainGetVcpupinInfo
+- Add TXT record support for virtual DNS service
+- Support reboots with the QEMU driver
+- New API virDomainGetControlInfo API
+- New API virNodeGetMemoryStats
+- New API virNodeGetCPUTime
+- New API for send-key
+- New API virDomainPinVcpuFlags
+- support multifunction PCI device
+- lxc: various improvements
+- many improvements and bug fixes
+
 * Wed Jun 29 2011 Richard W.M. Jones <rjones@redhat.com> - 0.9.2-3
 - Rebuild because of libparted soname bump (libparted.so.0 -> libparted.so.1).
 
