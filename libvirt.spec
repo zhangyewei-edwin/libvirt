@@ -90,8 +90,8 @@
 %define with_xen 0
 %endif
 
-# Numactl is not available on s390[x]
-%ifarch s390 s390x
+# Numactl is not available on s390[x] and ARM
+%ifarch s390 s390x %{arm}
 %define with_numactl 0
 %endif
 
@@ -225,7 +225,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.3
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -1120,6 +1120,9 @@ fi
 %endif
 
 %changelog
+* Wed Jul  5 2011 Peter Robinson <pbrobinson@gmail.com> - 0.9.3-2
+- Add ARM to NUMA platform excludes
+
 * Mon Jul  4 2011 Daniel Veillard <veillard@redhat.com> - 0.9.3-1
 - new API virDomainGetVcpupinInfo
 - Add TXT record support for virtual DNS service
