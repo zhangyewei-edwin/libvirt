@@ -88,6 +88,7 @@
 # Xen is available only on i386 x86_64 ia64
 %ifnarch i386 i586 i686 x86_64 ia64
 %define with_xen 0
+%define with_libxl 0
 %endif
 
 # Numactl is not available on s390[x] and ARM
@@ -225,7 +226,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.3
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -1120,6 +1121,9 @@ fi
 %endif
 
 %changelog
+* Sat Jul 30 2011 Dan Hor?k <dan[at]danny.cz> - 0.9.3-3
+- xenlight available only on Xen arches
+
 * Wed Jul  5 2011 Peter Robinson <pbrobinson@gmail.com> - 0.9.3-2
 - Add ARM to NUMA platform excludes
 
