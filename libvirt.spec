@@ -47,7 +47,7 @@
 %define with_libxl         0%{!?_without_libxl:%{server_drivers}}
 %define with_vmware        0%{!?_without_vmware:%{server_drivers}}
 
-# Then the hypervisor drivers that talk a native remote protocol
+# Then the hypervisor drivers that talk via a native remote protocol
 %define with_phyp          0%{!?_without_phyp:1}
 %define with_esx           0%{!?_without_esx:1}
 %define with_hyperv        0%{!?_without_hyperv:1}
@@ -234,13 +234,11 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.6
-Release: 3%{?dist}%{?extra_release}
+Version: 0.9.7
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-Patch1: %{name}-%{version}-spec-F15-still-uses-cgconfig.patch
-Patch2: %{name}-%{version}-qemu-make-PCI-multifunction-support-more-manual.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -552,8 +550,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
-%patch2 -p1
 
 %build
 %if ! %{with_xen}
@@ -719,7 +715,6 @@ of recent versions of Linux (and other OSes).
            %{?_without_python} \
            %{?_without_libvirtd} \
            %{?_without_uml} \
-           %{?_without_one} \
            %{?_without_phyp} \
            %{?_without_esx} \
            %{?_without_hyperv} \
@@ -826,7 +821,7 @@ rm -fr %{buildroot}
 %check
 cd tests
 # These 3 tests don't current work in a mock build root
-for i in nodeinfotest daemon-conf seclabeltest
+for i in nodeinfotest daemon-conf seclabeltest shunloadtest
 do
   rm -f $i
   printf "#!/bin/sh\nexit 0\n" > $i
@@ -905,7 +900,7 @@ done
 %endif
 
 %if %{with_cgconfig}
-# Starting with Fedora 15, systemd automounts all cgroups, and cgconfig is
+# Starting with Fedora 16, systemd automounts all cgroups, and cgconfig is
 # no longer a necessary service.
 %if 0%{?fedora} <= 15 || 0%{?rhel} <= 6
 if [ "$1" -eq "1" ]; then
@@ -971,8 +966,14 @@ fi
 %doc daemon/libvirtd.upstart
 %config(noreplace) %{_sysconfdir}/sysconfig/libvirtd
 %config(noreplace) %{_sysconfdir}/libvirt/libvirtd.conf
+%if 0%{?fedora} >= 14 || 0%{?rhel} >= 6
+%config(noreplace) %{_sysconfdir}/sysctl.d/libvirtd
+%else
+rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
+%endif
 %if %{with_dtrace}
-%{_datadir}/systemtap/tapset/libvirtd.stp
+%{_datadir}/systemtap/tapset/libvirt_probes.stp
+%{_datadir}/systemtap/tapset/libvirt_functions.stp
 %endif
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/qemu/
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/lxc/
@@ -1004,6 +1005,7 @@ fi
 %dir %{_localstatedir}/run/libvirt/
 
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/images/
+%dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/filesystems/
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/boot/
 %dir %attr(0711, root, root) %{_localstatedir}/cache/libvirt/
 
@@ -1087,6 +1089,7 @@ fi
 %defattr(-, root, root)
 %doc AUTHORS ChangeLog.gz NEWS README COPYING.LIB TODO
 
+%config(noreplace) %{_sysconfdir}/libvirt/libvirt.conf
 %{_mandir}/man1/virsh.1*
 %{_mandir}/man1/virt-xml-validate.1*
 %{_mandir}/man1/virt-pki-validate.1*
@@ -1161,6 +1164,9 @@ fi
 %endif
 
 %changelog
+* Tue Nov  8 2011 Daniel P. Berrange <berrange@redhat.com> - 0.9.7-1
+- Update to 0.9.7 release
+
 * Tue Oct 11 2011 Dan Horák <dan[at]danny.cz> - 0.9.6-3
 - xenlight available only on Xen arches (#745020)
 
