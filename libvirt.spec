@@ -235,7 +235,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.7
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
@@ -358,7 +358,7 @@ BuildRequires: libudev-devel >= 145
 BuildRequires: libpciaccess-devel >= 0.10.9
 %endif
 %if %{with_yajl}
-BuildRequires: yajl-devel >= 2.0.1
+BuildRequires: yajl-devel
 %endif
 %if %{with_sanlock}
 BuildRequires: sanlock-devel >= 1.8
@@ -1166,6 +1166,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Mon Nov 14 2011 Justin M. Forbes <jforbes@redhat.com> - 0.9.7-3
+- Remove versioned buildreq for yajl as 2.0.x features are not required.
+
 * Thu Nov 10 2011 Daniel P. Berrange <berrange@redhat.com> - 0.9.7-2
 - Rebuild for yajl 2.0.1
 
