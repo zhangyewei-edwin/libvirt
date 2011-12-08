@@ -356,6 +356,7 @@ Requires(postun): systemd-units
 
 # All build-time requirements
 %if 0%{?enable_autotools}
+BuildRequires: gettext-devel
 BuildRequires: autoconf
 BuildRequires: automake
 BuildRequires: libtool
