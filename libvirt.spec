@@ -8,6 +8,11 @@
   sed -ne 's/^\.fc\?\([0-9]\+\).*/%%define fedora \1/p')}
 %endif
 
+# Default to skipping autoreconf.  Distros can change just this one line
+# (or provide a command-line override) if they backport any patches that
+# touch configure.ac or Makefile.am.
+%define enable_autotools %{?enable_autotools:1}
+
 # A client only build will create a libvirt.so only containing
 # the generic RPC driver, and test driver and no libvirtd
 # Default to a full server + client build
@@ -247,10 +252,11 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.8
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
+Patch1: %{name}-%{version}-systemd-libvirt-guests.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -349,6 +355,11 @@ Requires(postun): systemd-units
 %endif
 
 # All build-time requirements
+%if 0%{?enable_autotools}
+BuildRequires: autoconf
+BuildRequires: automake
+BuildRequires: libtool
+%endif
 BuildRequires: python-devel
 %if %{with_systemd}
 BuildRequires: systemd-units
@@ -573,6 +584,7 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -733,6 +745,9 @@ of recent versions of Linux (and other OSes).
 %define init_scripts --with-init_script=redhat
 %endif
 
+%if 0%{?enable_autotools}
+autoreconf -if
+%endif
 %configure %{?_without_xen} \
            %{?_without_qemu} \
            %{?_without_openvz} \
@@ -780,7 +795,7 @@ gzip -9 ChangeLog
 %install
 rm -fr %{buildroot}
 
-%makeinstall SYSTEMD_UNIT_DIR=%{_unitdir}
+%makeinstall SYSTEMD_UNIT_DIR=%{buildroot}%{_unitdir}
 for i in domain-events/events-c dominfo domsuspend hellolibvirt openauth python xml/nwfilter systemtap
 do
   (cd examples/$i ; make clean ; rm -rf .deps .libs Makefile Makefile.in)
@@ -1257,6 +1272,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Thu Dec  8 2011 Daniel P. Berrange <berrange@redhat.com> - 0.9.8-2
+- Fix install of libvirt-guests.service & libvirtd.service
+
 * Thu Dec  8 2011 Daniel Veillard <veillard@redhat.com> - 0.9.8-1
 - Add support for QEMU 1.0
 - Add preliminary PPC cpu driver
