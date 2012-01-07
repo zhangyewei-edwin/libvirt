@@ -11,7 +11,7 @@
 # Default to skipping autoreconf.  Distros can change just this one line
 # (or provide a command-line override) if they backport any patches that
 # touch configure.ac or Makefile.am.
-%define enable_autotools %{?enable_autotools:1}
+%{!?enable_autotools:%define enable_autotools 0}
 
 # A client only build will create a libvirt.so only containing
 # the generic RPC driver, and test driver and no libvirtd
@@ -147,7 +147,7 @@
 %endif
 
 # Fedora doesn't have new enough Xen for libxl until F16
-%if 0%{?fedora} < 16
+%if 0%{?fedora} && 0%{?fedora} < 16
 %define with_libxl 0
 %endif
 
@@ -184,7 +184,7 @@
 %define with_sanlock 0%{!?_without_sanlock:%{server_drivers}}
 %endif
 %if 0%{?rhel} >= 6
-%ifnarch i386 i586 i686 x86_64
+%ifarch i386 i586 i686 x86_64
 %define with_sanlock 0%{!?_without_sanlock:%{server_drivers}}
 %endif
 %endif
@@ -251,12 +251,11 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.8
-Release: 2%{?dist}%{?extra_release}
+Version: 0.9.9
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-Patch1: %{name}-%{version}-systemd-libvirt-guests.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -273,6 +272,9 @@ Requires: %{name}-client = %{version}-%{release}
 Requires: module-init-tools
 # for /sbin/ip & /sbin/tc
 Requires: iproute
+%if %{with_avahi}
+Requires: avahi
+%endif
 %endif
 %if %{with_network}
 Requires: dnsmasq >= 2.41
@@ -302,7 +304,7 @@ Requires: PolicyKit >= 0.6
 %if %{with_storage_fs}
 Requires: nfs-utils
 # For mkfs
-Requires: util-linux
+Requires: util-linux-ng
 # For pool-build probing for existing pools
 BuildRequires: libblkid-devel >= 2.17
 # For glusterfs
@@ -356,9 +358,9 @@ Requires(postun): systemd-units
 
 # All build-time requirements
 %if 0%{?enable_autotools}
-BuildRequires: gettext-devel
 BuildRequires: autoconf
 BuildRequires: automake
+BuildRequires: gettext-devel
 BuildRequires: libtool
 %endif
 BuildRequires: python-devel
@@ -585,7 +587,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -954,7 +955,7 @@ fi
 %if %{with_cgconfig}
 # Starting with Fedora 16, systemd automounts all cgroups, and cgconfig is
 # no longer a necessary service.
-%if 0%{?fedora} <= 15 || 0%{?rhel} <= 6
+%if 0%{?rhel} || (0%{?fedora} && 0%{?fedora} < 16)
 if [ "$1" -eq "1" ]; then
 /sbin/chkconfig cgconfig on
 fi
@@ -1273,6 +1274,13 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Sat Jan  7 2012 Daniel Veillard <veillard@redhat.com> - 0.9.9-1
+- Add API virDomain{S,G}etInterfaceParameters
+- Add API virDomain{G, S}etNumaParameters
+- Add support for ppc64 qemu
+- Support Xen domctl v8
+- many improvements and bug fixes
+
 * Thu Dec  8 2011 Daniel P. Berrange <berrange@redhat.com> - 0.9.8-2
 - Fix install of libvirt-guests.service & libvirtd.service
 
