@@ -252,10 +252,11 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.9
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
+Patch1: %{name}-%{version}-lxc-io.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -587,6 +588,7 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -1274,6 +1276,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Thu Jan 12 2012 Daniel P. Berrange <berrange@redhat.com> - 0.9.9-2
+- Fix LXC I/O handling
+
 * Sat Jan  7 2012 Daniel Veillard <veillard@redhat.com> - 0.9.9-1
 - Add API virDomain{S,G}etInterfaceParameters
 - Add API virDomain{G, S}etNumaParameters
