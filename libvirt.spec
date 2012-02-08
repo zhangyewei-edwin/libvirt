@@ -251,12 +251,11 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.9
-Release: 2%{?dist}%{?extra_release}
+Version: 0.9.10
+Release: 0rc2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-Patch1: %{name}-%{version}-lxc-io.patch
+Source: http://libvirt.org/sources/libvirt-%{version}-rc2.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -274,7 +273,7 @@ Requires: module-init-tools
 # for /sbin/ip & /sbin/tc
 Requires: iproute
 %if %{with_avahi}
-Requires: avahi
+Requires: avahi-libs
 %endif
 %endif
 %if %{with_network}
@@ -347,8 +346,10 @@ Requires: device-mapper
 %if %{with_cgconfig}
 Requires: libcgroup
 %endif
+%ifarch i386 i586 i686 x86_64 ia64
 # For virConnectGetSysinfo
 Requires: dmidecode
+%endif
 # For service management
 %if %{with_systemd}
 Requires(post): systemd-units
@@ -370,10 +371,6 @@ BuildRequires: systemd-units
 %endif
 %if %{with_xen}
 BuildRequires: xen-devel
-%endif
-# temporary explicit requireent missing from xen-4.1.0
-%if %{with_libxl}
-BuildRequires: libuuid-devel
 %endif
 BuildRequires: libxml2-devel
 BuildRequires: xhtml1-dtds
@@ -588,7 +585,6 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -1202,9 +1198,11 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %{_mandir}/man1/virsh.1*
 %{_mandir}/man1/virt-xml-validate.1*
 %{_mandir}/man1/virt-pki-validate.1*
+%{_mandir}/man1/virt-host-validate.1*
 %{_bindir}/virsh
 %{_bindir}/virt-xml-validate
 %{_bindir}/virt-pki-validate
+%{_bindir}/virt-host-validate
 %{_libdir}/lib*.so.*
 
 %dir %{_datadir}/libvirt/
