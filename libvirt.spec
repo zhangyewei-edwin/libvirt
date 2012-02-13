@@ -252,10 +252,10 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.10
-Release: 0rc2%{?dist}%{?extra_release}
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: http://libvirt.org/sources/libvirt-%{version}-rc2.tar.gz
+Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -1274,6 +1274,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Mon Feb 13 2012 Daniel P. Berrange <berrange@redhat.com> - 0.9.10-1
+- Update to 0.9.10
+
 * Thu Jan 12 2012 Daniel P. Berrange <berrange@redhat.com> - 0.9.9-2
 - Fix LXC I/O handling
 
