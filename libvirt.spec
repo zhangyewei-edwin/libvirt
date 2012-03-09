@@ -252,10 +252,12 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.10
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
+Patch1: %{name}-%{version}-qemu-replace-deprecated-fedora-13-machine.patch
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -585,6 +587,7 @@ of recent versions of Linux (and other OSes).
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 %if ! %{with_xen}
@@ -1274,6 +1277,11 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Fri Mar  9 2012 Laine Stump <laine@redhat.com> - 0.9.10-2
+- replace "fedora-13" machine type with "pc-0.14" to prepare
+  systems for removal of "fedora-13" from qemu - Bug 754772
+  (this change is already in the F16 builds)
+
 * Mon Feb 13 2012 Daniel P. Berrange <berrange@redhat.com> - 0.9.10-1
 - Update to 0.9.10
 
