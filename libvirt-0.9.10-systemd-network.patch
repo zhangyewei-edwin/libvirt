@@ -1,0 +1,11 @@
+diff -Nur libvirt-0.9.10.orig/daemon/libvirtd.service.in libvirt-0.9.10/daemon/libvirtd.service.in
+--- libvirt-0.9.10.orig/daemon/libvirtd.service.in	2012-02-03 01:51:54.000000000 -0700
++++ libvirt-0.9.10/daemon/libvirtd.service.in	2012-03-28 22:34:34.576986925 -0600
+@@ -9,6 +9,7 @@
+ After=udev.target
+ After=avahi.target
+ After=dbus.target
++After=network.target
+ Before=libvirt-guests.service
+ 
+ [Service]
