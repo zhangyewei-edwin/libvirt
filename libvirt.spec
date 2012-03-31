@@ -252,12 +252,11 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.10
-Release: 2%{?dist}%{?extra_release}.1
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
 Patch1: %{name}-%{version}-qemu-replace-deprecated-fedora-13-machine.patch
-Patch2: libvirt-0.9.10-systemd-network.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -589,7 +588,6 @@ of recent versions of Linux (and other OSes).
 %prep
 %setup -q
 %patch1 -p1
-%patch2 -p1
 
 %build
 %if ! %{with_xen}
@@ -1279,6 +1277,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Sat Mar 31 2012 Daniel P. Berrange <berrange@redhat.com> - 0.9.10-3
+- Remove previous non-upstream patch which did not fix bug 802475
+
 * Wed Mar 28 2012 Kevin Fenzi <kevin@scrye.com> - 0.9.10-2.1
 - Add patch to fix ordering to come up after network target. Bug 802475
 
