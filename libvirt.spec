@@ -779,6 +779,7 @@ autoreconf -if
            %{?_without_openvz} \
            %{?_without_lxc} \
            %{?_without_vbox} \
+           %{?_without_libxl} \
            %{?_without_xenapi} \
            %{?_without_sasl} \
            %{?_without_avahi} \
@@ -814,8 +815,7 @@ autoreconf -if
            %{with_packager_version} \
            --with-qemu-user=%{qemu_user} \
            --with-qemu-group=%{qemu_group} \
-           %{init_scripts} \
-           --with-remote-pid-file=%{_localstatedir}/run/libvirtd.pid
+           %{init_scripts}
 make %{?_smp_mflags}
 gzip -9 ChangeLog
 
@@ -863,16 +863,6 @@ rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_lxc.aug
 
 %if ! %{with_python}
 rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-python-%{version}
-%endif
-
-%if %{client_only}
-rm -rf $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-%{version}
-%endif
-
-%if ! %{with_libvirtd}
-rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/nwfilter
-mv $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-%{version}/html \
-   $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-devel-%{version}/
 %endif
 
 %if ! %{with_qemu}
@@ -1095,10 +1085,6 @@ fi
 %else
 rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
-%if %{with_dtrace}
-%{_datadir}/systemtap/tapset/libvirt_probes.stp
-%{_datadir}/systemtap/tapset/libvirt_functions.stp
-%endif
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/qemu/
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/lxc/
 %dir %attr(0700, root, root) %{_localstatedir}/log/libvirt/uml/
@@ -1223,6 +1209,11 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %{_bindir}/virt-pki-validate
 %{_bindir}/virt-host-validate
 %{_libdir}/lib*.so.*
+
+%if %{with_dtrace}
+%{_datadir}/systemtap/tapset/libvirt_probes.stp
+%{_datadir}/systemtap/tapset/libvirt_functions.stp
+%endif
 
 %dir %{_datadir}/libvirt/
 %dir %{_datadir}/libvirt/schemas/
