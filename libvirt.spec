@@ -126,8 +126,9 @@
 %define with_hyperv 0
 %endif
 
-# Although earlier Fedora has systemd, libvirt still used sysvinit
-%if 0%{?fedora} >= 17
+# Fedora 17 / RHEL-7 are first where we use systemd. Although earlier
+# Fedora has systemd, libvirt still used sysvinit there.
+%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7
 %define with_systemd 1
 %endif
 
@@ -224,7 +225,7 @@
 %define with_libpcap  0%{!?_without_libpcap:%{server_drivers}}
 %define with_macvtap  0%{!?_without_macvtap:%{server_drivers}}
 
-# numad is used to manage the CPU placement dynamically,
+# numad is used to manage the CPU and memory placement dynamically,
 # it's not available on s390[x] and ARM.
 %if 0%{?fedora} >= 17 || 0%{?rhel} >= 6
 %ifnarch s390 s390x %{arm}
@@ -272,13 +273,25 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.11.3
+Version: 0.9.11.4
 Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
-Source: http://libvirt.org/sources/libvirt-%{version}.tar.gz
-# Replace fedora-13->pc-0.14 to prep for qemu removing the latter (bz 754772)
+
+%if %(echo %{version} | grep -o \\. | wc -l) == 3
+%define mainturl stable_updates/
+%endif
+Source: http://libvirt.org/sources/%{?mainturl}libvirt-%{version}.tar.gz
+
+# Replace fedora-13->pc-0.14 to prep for qemu removal (bz 754772)
+# keep: keeping this for the lifetime of F17, gone for newer releases
 Patch1: %{name}-qemu-replace-deprecated-fedora-13-machine.patch
+# Add usbredir spice channel (bz 821469)
+# keep: fedora feature backport that won't hit 0.9.11 maint
+Patch2: %{name}-add-usbredir-spice-channel.patch
+# Add default spice channel (bz 821474)
+# keep: fedora feature backport that won't hit 0.9.11 maint
+Patch3: %{name}-add-default-spice-channel.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -327,7 +340,11 @@ BuildRequires: augeas
 BuildRequires: hal-devel
 %endif
 %if %{with_udev}
+%if 0%{?fedora} >= 18 || 0%{?rhel} >= 7
+BuildRequires: systemd-devel >= 185
+%else
 BuildRequires: libudev-devel >= 145
+%endif
 BuildRequires: libpciaccess-devel >= 0.10.9
 %endif
 %if %{with_yajl}
@@ -458,6 +475,8 @@ BuildRequires: scrub
 %if %{with_numad}
 BuildRequires: numad
 %endif
+
+Provides: bundled(gnulib)
 
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -717,7 +736,7 @@ Group: Development/Libraries
 Requires: sanlock >= 1.8
 #for virt-sanlock-cleanup require augeas
 Requires: augeas
-Requires: %{name} = %{version}-%{release}
+Requires: %{name}-daemon = %{version}-%{release}
 
 %description lock-sanlock
 Includes the Sanlock lock manager plugin for the QEMU
@@ -740,6 +759,8 @@ of recent versions of Linux (and other OSes).
 %prep
 %setup -q
 %patch1 -p1
+%patch2 -p1
+%patch3 -p1
 
 %build
 %if ! %{with_xen}
@@ -1092,9 +1113,9 @@ if [ $1 -eq 1 ] ; then
 fi
 %else
 %if %{with_cgconfig}
-# Starting with Fedora 16, systemd automounts all cgroups, and cgconfig is
-# no longer a necessary service.
-%if 0%{?rhel} || (0%{?fedora} && 0%{?fedora} < 16)
+# Starting with Fedora 16/RHEL-7, systemd automounts all cgroups,
+# and cgconfig is no longer a necessary service.
+%if (0%{?rhel} && 0%{?rhel} < 7) || (0%{?fedora} && 0%{?fedora} < 16)
 if [ "$1" -eq "1" ]; then
 /sbin/chkconfig cgconfig on
 fi
@@ -1464,6 +1485,18 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Fri Jun 15 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.4-1
+- Rebased to version 0.9.11.4
+- Add usbredir spice channel (bz 821469)
+- Add default spice channel (bz 821474)
+- Fix libnuma dependency (bz 812874)
+- Fix USB device attach ambiguity CVE-2012-2693 (bz 816560)
+- Add bundled(gnulib) provides (bz 821776)
+- Drop unneeded systemd unit deps (bz 824204)
+- Update qemu.conf augeas lens (bz 824672)
+- Fix several double close bugs (bz 827125)
+- Fix potential deadlock when launching sub processes (bz 828565)
+
 * Fri Apr 27 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.3-1
 - Rebased to version 0.9.11.3
 - Abide URI username when connecting to hypervisor (bz 811397)
