@@ -1,0 +1,97 @@
+commit b8012ce9312f00947c5ca7250a7a96534c85835f
+Author: David Weber <wb@munzinger.de>
+Date:   Mon May 14 09:53:02 2012 +0000
+
+    sanlock: fix locking for readonly devices
+    
+    Add ignore param for readonly and shared disk in sanlock
+
+diff --git a/src/locking/libvirt_sanlock.aug b/src/locking/libvirt_sanlock.aug
+index 5f5f8a1..d65b002 100644
+--- a/src/locking/libvirt_sanlock.aug
++++ b/src/locking/libvirt_sanlock.aug
+@@ -21,6 +21,7 @@ module Libvirt_sanlock =
+              | bool_entry "auto_disk_leases"
+              | int_entry "host_id"
+              | bool_entry "require_lease_for_disks"
++             | bool_entry "ignore_readonly_and_shared_disks"
+    let comment = [ label "#comment" . del /#[ \t]*/ "# " .  store /([^ \t\n][^\n]*)?/ . del /\n/ "\n" ]
+    let empty = [ label "#empty" . eol ]
+ 
+diff --git a/src/locking/lock_driver_sanlock.c b/src/locking/lock_driver_sanlock.c
+index d344d6a..146aefd 100644
+--- a/src/locking/lock_driver_sanlock.c
++++ b/src/locking/lock_driver_sanlock.c
+@@ -1,7 +1,7 @@
+ /*
+  * lock_driver_sanlock.c: A lock driver for Sanlock
+  *
+- * Copyright (C) 2010-2011 Red Hat, Inc.
++ * Copyright (C) 2010-2012 Red Hat, Inc.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -65,6 +65,7 @@ struct _virLockManagerSanlockDriver {
+     bool requireLeaseForDisks;
+     int hostID;
+     bool autoDiskLease;
++    bool ignoreReadonlyShared;
+     char *autoDiskLeasePath;
+ };
+ 
+@@ -114,6 +115,10 @@ static int virLockManagerSanlockLoadConfig(const char *configFile)
+     CHECK_TYPE("auto_disk_leases", VIR_CONF_LONG);
+     if (p) driver->autoDiskLease = p->l;
+ 
++    p = virConfGetValue(conf, "ignore_readonly_and_shared_disks");
++    CHECK_TYPE("ignore_readonly_and_shared_disks", VIR_CONF_LONG);
++    if (p) driver->ignoreReadonlyShared = p->l;
++
+     p = virConfGetValue(conf, "disk_lease_dir");
+     CHECK_TYPE("disk_lease_dir", VIR_CONF_STRING);
+     if (p && p->str) {
+@@ -625,6 +630,12 @@ static int virLockManagerSanlockAddResource(virLockManagerPtr lock,
+         return -1;
+     }
+ 
++    if ((flags & (VIR_LOCK_MANAGER_RESOURCE_READONLY |
++                  VIR_LOCK_MANAGER_RESOURCE_SHARED)) &&
++        driver->ignoreReadonlyShared) {
++            return 0;
++    }
++
+     if (flags & VIR_LOCK_MANAGER_RESOURCE_READONLY) {
+         virLockError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                      _("Readonly leases are not supported"));
+diff --git a/src/locking/sanlock.conf b/src/locking/sanlock.conf
+index efc35ee..19ab2b3 100644
+--- a/src/locking/sanlock.conf
++++ b/src/locking/sanlock.conf
+@@ -52,3 +52,10 @@
+ # to enabled, otherwise it defaults to disabled.
+ #
+ #require_lease_for_disks = 1
++
++#
++# Enable this flag to have sanlock ignore readonly and shared disks.
++# If disabled, then this rejects attempts to share resources until
++# sanlock gains support for shared locks.
++#
++#ignore_readonly_and_shared_disks = 1
+diff --git a/src/locking/test_libvirt_sanlock.aug b/src/locking/test_libvirt_sanlock.aug
+index b5169e1..90ab59f 100644
+--- a/src/locking/test_libvirt_sanlock.aug
++++ b/src/locking/test_libvirt_sanlock.aug
+@@ -4,6 +4,7 @@ module Test_libvirt_sanlock =
+ disk_lease_dir = \"/var/lib/libvirt/sanlock\"
+ host_id = 1
+ require_lease_for_disks = 1
++ignore_readonly_and_shared_disks = 1
+ "
+ 
+    test Libvirt_sanlock.lns get conf =
+@@ -11,3 +12,4 @@ require_lease_for_disks = 1
+ { "disk_lease_dir" = "/var/lib/libvirt/sanlock" }
+ { "host_id" = "1" }
+ { "require_lease_for_disks" = "1" }
++{ "ignore_readonly_and_shared_disks" = "1" }

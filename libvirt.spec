@@ -274,7 +274,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.11.4
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 
@@ -292,6 +292,9 @@ Patch2: %{name}-add-usbredir-spice-channel.patch
 # Add default spice channel (bz 821474)
 # keep: fedora feature backport that won't hit 0.9.11 maint
 Patch3: %{name}-add-default-spice-channel.patch
+# sanlock: Add param to ignore readonly/shared disks (bz 828633)
+# keep: 0.9.12 feature backport for vdsm, won't hit -maint
+Patch4: %{name}-sanlock-readonly-option.patch
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
@@ -761,6 +764,7 @@ of recent versions of Linux (and other OSes).
 %patch1 -p1
 %patch2 -p1
 %patch3 -p1
+%patch4 -p1
 
 %build
 %if ! %{with_xen}
@@ -1485,6 +1489,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Tue Jun 19 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.4-2
+- sanlock: Add param to ignore readonly/shared disks (bz 828633)
+
 * Fri Jun 15 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.4-1
 - Rebased to version 0.9.11.4
 - Add usbredir spice channel (bz 821469)
