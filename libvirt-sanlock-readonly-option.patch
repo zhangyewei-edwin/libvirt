@@ -78,20 +78,141 @@ index efc35ee..19ab2b3 100644
 +# sanlock gains support for shared locks.
 +#
 +#ignore_readonly_and_shared_disks = 1
-diff --git a/src/locking/test_libvirt_sanlock.aug b/src/locking/test_libvirt_sanlock.aug
-index b5169e1..90ab59f 100644
---- a/src/locking/test_libvirt_sanlock.aug
-+++ b/src/locking/test_libvirt_sanlock.aug
-@@ -4,6 +4,7 @@ module Test_libvirt_sanlock =
- disk_lease_dir = \"/var/lib/libvirt/sanlock\"
- host_id = 1
- require_lease_for_disks = 1
-+ignore_readonly_and_shared_disks = 1
- "
+commit acbd4965c44c4dbc676dfe89aff970052e376073
+Author: Daniel P. Berrange <berrange@redhat.com>
+Date:   Thu Jun 21 15:34:46 2012 +0100
+
+    Add support for shared sanlock leases
+    
+    A sanlock lease can be marked as shared (rather
+    than exclusive)  using SANLK_RES_SHARED flag. This
+    adds support for that flag and ensures that in auto
+    disk mode, any shared disks use shared leases. This
+    also makes any read-only disks be completely
+    ignored.
+    
+    These changes remove the need for the option
+    
+      ignore_readonly_and_shared_disks
+    
+    so that is removed
+    
+    Signed-off-by: Daniel P. Berrange <berrange@redhat.com>
+
+diff --git a/src/locking/lock_driver_sanlock.c b/src/locking/lock_driver_sanlock.c
+index 146aefd..16941c9 100644
+--- a/src/locking/lock_driver_sanlock.c
++++ b/src/locking/lock_driver_sanlock.c
+@@ -65,7 +65,6 @@ struct _virLockManagerSanlockDriver {
+     bool requireLeaseForDisks;
+     int hostID;
+     bool autoDiskLease;
+-    bool ignoreReadonlyShared;
+     char *autoDiskLeasePath;
+ };
  
-    test Libvirt_sanlock.lns get conf =
-@@ -11,3 +12,4 @@ require_lease_for_disks = 1
- { "disk_lease_dir" = "/var/lib/libvirt/sanlock" }
- { "host_id" = "1" }
- { "require_lease_for_disks" = "1" }
-+{ "ignore_readonly_and_shared_disks" = "1" }
+@@ -115,10 +114,6 @@ static int virLockManagerSanlockLoadConfig(const char *configFile)
+     CHECK_TYPE("auto_disk_leases", VIR_CONF_LONG);
+     if (p) driver->autoDiskLease = p->l;
+ 
+-    p = virConfGetValue(conf, "ignore_readonly_and_shared_disks");
+-    CHECK_TYPE("ignore_readonly_and_shared_disks", VIR_CONF_LONG);
+-    if (p) driver->ignoreReadonlyShared = p->l;
+-
+     p = virConfGetValue(conf, "disk_lease_dir");
+     CHECK_TYPE("disk_lease_dir", VIR_CONF_STRING);
+     if (p && p->str) {
+@@ -428,7 +423,8 @@ static int virLockManagerSanlockDiskLeaseName(const char *path,
+ static int virLockManagerSanlockAddLease(virLockManagerPtr lock,
+                                          const char *name,
+                                          size_t nparams,
+-                                         virLockManagerParamPtr params)
++                                         virLockManagerParamPtr params,
++                                         bool shared)
+ {
+     virLockManagerSanlockPrivatePtr priv = lock->privateData;
+     int ret = -1;
+@@ -440,6 +436,7 @@ static int virLockManagerSanlockAddLease(virLockManagerPtr lock,
+         goto cleanup;
+     }
+ 
++    res->flags = shared ? SANLK_RES_SHARED : 0;
+     res->num_disks = 1;
+     if (!virStrcpy(res->name, name, SANLK_NAME_LEN)) {
+         virLockError(VIR_ERR_INTERNAL_ERROR,
+@@ -485,7 +482,8 @@ cleanup:
+ static int virLockManagerSanlockAddDisk(virLockManagerPtr lock,
+                                         const char *name,
+                                         size_t nparams,
+-                                        virLockManagerParamPtr params ATTRIBUTE_UNUSED)
++                                        virLockManagerParamPtr params ATTRIBUTE_UNUSED,
++                                        bool shared)
+ {
+     virLockManagerSanlockPrivatePtr priv = lock->privateData;
+     int ret = -1;
+@@ -503,6 +501,7 @@ static int virLockManagerSanlockAddDisk(virLockManagerPtr lock,
+         goto cleanup;
+     }
+ 
++    res->flags = shared ? SANLK_RES_SHARED : 0;
+     res->num_disks = 1;
+     if (virLockManagerSanlockDiskLeaseName(name, res->name, SANLK_NAME_LEN) < 0)
+         goto cleanup;
+@@ -630,27 +629,15 @@ static int virLockManagerSanlockAddResource(virLockManagerPtr lock,
+         return -1;
+     }
+ 
+-    if ((flags & (VIR_LOCK_MANAGER_RESOURCE_READONLY |
+-                  VIR_LOCK_MANAGER_RESOURCE_SHARED)) &&
+-        driver->ignoreReadonlyShared) {
+-            return 0;
+-    }
+-
+-    if (flags & VIR_LOCK_MANAGER_RESOURCE_READONLY) {
+-        virLockError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+-                     _("Readonly leases are not supported"));
+-        return -1;
+-    }
+-    if (flags & VIR_LOCK_MANAGER_RESOURCE_SHARED) {
+-        virLockError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+-                     _("Shareable leases are not supported"));
+-        return -1;
+-    }
++    /* Treat R/O resources as a no-op lock request */
++    if (flags & VIR_LOCK_MANAGER_RESOURCE_READONLY)
++        return 0;
+ 
+     switch (type) {
+     case VIR_LOCK_MANAGER_RESOURCE_TYPE_DISK:
+         if (driver->autoDiskLease) {
+-            if (virLockManagerSanlockAddDisk(lock, name, nparams, params) < 0)
++            if (virLockManagerSanlockAddDisk(lock, name, nparams, params,
++                                             !!(flags & VIR_LOCK_MANAGER_RESOURCE_SHARED)) < 0)
+                 return -1;
+ 
+             if (virLockManagerSanlockCreateLease(priv->res_args[priv->res_count-1]) < 0)
+@@ -664,7 +651,8 @@ static int virLockManagerSanlockAddResource(virLockManagerPtr lock,
+         break;
+ 
+     case VIR_LOCK_MANAGER_RESOURCE_TYPE_LEASE:
+-        if (virLockManagerSanlockAddLease(lock, name, nparams, params) < 0)
++        if (virLockManagerSanlockAddLease(lock, name, nparams, params,
++                                          !!(flags & VIR_LOCK_MANAGER_RESOURCE_SHARED)) < 0)
+             return -1;
+         break;
+ 
+diff --git a/src/locking/sanlock.conf b/src/locking/sanlock.conf
+index 19ab2b3..efc35ee 100644
+--- a/src/locking/sanlock.conf
++++ b/src/locking/sanlock.conf
+@@ -52,10 +52,3 @@
+ # to enabled, otherwise it defaults to disabled.
+ #
+ #require_lease_for_disks = 1
+-
+-#
+-# Enable this flag to have sanlock ignore readonly and shared disks.
+-# If disabled, then this rejects attempts to share resources until
+-# sanlock gains support for shared locks.
+-#
+-#ignore_readonly_and_shared_disks = 1

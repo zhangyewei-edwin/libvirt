@@ -274,7 +274,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.11.4
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 
@@ -1489,6 +1489,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Thu Jun 28 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.4-3
+- Latest upstream patch for sanlock readonly/shared disks (bz 828633)
+
 * Tue Jun 19 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.4-2
 - sanlock: Add param to ignore readonly/shared disks (bz 828633)
 
