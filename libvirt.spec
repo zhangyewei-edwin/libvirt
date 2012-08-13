@@ -273,8 +273,8 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.11.4
-Release: 3%{?dist}%{?extra_release}
+Version: 0.9.11.5
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 
@@ -282,7 +282,6 @@ Group: Development/Libraries
 %define mainturl stable_updates/
 %endif
 Source: http://libvirt.org/sources/%{?mainturl}libvirt-%{version}.tar.gz
-
 # Replace fedora-13->pc-0.14 to prep for qemu removal (bz 754772)
 # keep: keeping this for the lifetime of F17, gone for newer releases
 Patch1: %{name}-qemu-replace-deprecated-fedora-13-machine.patch
@@ -296,6 +295,7 @@ Patch3: %{name}-add-default-spice-channel.patch
 # keep: 0.9.12 feature backport for vdsm, won't hit -maint
 Patch4: %{name}-sanlock-readonly-option.patch
 
+
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 URL: http://libvirt.org/
 
@@ -307,8 +307,18 @@ Requires: libvirt-daemon-config-network = %{version}-%{release}
 %if %{with_nwfilter}
 Requires: libvirt-daemon-config-nwfilter = %{version}-%{release}
 %endif
-# XXX when we turn on driver modules, we need to add
-# deps on each driver (Requires: libvirt-daemon-drv-qemu)
+Requires: libvirt-daemon-driver-libxl = %{version}-%{release}
+Requires: libvirt-daemon-driver-lxc = %{version}-%{release}
+Requires: libvirt-daemon-driver-qemu = %{version}-%{release}
+Requires: libvirt-daemon-driver-uml = %{version}-%{release}
+Requires: libvirt-daemon-driver-xen = %{version}-%{release}
+
+Requires: libvirt-daemon-driver-interface = %{version}-%{release}
+Requires: libvirt-daemon-driver-secret = %{version}-%{release}
+Requires: libvirt-daemon-driver-storage = %{version}-%{release}
+Requires: libvirt-daemon-driver-network = %{version}-%{release}
+Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
+Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
 %endif
 Requires: libvirt-client = %{version}-%{release}
 
@@ -1489,6 +1499,12 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Mon Aug 13 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.5-1
+- Rebased to version 0.9.11.5
+- CVE-2012-3445 crash in virTypedParameterArrayClear (bz 844734)
+- Fix libvirt-guests (bz 843836)
+- Fix occasional loss of domain events in boxes (bz 819617)
+
 * Thu Jun 28 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.4-3
 - Latest upstream patch for sanlock readonly/shared disks (bz 828633)
 
