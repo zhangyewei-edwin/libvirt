@@ -274,7 +274,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.11.5
-Release: 1%{?dist}%{?extra_release}
+Release: 2%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 
@@ -307,18 +307,11 @@ Requires: libvirt-daemon-config-network = %{version}-%{release}
 %if %{with_nwfilter}
 Requires: libvirt-daemon-config-nwfilter = %{version}-%{release}
 %endif
-Requires: libvirt-daemon-driver-libxl = %{version}-%{release}
-Requires: libvirt-daemon-driver-lxc = %{version}-%{release}
-Requires: libvirt-daemon-driver-qemu = %{version}-%{release}
-Requires: libvirt-daemon-driver-uml = %{version}-%{release}
-Requires: libvirt-daemon-driver-xen = %{version}-%{release}
-
-Requires: libvirt-daemon-driver-interface = %{version}-%{release}
-Requires: libvirt-daemon-driver-secret = %{version}-%{release}
-Requires: libvirt-daemon-driver-storage = %{version}-%{release}
-Requires: libvirt-daemon-driver-network = %{version}-%{release}
-Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
-Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
+Requires: libvirt-daemon-kvm = %{version}-%{release}
+Requires: libvirt-daemon-lxc = %{version}-%{release}
+Requires: libvirt-daemon-qemu = %{version}-%{release}
+Requires: libvirt-daemon-uml = %{version}-%{release}
+Requires: libvirt-daemon-xen = %{version}-%{release}
 %endif
 Requires: libvirt-client = %{version}-%{release}
 
@@ -1499,6 +1492,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Tue Aug 14 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.5-2
+- Fix libvirt driver deps
+
 * Mon Aug 13 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.5-1
 - Rebased to version 0.9.11.5
 - CVE-2012-3445 crash in virTypedParameterArrayClear (bz 844734)
