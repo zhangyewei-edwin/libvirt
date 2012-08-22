@@ -274,7 +274,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 0.9.11.5
-Release: 2%{?dist}%{?extra_release}
+Release: 3%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 
@@ -307,11 +307,8 @@ Requires: libvirt-daemon-config-network = %{version}-%{release}
 %if %{with_nwfilter}
 Requires: libvirt-daemon-config-nwfilter = %{version}-%{release}
 %endif
-Requires: libvirt-daemon-kvm = %{version}-%{release}
-Requires: libvirt-daemon-lxc = %{version}-%{release}
-Requires: libvirt-daemon-qemu = %{version}-%{release}
-Requires: libvirt-daemon-uml = %{version}-%{release}
-Requires: libvirt-daemon-xen = %{version}-%{release}
+# XXX when we turn on driver modules, we need to add
+# deps on each driver (Requires: libvirt-daemon-drv-qemu)
 %endif
 Requires: libvirt-client = %{version}-%{release}
 
@@ -1492,6 +1489,9 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Wed Aug 22 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.5-3
+- Drop bogus daemon dep additions (bz 849159)
+
 * Tue Aug 14 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.5-2
 - Fix libvirt driver deps
 
