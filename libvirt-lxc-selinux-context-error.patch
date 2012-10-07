@@ -1,0 +1,22 @@
+--- libvirt-0.9.11.5.orig/src/lxc/lxc_container.c	2012-08-12 18:03:58.000000000 -0500
++++ libvirt-0.9.11.5.orig/src/lxc/lxc_container.c	2012-09-21 07:38:19.000000000 -0500
+@@ -506,7 +506,7 @@ 
+     if (pivotRoot) {
+ #if HAVE_SELINUX
+         if (getfilecon("/", &con) < 0 &&
+-            errno != ENOTSUP) {
++            errno != ENOTSUP && errno != ENODATA) {
+             virReportSystemError(errno, "%s",
+                                  _("Failed to query file context on /"));
+             goto cleanup;
+--- libvirt-0.9.11.5.orig/src/lxc/lxc_controller.c	2012-08-12 18:03:58.000000000 -0500
++++ libvirt-0.9.11.5.orig/src/lxc/lxc_controller.c	2012-09-21 07:20:41.000000000 -0500
+@@ -1480,7 +1480,7 @@ 
+ 
+ #if HAVE_SELINUX
+         if (getfilecon(root->src, &con) < 0 &&
+-            errno != ENOTSUP) {
++            errno != ENOTSUP && errno != ENODATA) {
+             virReportSystemError(errno,
+                                  _("Failed to query file context on %s"),
+                                  root->src);

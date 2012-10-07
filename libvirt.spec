@@ -273,8 +273,8 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.11.5
-Release: 3%{?dist}%{?extra_release}
+Version: 0.9.11.6
+Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 
@@ -284,16 +284,19 @@ Group: Development/Libraries
 Source: http://libvirt.org/sources/%{?mainturl}libvirt-%{version}.tar.gz
 # Replace fedora-13->pc-0.14 to prep for qemu removal (bz 754772)
 # keep: keeping this for the lifetime of F17, gone for newer releases
-Patch1: %{name}-qemu-replace-deprecated-fedora-13-machine.patch
+Patch1: libvirt-qemu-replace-deprecated-fedora-13-machine.patch
 # Add usbredir spice channel (bz 821469)
 # keep: fedora feature backport that won't hit 0.9.11 maint
-Patch2: %{name}-add-usbredir-spice-channel.patch
+Patch2: libvirt-add-usbredir-spice-channel.patch
 # Add default spice channel (bz 821474)
 # keep: fedora feature backport that won't hit 0.9.11 maint
-Patch3: %{name}-add-default-spice-channel.patch
+Patch3: libvirt-add-default-spice-channel.patch
 # sanlock: Add param to ignore readonly/shared disks (bz 828633)
 # keep: 0.9.12 feature backport for vdsm, won't hit -maint
-Patch4: %{name}-sanlock-readonly-option.patch
+Patch4: libvirt-sanlock-readonly-option.patch
+# Fix LXC domain startup with selinux=disabled (bz 858104)
+# keep: non upstream fix that doesn't apply to git head
+Patch5: libvirt-lxc-selinux-context-error.patch
 
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
@@ -765,6 +768,7 @@ of recent versions of Linux (and other OSes).
 %patch2 -p1
 %patch3 -p1
 %patch4 -p1
+%patch5 -p1
 
 %build
 %if ! %{with_xen}
@@ -1489,6 +1493,12 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Sun Oct 07 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.6-1
+- Rebased to version 0.9.11.6
+- Fix LXC domain startup with selinux=disabled (bz #858104)
+- CVE-2012-4423 Fix null dereference (bz #857135, bz #857133)
+- dnsmasq: avoid forwarding queries without a domain (bz #849787)
+
 * Wed Aug 22 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.5-3
 - Drop bogus daemon dep additions (bz 849159)
 
