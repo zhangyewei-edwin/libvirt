@@ -273,7 +273,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.11.6
+Version: 0.9.11.7
 Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
@@ -1042,6 +1042,13 @@ rm -rf $RPM_BUILD_ROOT%{_sysconfdir}/logrotate.d/libvirtd.uml
 mv $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-%{version} \
    $RPM_BUILD_ROOT%{_datadir}/doc/libvirt-docs-%{version}
 
+%if %{with_dtrace}
+%ifarch %{power64} s390x x86_64 ia64 alpha sparc64
+mv $RPM_BUILD_ROOT%{_datadir}/systemtap/tapset/libvirt_probes.stp \
+   $RPM_BUILD_ROOT%{_datadir}/systemtap/tapset/libvirt_probes-64.stp
+%endif
+%endif
+
 %clean
 rm -fr %{buildroot}
 
@@ -1421,7 +1428,7 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %{_libdir}/lib*.so.*
 
 %if %{with_dtrace}
-%{_datadir}/systemtap/tapset/libvirt_probes.stp
+%{_datadir}/systemtap/tapset/libvirt_probes*.stp
 %{_datadir}/systemtap/tapset/libvirt_functions.stp
 %endif
 
@@ -1493,6 +1500,13 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Sat Oct 27 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.7-1
+- Rebased to version 0.9.11.7
+- Fix multilib conflict with systemtap files (bz #831425)
+- Don't trigger keytab warning in system logs (bz #745203)
+- Fix qemu domxml-2-native NIC model out (bz #636832)
+- Fix error message if not enough space for lvm vol (bz #609104)
+
 * Sun Oct 07 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.6-1
 - Rebased to version 0.9.11.6
 - Fix LXC domain startup with selinux=disabled (bz #858104)
