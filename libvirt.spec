@@ -273,7 +273,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 0.9.11.7
+Version: 0.9.11.8
 Release: 1%{?dist}%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
@@ -1500,6 +1500,12 @@ rm -f $RPM_BUILD_ROOT%{_sysconfdir}/sysctl.d/libvirtd
 %endif
 
 %changelog
+* Sun Dec 09 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.8-1
+- Rebased to version 0.9.11.8
+- CVE-2012-3411: avoid open DNS proxy with dnsmasq (bz #874702, bz #882309)
+- Don't ignore address for USB disks (bz #861309)
+- Fix error with blkdeviotune (bz #872582)
+
 * Sat Oct 27 2012 Cole Robinson <crobinso@redhat.com> - 0.9.11.7-1
 - Rebased to version 0.9.11.7
 - Fix multilib conflict with systemtap files (bz #831425)
