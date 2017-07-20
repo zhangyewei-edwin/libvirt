@@ -49,7 +49,6 @@
 #include "datatypes.h"
 #include "bridge_driver.h"
 #include "bridge_driver_platform.h"
-#include "network_conf.h"
 #include "device_conf.h"
 #include "driver.h"
 #include "virbuffer.h"
@@ -61,6 +60,7 @@
 #include "virlog.h"
 #include "virdnsmasq.h"
 #include "configmake.h"
+#include "virnetlink.h"
 #include "virnetdev.h"
 #include "virnetdevip.h"
 #include "virnetdevbridge.h"
@@ -85,9 +85,12 @@
  */
 #define VIR_NETWORK_DHCP_LEASE_FILE_SIZE_MAX (32 * 1024 * 1024)
 
+#define SYSCTL_PATH "/proc/sys"
+
 VIR_LOG_INIT("network.bridge_driver");
 
 static virNetworkDriverStatePtr network_driver;
+
 
 static virNetworkDriverStatePtr
 networkGetDriver(void)
@@ -98,14 +101,20 @@ networkGetDriver(void)
     return network_driver;
 }
 
-static void networkDriverLock(virNetworkDriverStatePtr driver)
+
+static void
+networkDriverLock(virNetworkDriverStatePtr driver)
 {
     virMutexLock(&driver->lock);
 }
-static void networkDriverUnlock(virNetworkDriverStatePtr driver)
+
+
+static void
+networkDriverUnlock(virNetworkDriverStatePtr driver)
 {
     virMutexUnlock(&driver->lock);
 }
+
 
 static dnsmasqCapsPtr
 networkGetDnsmasqCaps(virNetworkDriverStatePtr driver)
@@ -116,6 +125,7 @@ networkGetDnsmasqCaps(virNetworkDriverStatePtr driver)
     networkDriverUnlock(driver);
     return ret;
 }
+
 
 static int
 networkDnsmasqCapsRefresh(virNetworkDriverStatePtr driver)
@@ -132,34 +142,50 @@ networkDnsmasqCapsRefresh(virNetworkDriverStatePtr driver)
     return 0;
 }
 
-static int networkStateCleanup(void);
 
-static int networkStartNetwork(virNetworkDriverStatePtr driver,
-                               virNetworkObjPtr network);
+static int
+networkStateCleanup(void);
 
-static int networkShutdownNetwork(virNetworkDriverStatePtr driver,
-                                  virNetworkObjPtr network);
+static int
+networkStartNetwork(virNetworkDriverStatePtr driver,
+                    virNetworkObjPtr network);
 
-static int networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
-                                      virNetworkObjPtr network);
+static int
+networkShutdownNetwork(virNetworkDriverStatePtr driver,
+                       virNetworkObjPtr network);
 
-static int networkShutdownNetworkVirtual(virNetworkDriverStatePtr driver,
-                                         virNetworkObjPtr network);
+static int
+networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
+                           virNetworkObjPtr network);
 
-static int networkStartNetworkExternal(virNetworkObjPtr network);
+static int
+networkShutdownNetworkVirtual(virNetworkDriverStatePtr driver,
+                              virNetworkObjPtr network);
 
-static int networkShutdownNetworkExternal(virNetworkObjPtr network);
+static int
+networkStartNetworkExternal(virNetworkObjPtr network);
 
-static void networkReloadFirewallRules(virNetworkDriverStatePtr driver);
-static void networkRefreshDaemons(virNetworkDriverStatePtr driver);
+static int
+networkShutdownNetworkExternal(virNetworkObjPtr network);
 
-static int networkPlugBandwidth(virNetworkObjPtr net,
-                                virDomainNetDefPtr iface);
-static int networkUnplugBandwidth(virNetworkObjPtr net,
-                                  virDomainNetDefPtr iface);
+static void
+networkReloadFirewallRules(virNetworkDriverStatePtr driver);
 
-static void networkNetworkObjTaint(virNetworkObjPtr net,
-                                   virNetworkTaintFlags taint);
+static void
+networkRefreshDaemons(virNetworkDriverStatePtr driver);
+
+static int
+networkPlugBandwidth(virNetworkObjPtr net,
+                     virDomainNetDefPtr iface);
+
+static int
+networkUnplugBandwidth(virNetworkObjPtr net,
+                       virDomainNetDefPtr iface);
+
+static void
+networkNetworkObjTaint(virNetworkObjPtr net,
+                       virNetworkTaintFlags taint);
+
 
 static virNetworkObjPtr
 networkObjFromNetwork(virNetworkPtr net)
@@ -178,6 +204,7 @@ networkObjFromNetwork(virNetworkPtr net)
 
     return network;
 }
+
 
 static int
 networkRunHook(virNetworkObjPtr network,
@@ -235,6 +262,7 @@ networkRunHook(virNetworkObjPtr network,
     return ret;
 }
 
+
 static char *
 networkDnsmasqLeaseFileNameDefault(virNetworkDriverStatePtr driver,
                                    const char *netname)
@@ -245,6 +273,7 @@ networkDnsmasqLeaseFileNameDefault(virNetworkDriverStatePtr driver,
                              driver->dnsmasqStateDir, netname));
     return leasefile;
 }
+
 
 static char *
 networkDnsmasqLeaseFileNameCustom(virNetworkDriverStatePtr driver,
@@ -257,6 +286,7 @@ networkDnsmasqLeaseFileNameCustom(virNetworkDriverStatePtr driver,
     return leasefile;
 }
 
+
 static char *
 networkDnsmasqConfigFileName(virNetworkDriverStatePtr driver,
                              const char *netname)
@@ -268,6 +298,7 @@ networkDnsmasqConfigFileName(virNetworkDriverStatePtr driver,
     return conffile;
 }
 
+
 static char *
 networkRadvdPidfileBasename(const char *netname)
 {
@@ -277,6 +308,7 @@ networkRadvdPidfileBasename(const char *netname)
     ignore_value(virAsprintf(&pidfilebase, "%s-radvd", netname));
     return pidfilebase;
 }
+
 
 static char *
 networkRadvdConfigFileName(virNetworkDriverStatePtr driver,
@@ -289,6 +321,19 @@ networkRadvdConfigFileName(virNetworkDriverStatePtr driver,
     return configfile;
 }
 
+
+static char *
+networkMacMgrFileName(virNetworkDriverStatePtr driver,
+                      const char *bridge)
+{
+    char *filename;
+
+    ignore_value(virAsprintf(&filename, "%s/%s.macs",
+                             driver->dnsmasqStateDir, bridge));
+    return filename;
+}
+
+
 /* do needed cleanup steps and remove the network from the list */
 static int
 networkRemoveInactive(virNetworkDriverStatePtr driver,
@@ -300,6 +345,7 @@ networkRemoveInactive(virNetworkDriverStatePtr driver,
     char *configfile = NULL;
     char *radvdpidbase = NULL;
     char *statusfile = NULL;
+    char *macMapFile = NULL;
     dnsmasqContext *dctx = NULL;
     virNetworkDefPtr def = virNetworkObjGetPersistentDef(net);
 
@@ -329,11 +375,17 @@ networkRemoveInactive(virNetworkDriverStatePtr driver,
     if (!(statusfile = virNetworkConfigFile(driver->stateDir, def->name)))
         goto cleanup;
 
+    if (!(macMapFile = networkMacMgrFileName(driver, def->bridge)))
+        goto cleanup;
+
     /* dnsmasq */
     dnsmasqDelete(dctx);
     unlink(leasefile);
     unlink(customleasefile);
     unlink(configfile);
+
+    /* MAC map manager */
+    unlink(macMapFile);
 
     /* radvd */
     unlink(radvdconfigfile);
@@ -343,7 +395,7 @@ networkRemoveInactive(virNetworkDriverStatePtr driver,
     unlink(statusfile);
 
     /* remove the network definition */
-    virNetworkRemoveInactive(driver->networks, net);
+    virNetworkObjRemoveInactive(driver->networks, net);
 
     ret = 0;
 
@@ -354,9 +406,73 @@ networkRemoveInactive(virNetworkDriverStatePtr driver,
     VIR_FREE(radvdconfigfile);
     VIR_FREE(radvdpidbase);
     VIR_FREE(statusfile);
+    VIR_FREE(macMapFile);
     dnsmasqContextFree(dctx);
     return ret;
 }
+
+
+static int
+networkMacMgrAdd(virNetworkDriverStatePtr driver,
+                 virNetworkObjPtr network,
+                 const char *domain,
+                 const virMacAddr *mac)
+{
+    char macStr[VIR_MAC_STRING_BUFLEN];
+    char *file = NULL;
+    int ret = -1;
+
+    if (!network->macmap)
+        return 0;
+
+    virMacAddrFormat(mac, macStr);
+
+    if (!(file = networkMacMgrFileName(driver, network->def->bridge)))
+        goto cleanup;
+
+    if (virMacMapAdd(network->macmap, domain, macStr) < 0)
+        goto cleanup;
+
+    if (virMacMapWriteFile(network->macmap, file) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(file);
+    return ret;
+}
+
+
+static int
+networkMacMgrDel(virNetworkDriverStatePtr driver,
+                 virNetworkObjPtr network,
+                 const char *domain,
+                 const virMacAddr *mac)
+{
+    char macStr[VIR_MAC_STRING_BUFLEN];
+    char *file = NULL;
+    int ret = -1;
+
+    if (!network->macmap)
+        return 0;
+
+    virMacAddrFormat(mac, macStr);
+
+    if (!(file = networkMacMgrFileName(driver, network->def->bridge)))
+        goto cleanup;
+
+    if (virMacMapRemove(network->macmap, domain, macStr) < 0)
+        goto cleanup;
+
+    if (virMacMapWriteFile(network->macmap, file) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(file);
+    return ret;
+}
+
 
 static char *
 networkBridgeDummyNicName(const char *brname)
@@ -382,12 +498,14 @@ networkBridgeDummyNicName(const char *brname)
     return nicname;
 }
 
+
 static int
 networkUpdateState(virNetworkObjPtr obj,
                    void *opaque)
 {
     virNetworkDriverStatePtr driver = opaque;
     dnsmasqCapsPtr dnsmasq_caps = networkGetDnsmasqCaps(driver);
+    char *macMapFile = NULL;
     int ret = -1;
 
     virObjectLock(obj);
@@ -404,6 +522,13 @@ networkUpdateState(virNetworkObjPtr obj,
         /* If bridge doesn't exist, then mark it inactive */
         if (!(obj->def->bridge && virNetDevExists(obj->def->bridge) == 1))
             obj->active = 0;
+
+        if (!(macMapFile = networkMacMgrFileName(driver, obj->def->bridge)))
+            goto cleanup;
+
+        if (!(obj->macmap = virMacMapNew(macMapFile)))
+            goto cleanup;
+
         break;
 
     case VIR_NETWORK_FORWARD_BRIDGE:
@@ -435,6 +560,7 @@ networkUpdateState(virNetworkObjPtr obj,
                                            obj->def->name,
                                            &obj->dnsmasqPid,
                                            dnsmasqCapsGetBinaryPath(dnsmasq_caps)));
+
         radvdpidbase = networkRadvdPidfileBasename(obj->def->name);
         if (!radvdpidbase)
             goto cleanup;
@@ -449,6 +575,7 @@ networkUpdateState(virNetworkObjPtr obj,
  cleanup:
     virObjectUnlock(obj);
     virObjectUnref(dnsmasq_caps);
+    VIR_FREE(macMapFile);
     return ret;
 }
 
@@ -472,10 +599,12 @@ networkAutostartConfig(virNetworkObjPtr net,
     return ret;
 }
 
+
 #if HAVE_FIREWALLD
 static DBusHandlerResult
 firewalld_dbus_filter_bridge(DBusConnection *connection ATTRIBUTE_UNUSED,
-                             DBusMessage *message, void *user_data)
+                             DBusMessage *message,
+                             void *user_data)
 {
     virNetworkDriverStatePtr driver = user_data;
 
@@ -491,6 +620,7 @@ firewalld_dbus_filter_bridge(DBusConnection *connection ATTRIBUTE_UNUSED,
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 #endif
+
 
 static int
 networkMigrateStateFiles(virNetworkDriverStatePtr driver)
@@ -577,6 +707,7 @@ networkMigrateStateFiles(virNetworkDriverStatePtr driver)
     return ret;
 }
 
+
 /**
  * networkStateInitialize:
  *
@@ -662,13 +793,13 @@ networkStateInitialize(bool privileged,
     if (!(network_driver->networks = virNetworkObjListNew()))
         goto error;
 
-    if (virNetworkLoadAllState(network_driver->networks,
-                               network_driver->stateDir) < 0)
+    if (virNetworkObjLoadAllState(network_driver->networks,
+                                  network_driver->stateDir) < 0)
         goto error;
 
-    if (virNetworkLoadAllConfigs(network_driver->networks,
-                                 network_driver->networkConfigDir,
-                                 network_driver->networkAutostartDir) < 0)
+    if (virNetworkObjLoadAllConfigs(network_driver->networks,
+                                    network_driver->networkConfigDir,
+                                    network_driver->networkAutostartDir) < 0)
         goto error;
 
     /* Update the internal status of all allegedly active
@@ -718,11 +849,10 @@ networkStateInitialize(bool privileged,
     return ret;
 
  error:
-    if (network_driver)
-        networkDriverUnlock(network_driver);
     networkStateCleanup();
     goto cleanup;
 }
+
 
 /**
  * networkStateAutoStart:
@@ -740,6 +870,7 @@ networkStateAutoStart(void)
                              network_driver);
 }
 
+
 /**
  * networkStateReload:
  *
@@ -752,11 +883,11 @@ networkStateReload(void)
     if (!network_driver)
         return 0;
 
-    virNetworkLoadAllState(network_driver->networks,
-                           network_driver->stateDir);
-    virNetworkLoadAllConfigs(network_driver->networks,
-                             network_driver->networkConfigDir,
-                             network_driver->networkAutostartDir);
+    virNetworkObjLoadAllState(network_driver->networks,
+                              network_driver->stateDir);
+    virNetworkObjLoadAllConfigs(network_driver->networks,
+                                network_driver->networkConfigDir,
+                                network_driver->networkAutostartDir);
     networkReloadFirewallRules(network_driver);
     networkRefreshDaemons(network_driver);
     virNetworkObjListForEach(network_driver->networks,
@@ -777,7 +908,7 @@ networkStateCleanup(void)
     if (!network_driver)
         return -1;
 
-    virObjectEventStateFree(network_driver->networkEventState);
+    virObjectUnref(network_driver->networkEventState);
 
     /* free inactive networks */
     virObjectUnref(network_driver->networks);
@@ -804,7 +935,9 @@ networkStateCleanup(void)
  * kill the specified pid/name, and wait a bit to make sure it's dead.
  */
 static int
-networkKillDaemon(pid_t pid, const char *daemonName, const char *networkName)
+networkKillDaemon(pid_t pid,
+                  const char *daemonName,
+                  const char *networkName)
 {
     size_t i;
     int ret = -1;
@@ -859,10 +992,10 @@ networkKillDaemon(pid_t pid, const char *daemonName, const char *networkName)
     return ret;
 }
 
+
 /* the following does not build a file, it builds a list
  * which is later saved into a file
  */
-
 static int
 networkBuildDnsmasqDhcpHostsList(dnsmasqContext *dctx,
                                  virNetworkIPDefPtr ipdef)
@@ -883,6 +1016,7 @@ networkBuildDnsmasqDhcpHostsList(dnsmasqContext *dctx,
     return 0;
 }
 
+
 static int
 networkBuildDnsmasqHostsList(dnsmasqContext *dctx,
                              virNetworkDNSDefPtr dnsdef)
@@ -898,6 +1032,43 @@ networkBuildDnsmasqHostsList(dnsmasqContext *dctx,
                         return -1;
             }
         }
+    }
+
+    return 0;
+}
+
+
+static int
+networkDnsmasqConfLocalPTRs(virBufferPtr buf,
+                            virNetworkDefPtr def)
+{
+    virNetworkIPDefPtr ip;
+    size_t i;
+    char *ptr = NULL;
+    int rc;
+
+    for (i = 0; i < def->nips; i++) {
+        ip = def->ips + i;
+
+        if (ip->localPTR != VIR_TRISTATE_BOOL_YES)
+            continue;
+
+        if ((rc = virSocketAddrPTRDomain(&ip->address,
+                                         virNetworkIPDefPrefix(ip),
+                                         &ptr)) < 0) {
+            if (rc == -2) {
+                int family = VIR_SOCKET_ADDR_FAMILY(&ip->address);
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("PTR domain for %s network with prefix %u "
+                                 "cannot be automatically created"),
+                               (family == AF_INET) ? "IPv4" : "IPv6",
+                               virNetworkIPDefPrefix(ip));
+            }
+            return -1;
+        }
+
+        virBufferAsprintf(buf, "local=/%s/\n", ptr);
+        VIR_FREE(ptr);
     }
 
     return 0;
@@ -938,6 +1109,8 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
      */
 
     /* create dnsmasq config file appropriate for this network */
+
+    /* Don't forget to update networkxml2conftest :-) */
     virBufferAsprintf(&configbuf,
                       "##WARNING:  THIS IS AN AUTO-GENERATED FILE. "
                       "CHANGES TO IT ARE LIKELY TO BE\n"
@@ -956,7 +1129,15 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
         virBufferAddLit(&configbuf, "port=0\n");
 
     if (wantDNS && network->def->dns.forwarders) {
-        virBufferAddLit(&configbuf, "no-resolv\n");
+        /* addNoResolv should be set to true if there are any entries
+         * that specify an IP address for requests, but no domain
+         * qualifier (implying that all requests otherwise "unclaimed"
+         * should be sent to that address). if it is still false when
+         * we've looked at all entries, it means we still need the
+         * host's resolv.conf for some cases.
+         */
+        bool addNoResolv = false;
+
         for (i = 0; i < network->def->dns.nfwds; i++) {
             virNetworkDNSForwarderPtr fwd = &network->def->dns.forwarders[i];
 
@@ -970,11 +1151,15 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
                     goto cleanup;
                 virBufferAsprintf(&configbuf, "%s\n", addr);
                 VIR_FREE(addr);
+                if (!fwd->domain)
+                    addNoResolv = true;
             } else {
                 /* "don't forward requests for this domain" */
                 virBufferAddLit(&configbuf, "#\n");
             }
         }
+        if (addNoResolv)
+            virBufferAddLit(&configbuf, "no-resolv\n");
     }
 
     if (network->def->domain) {
@@ -989,6 +1174,10 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
                           network->def->domain);
     }
 
+    if (wantDNS &&
+        networkDnsmasqConfLocalPTRs(&configbuf, network->def) < 0)
+        goto cleanup;
+
     if (wantDNS && network->def->dns.forwardPlainNames == VIR_TRISTATE_BOOL_NO) {
         virBufferAddLit(&configbuf, "domain-needed\n");
         /* need to specify local=// whether or not a domain is
@@ -1002,7 +1191,12 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
         virBufferAsprintf(&configbuf, "pid-file=%s\n", pidfile);
 
     /* dnsmasq will *always* listen on localhost unless told otherwise */
+#ifdef __linux__
     virBufferAddLit(&configbuf, "except-interface=lo\n");
+#else
+    /* BSD family OSes and Solaris call loopback interface as lo0 */
+    virBufferAddLit(&configbuf, "except-interface=lo0\n");
+#endif
 
     if (dnsmasqCapsGet(caps, DNSMASQ_CAPS_BIND_DYNAMIC)) {
         /* using --bind-dynamic with only --interface (no
@@ -1258,8 +1452,10 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
 
         /* Note: the following is IPv4 only */
         if (VIR_SOCKET_ADDR_IS_FAMILY(&ipdef->address, AF_INET)) {
-            if (ipdef->nranges || ipdef->nhosts)
+            if (ipdef->nranges || ipdef->nhosts) {
                 virBufferAddLit(&configbuf, "dhcp-no-override\n");
+                virBufferAddLit(&configbuf, "dhcp-authoritative\n");
+            }
 
             if (ipdef->tftproot) {
                 virBufferAddLit(&configbuf, "enable-tftp\n");
@@ -1338,6 +1534,7 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
     return ret;
 }
 
+
 /* build the dnsmasq command line */
 static int ATTRIBUTE_NONNULL(3)
 networkBuildDhcpDaemonCommandLine(virNetworkDriverStatePtr driver,
@@ -1396,6 +1593,7 @@ networkBuildDhcpDaemonCommandLine(virNetworkDriverStatePtr driver,
     return ret;
 }
 
+
 static int
 networkStartDhcpDaemon(virNetworkDriverStatePtr driver,
                        virNetworkObjPtr network)
@@ -1408,20 +1606,22 @@ networkStartDhcpDaemon(virNetworkDriverStatePtr driver,
     int ret = -1;
     dnsmasqContext *dctx = NULL;
 
-    if (!(ipdef = virNetworkDefGetIPByIndex(network->def, AF_UNSPEC, 0))) {
-        /* no IP addresses, so we don't need to run */
-        ret = 0;
-        goto cleanup;
-    }
-
     /* see if there are any IP addresses that need a dhcp server */
-    for (i = 0; ipdef && !needDnsmasq;
-         ipdef = virNetworkDefGetIPByIndex(network->def, AF_UNSPEC, i + 1)) {
+    i = 0;
+    while ((ipdef = virNetworkDefGetIPByIndex(network->def, AF_UNSPEC, i))) {
+        i++;
         if (ipdef->nranges || ipdef->nhosts)
             needDnsmasq = true;
     }
 
+    if (i == 0) {
+        /* no IP addresses at all, so we don't need to run */
+        ret = 0;
+        goto cleanup;
+    }
+
     if (!needDnsmasq && network->def->dns.enable == VIR_TRISTATE_BOOL_NO) {
+        /* no DHCP services needed, and user disabled DNS service */
         ret = 0;
         goto cleanup;
     }
@@ -1483,6 +1683,7 @@ networkStartDhcpDaemon(virNetworkDriverStatePtr driver,
     dnsmasqContextFree(dctx);
     return ret;
 }
+
 
 /* networkRefreshDhcpDaemon:
  *  Update dnsmasq config files, then send a SIGHUP so that it rereads
@@ -1552,6 +1753,7 @@ networkRefreshDhcpDaemon(virNetworkDriverStatePtr driver,
     return ret;
 }
 
+
 /* networkRestartDhcpDaemon:
  *
  * kill and restart dnsmasq, in order to update any config that is on
@@ -1573,6 +1775,7 @@ networkRestartDhcpDaemon(virNetworkDriverStatePtr driver,
     return networkStartDhcpDaemon(driver, network);
 }
 
+
 static char radvd1[] = "  AdvOtherConfigFlag off;\n\n";
 static char radvd2[] = "    AdvAutonomous off;\n";
 static char radvd3[] = "    AdvOnLink on;\n"
@@ -1580,7 +1783,8 @@ static char radvd3[] = "    AdvOnLink on;\n"
                        "    AdvRouterAddr off;\n";
 
 static int
-networkRadvdConfContents(virNetworkObjPtr network, char **configstr)
+networkRadvdConfContents(virNetworkObjPtr network,
+                         char **configstr)
 {
     virBuffer configbuf = VIR_BUFFER_INITIALIZER;
     int ret = -1;
@@ -1657,6 +1861,7 @@ networkRadvdConfContents(virNetworkObjPtr network, char **configstr)
     return ret;
 }
 
+
 /* write file and return its name (which must be freed by caller) */
 static int
 networkRadvdConfWrite(virNetworkDriverStatePtr driver,
@@ -1697,6 +1902,7 @@ networkRadvdConfWrite(virNetworkDriverStatePtr driver,
     VIR_FREE(myConfigFile);
     return ret;
 }
+
 
 static int
 networkStartRadvd(virNetworkDriverStatePtr driver,
@@ -1786,6 +1992,7 @@ networkStartRadvd(virNetworkDriverStatePtr driver,
     return ret;
 }
 
+
 static int
 networkRefreshRadvd(virNetworkDriverStatePtr driver,
                     virNetworkObjPtr network)
@@ -1826,6 +2033,7 @@ networkRefreshRadvd(virNetworkDriverStatePtr driver,
     return kill(network->radvdPid, SIGHUP);
 }
 
+
 #if 0
 /* currently unused, so it causes a build error unless we #if it out */
 static int
@@ -1853,6 +2061,7 @@ networkRestartRadvd(virNetworkObjPtr network)
 }
 #endif /* #if 0 */
 
+
 static int
 networkRefreshDaemonsHelper(virNetworkObjPtr net,
                             void *opaque)
@@ -1878,6 +2087,7 @@ networkRefreshDaemonsHelper(virNetworkObjPtr net,
     return 0;
 }
 
+
 /* SIGHUP/restart any dnsmasq or radvd daemons.
  * This should be called when libvirtd is restarted.
  */
@@ -1889,6 +2099,7 @@ networkRefreshDaemons(virNetworkDriverStatePtr driver)
                              networkRefreshDaemonsHelper,
                              driver);
 }
+
 
 static int
 networkReloadFirewallRulesHelper(virNetworkObjPtr net,
@@ -1914,6 +2125,7 @@ networkReloadFirewallRulesHelper(virNetworkObjPtr net,
     return 0;
 }
 
+
 static void
 networkReloadFirewallRules(virNetworkDriverStatePtr driver)
 {
@@ -1923,9 +2135,11 @@ networkReloadFirewallRules(virNetworkDriverStatePtr driver)
                              NULL);
 }
 
+
 /* Enable IP Forwarding. Return 0 for success, -1 for failure. */
 static int
-networkEnableIPForwarding(bool enableIPv4, bool enableIPv6)
+networkEnableIPForwarding(bool enableIPv4,
+                          bool enableIPv6)
 {
     int ret = 0;
 #ifdef HAVE_SYSCTLBYNAME
@@ -1938,14 +2152,14 @@ networkEnableIPForwarding(bool enableIPv4, bool enableIPv6)
                            &enabled, sizeof(enabled));
 #else
     if (enableIPv4)
-        ret = virFileWriteStr("/proc/sys/net/ipv4/ip_forward", "1\n", 0);
+        ret = virFileWriteStr(SYSCTL_PATH "/net/ipv4/ip_forward", "1\n", 0);
     if (enableIPv6 && ret == 0)
-        ret = virFileWriteStr("/proc/sys/net/ipv6/conf/all/forwarding", "1\n", 0);
+        ret = virFileWriteStr(SYSCTL_PATH "/net/ipv6/conf/all/forwarding", "1\n", 0);
+
 #endif
     return ret;
 }
 
-#define SYSCTL_PATH "/proc/sys"
 
 static int
 networkSetIPv6Sysctls(virNetworkObjPtr network)
@@ -2014,6 +2228,7 @@ networkSetIPv6Sysctls(virNetworkObjPtr network)
     VIR_FREE(field);
     return ret;
 }
+
 
 /* add an IP address to a bridge */
 static int
@@ -2110,6 +2325,7 @@ networkWaitDadFinish(virNetworkObjPtr network)
     return ret;
 }
 
+
 static int
 networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
                            virNetworkObjPtr network)
@@ -2120,6 +2336,7 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
     virNetworkIPDefPtr ipdef;
     virNetDevIPRoutePtr routedef;
     char *macTapIfName = NULL;
+    char *macMapFile = NULL;
     int tapfd = -1;
 
     /* Check to see if any network IP collides with an existing route */
@@ -2158,6 +2375,7 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
         if (virNetDevTapCreateInBridgePort(network->def->bridge,
                                            &macTapIfName, &network->def->mac,
                                            NULL, NULL, &tapfd, 1, NULL, NULL,
+                                           NULL, network->def->mtu, NULL,
                                            VIR_NETDEV_TAP_CREATE_USE_MAC_FOR_BRIDGE |
                                            VIR_NETDEV_TAP_CREATE_IFUP |
                                            VIR_NETDEV_TAP_CREATE_PERSIST) < 0) {
@@ -2165,6 +2383,10 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
             goto err0;
         }
     }
+
+    if (!(macMapFile = networkMacMgrFileName(driver, network->def->bridge)) ||
+        !(network->macmap = virMacMapNew(macMapFile)))
+        goto err1;
 
     /* Set bridge options */
 
@@ -2228,11 +2450,15 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
     }
 
     /* If forward.type != NONE, turn on global IP forwarding */
-    if (network->def->forward.type != VIR_NETWORK_FORWARD_NONE &&
-        networkEnableIPForwarding(v4present, v6present) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("failed to enable IP forwarding"));
-        goto err3;
+    if (network->def->forward.type != VIR_NETWORK_FORWARD_NONE) {
+        if (v6present && !virNetDevIPCheckIPv6Forwarding())
+            goto err3; /* Precise error message already provided */
+
+        if (networkEnableIPForwarding(v4present, v6present) < 0) {
+            virReportSystemError(errno, "%s",
+                                 _("failed to enable IP forwarding"));
+            goto err3;
+        }
     }
 
 
@@ -2265,6 +2491,7 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
         goto err5;
 
     VIR_FREE(macTapIfName);
+    VIR_FREE(macMapFile);
 
     return 0;
 
@@ -2301,6 +2528,7 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
         ignore_value(virNetDevTapDelete(macTapIfName, NULL));
         VIR_FREE(macTapIfName);
     }
+    VIR_FREE(macMapFile);
 
  err0:
     if (!save_err)
@@ -2315,12 +2543,16 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
     return -1;
 }
 
+
 static int
 networkShutdownNetworkVirtual(virNetworkDriverStatePtr driver,
                               virNetworkObjPtr network)
 {
     if (network->def->bandwidth)
         virNetDevBandwidthClear(network->def->bridge);
+
+    if (!virObjectUnref(network->macmap))
+        network->macmap = NULL;
 
     if (network->radvdPid > 0) {
         char *radvdpidbase;
@@ -2375,6 +2607,7 @@ networkStartNetworkBridge(virNetworkObjPtr network)
      */
     return networkStartHandleMACTableManagerMode(network, NULL);
 }
+
 
 static int
 networkShutdownNetworkBridge(virNetworkObjPtr network ATTRIBUTE_UNUSED)
@@ -2506,7 +2739,9 @@ networkStartNetworkExternal(virNetworkObjPtr network)
     return networkCreateInterfacePool(network->def);
 }
 
-static int networkShutdownNetworkExternal(virNetworkObjPtr network ATTRIBUTE_UNUSED)
+
+static int
+networkShutdownNetworkExternal(virNetworkObjPtr network ATTRIBUTE_UNUSED)
 {
     /* put anything here that needs to be done each time a network of
      * type BRIDGE, PRIVATE, VEPA, HOSTDEV or PASSTHROUGH is shutdown. On
@@ -2515,6 +2750,7 @@ static int networkShutdownNetworkExternal(virNetworkObjPtr network ATTRIBUTE_UNU
      */
     return 0;
 }
+
 
 static int
 networkStartNetwork(virNetworkDriverStatePtr driver,
@@ -2563,6 +2799,8 @@ networkStartNetwork(virNetworkDriverStatePtr driver,
          * VIR_NETWORK_FORWARD_BRIDGE with no bridge device defined
          * (since that is macvtap bridge mode).
          */
+        ATTRIBUTE_FALLTHROUGH;
+
     case VIR_NETWORK_FORWARD_PRIVATE:
     case VIR_NETWORK_FORWARD_VEPA:
     case VIR_NETWORK_FORWARD_PASSTHROUGH:
@@ -2582,7 +2820,7 @@ networkStartNetwork(virNetworkDriverStatePtr driver,
      * is setup.
      */
     VIR_DEBUG("Writing network status to disk");
-    if (virNetworkSaveStatus(driver->stateDir, network) < 0)
+    if (virNetworkObjSaveStatus(driver->stateDir, network) < 0)
         goto cleanup;
 
     network->active = 1;
@@ -2601,6 +2839,7 @@ networkStartNetwork(virNetworkDriverStatePtr driver,
     }
     return ret;
 }
+
 
 static int
 networkShutdownNetwork(virNetworkDriverStatePtr driver,
@@ -2640,6 +2879,8 @@ networkShutdownNetwork(virNetworkDriverStatePtr driver,
          * VIR_NETWORK_FORWARD_BRIDGE with no bridge device defined
          * (since that is macvtap bridge mode).
          */
+        ATTRIBUTE_FALLTHROUGH;
+
     case VIR_NETWORK_FORWARD_PRIVATE:
     case VIR_NETWORK_FORWARD_VEPA:
     case VIR_NETWORK_FORWARD_PASSTHROUGH:
@@ -2658,8 +2899,9 @@ networkShutdownNetwork(virNetworkDriverStatePtr driver,
 }
 
 
-static virNetworkPtr networkLookupByUUID(virConnectPtr conn,
-                                         const unsigned char *uuid)
+static virNetworkPtr
+networkLookupByUUID(virConnectPtr conn,
+                    const unsigned char *uuid)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkObjPtr network;
@@ -2685,8 +2927,10 @@ static virNetworkPtr networkLookupByUUID(virConnectPtr conn,
     return ret;
 }
 
-static virNetworkPtr networkLookupByName(virConnectPtr conn,
-                                         const char *name)
+
+static virNetworkPtr
+networkLookupByName(virConnectPtr conn,
+                    const char *name)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkObjPtr network;
@@ -2709,7 +2953,9 @@ static virNetworkPtr networkLookupByName(virConnectPtr conn,
     return ret;
 }
 
-static int networkConnectNumOfNetworks(virConnectPtr conn)
+
+static int
+networkConnectNumOfNetworks(virConnectPtr conn)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     int nactive;
@@ -2725,9 +2971,11 @@ static int networkConnectNumOfNetworks(virConnectPtr conn)
     return nactive;
 }
 
-static int networkConnectListNetworks(virConnectPtr conn,
-                                      char **const names,
-                                      int nnames)
+
+static int
+networkConnectListNetworks(virConnectPtr conn,
+                           char **const names,
+                           int nnames)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     int got = 0;
@@ -2743,7 +2991,9 @@ static int networkConnectListNetworks(virConnectPtr conn,
     return got;
 }
 
-static int networkConnectNumOfDefinedNetworks(virConnectPtr conn)
+
+static int
+networkConnectNumOfDefinedNetworks(virConnectPtr conn)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     int ninactive = 0;
@@ -2759,7 +3009,11 @@ static int networkConnectNumOfDefinedNetworks(virConnectPtr conn)
     return ninactive;
 }
 
-static int networkConnectListDefinedNetworks(virConnectPtr conn, char **const names, int nnames)
+
+static int
+networkConnectListDefinedNetworks(virConnectPtr conn,
+                                  char **const names,
+                                  int nnames)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     int got = 0;
@@ -2773,6 +3027,7 @@ static int networkConnectListDefinedNetworks(virConnectPtr conn, char **const na
                                     conn);
     return got;
 }
+
 
 static int
 networkConnectListAllNetworks(virConnectPtr conn,
@@ -2794,6 +3049,7 @@ networkConnectListAllNetworks(virConnectPtr conn,
  cleanup:
     return ret;
 }
+
 
 static int
 networkConnectNetworkEventRegisterAny(virConnectPtr conn,
@@ -2818,6 +3074,7 @@ networkConnectNetworkEventRegisterAny(virConnectPtr conn,
     return ret;
 }
 
+
 static int
 networkConnectNetworkEventDeregisterAny(virConnectPtr conn,
                                         int callbackID)
@@ -2830,7 +3087,7 @@ networkConnectNetworkEventDeregisterAny(virConnectPtr conn,
 
     if (virObjectEventStateDeregisterID(conn,
                                         driver->networkEventState,
-                                        callbackID) < 0)
+                                        callbackID, true) < 0)
         goto cleanup;
 
     ret = 0;
@@ -2839,7 +3096,9 @@ networkConnectNetworkEventDeregisterAny(virConnectPtr conn,
     return ret;
 }
 
-static int networkIsActive(virNetworkPtr net)
+
+static int
+networkIsActive(virNetworkPtr net)
 {
     virNetworkObjPtr obj;
     int ret = -1;
@@ -2857,7 +3116,9 @@ static int networkIsActive(virNetworkPtr net)
     return ret;
 }
 
-static int networkIsPersistent(virNetworkPtr net)
+
+static int
+networkIsPersistent(virNetworkPtr net)
 {
     virNetworkObjPtr obj;
     int ret = -1;
@@ -2905,7 +3166,7 @@ networkFindUnusedBridgeName(virNetworkObjListPtr nets,
          * from virNetDevExists(), just in case it isn't implemented
          * on this platform (probably impossible).
          */
-        if (!(virNetworkBridgeInUse(nets, newname, def->name) ||
+        if (!(virNetworkObjBridgeInUse(nets, newname, def->name) ||
               virNetDevExists(newname) == 1)) {
             VIR_FREE(def->bridge); /*could contain template */
             def->bridge = newname;
@@ -2926,7 +3187,6 @@ networkFindUnusedBridgeName(virNetworkObjListPtr nets,
 }
 
 
-
 /*
  * networkValidateBridgeName() - if no bridge name is set, or if the
  * bridge name contains a %d (indicating that this is a template for
@@ -2941,7 +3201,7 @@ networkBridgeNameValidate(virNetworkObjListPtr nets,
     int ret = -1;
 
     if (def->bridge && !strstr(def->bridge, "%d")) {
-        if (virNetworkBridgeInUse(nets, def->bridge, def->name)) {
+        if (virNetworkObjBridgeInUse(nets, def->bridge, def->name)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("bridge name '%s' already in use."),
                            def->bridge);
@@ -2970,6 +3230,9 @@ networkValidate(virNetworkDriverStatePtr driver,
     bool ipv4def = false, ipv6def = false;
     bool bandwidthAllowed = true;
     bool usesInterface = false, usesAddress = false;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
+        return -1;
 
     /* Only the three L3 network types that are configured by libvirt
      * need to have a bridge device name / mac address provided
@@ -3047,14 +3310,55 @@ networkValidate(virNetworkDriverStatePtr driver,
      * the type of each.
      */
     for (i = 0; i < def->forward.nifs; i++) {
-        switch ((virNetworkForwardHostdevDeviceType)
-                def->forward.ifs[i].type) {
+        virNetworkForwardIfDefPtr iface = &def->forward.ifs[i];
+        char *sysfs_path = NULL;
+
+        switch ((virNetworkForwardHostdevDeviceType) iface->type) {
         case VIR_NETWORK_FORWARD_HOSTDEV_DEVICE_NETDEV:
             usesInterface = true;
+
+            if (def->forward.type == VIR_NETWORK_FORWARD_HOSTDEV) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("hostdev network '%s' lists '%s' "
+                                 "in the device pool, but hostdev "
+                                 "networks require all devices to "
+                                 "be listed by PCI address, not "
+                                 "network device name"),
+                               def->name, iface->device.dev);
+                return -1;
+            }
             break;
-        case VIR_NETWORK_FORWARD_HOSTDEV_DEVICE_PCI:
+
+        case VIR_NETWORK_FORWARD_HOSTDEV_DEVICE_PCI: {
             usesAddress = true;
+
+            if (def->forward.type != VIR_NETWORK_FORWARD_HOSTDEV) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("network '%s' has forward mode '%s' "
+                                 " but lists a device by PCI address "
+                                 "in the device pool. This is only "
+                                 "supported for networks with forward "
+                                 "mode 'hostdev'"),
+                               def->name,
+                               virNetworkForwardTypeToString(def->forward.type));
+                return -1;
+            }
+
+            if (virPCIDeviceAddressGetSysfsFile(&iface->device.pci, &sysfs_path) < 0)
+                return -1;
+
+            if (!virPCIIsVirtualFunction(sysfs_path)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("device '%s' in network '%s' is not "
+                                 "an SR-IOV Virtual Function"),
+                               sysfs_path, def->name);
+                VIR_FREE(sysfs_path);
+                return -1;
+            }
+            VIR_FREE(sysfs_path);
             break;
+        }
+
         case VIR_NETWORK_FORWARD_HOSTDEV_DEVICE_NONE:
         case VIR_NETWORK_FORWARD_HOSTDEV_DEVICE_LAST:
             break;
@@ -3193,7 +3497,10 @@ networkValidate(virNetworkDriverStatePtr driver,
     return 0;
 }
 
-static virNetworkPtr networkCreateXML(virConnectPtr conn, const char *xml)
+
+static virNetworkPtr
+networkCreateXML(virConnectPtr conn,
+                 const char *xml)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkDefPtr def;
@@ -3214,15 +3521,14 @@ static virNetworkPtr networkCreateXML(virConnectPtr conn, const char *xml)
      * we assign the def with live = true in anticipation that it will
      * be started momentarily.
      */
-    if (!(network = virNetworkAssignDef(driver->networks, def,
-                                        VIR_NETWORK_OBJ_LIST_ADD_LIVE |
-                                        VIR_NETWORK_OBJ_LIST_ADD_CHECK_LIVE)))
+    if (!(network = virNetworkObjAssignDef(driver->networks, def,
+                                           VIR_NETWORK_OBJ_LIST_ADD_LIVE |
+                                           VIR_NETWORK_OBJ_LIST_ADD_CHECK_LIVE)))
         goto cleanup;
     def = NULL;
 
     if (networkStartNetwork(driver, network) < 0) {
-        virNetworkRemoveInactive(driver->networks,
-                                 network);
+        virNetworkObjRemoveInactive(driver->networks, network);
         goto cleanup;
     }
 
@@ -3242,7 +3548,10 @@ static virNetworkPtr networkCreateXML(virConnectPtr conn, const char *xml)
     return ret;
 }
 
-static virNetworkPtr networkDefineXML(virConnectPtr conn, const char *xml)
+
+static virNetworkPtr
+networkDefineXML(virConnectPtr conn,
+                 const char *xml)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkDefPtr def = NULL;
@@ -3260,7 +3569,7 @@ static virNetworkPtr networkDefineXML(virConnectPtr conn, const char *xml)
     if (networkValidate(driver, def) < 0)
         goto cleanup;
 
-    if (!(network = virNetworkAssignDef(driver->networks, def, 0)))
+    if (!(network = virNetworkObjAssignDef(driver->networks, def, 0)))
         goto cleanup;
 
     /* def was assigned to network object */
@@ -3268,14 +3577,14 @@ static virNetworkPtr networkDefineXML(virConnectPtr conn, const char *xml)
 
     if (virNetworkSaveConfig(driver->networkConfigDir, def) < 0) {
         if (!virNetworkObjIsActive(network)) {
-            virNetworkRemoveInactive(driver->networks, network);
+            virNetworkObjRemoveInactive(driver->networks, network);
             goto cleanup;
         }
         /* if network was active already, just undo new persistent
          * definition by making it transient.
          * XXX - this isn't necessarily the correct thing to do.
          */
-        virNetworkObjAssignDef(network, NULL, false);
+        virNetworkObjUpdateAssignDef(network, NULL, false);
         goto cleanup;
     }
 
@@ -3294,6 +3603,7 @@ static virNetworkPtr networkDefineXML(virConnectPtr conn, const char *xml)
     virNetworkObjEndAPI(&network);
     return ret;
 }
+
 
 static int
 networkUndefine(virNetworkPtr net)
@@ -3320,9 +3630,9 @@ networkUndefine(virNetworkPtr net)
     }
 
     /* remove autostart link */
-    if (virNetworkDeleteConfig(driver->networkConfigDir,
-                               driver->networkAutostartDir,
-                               network) < 0)
+    if (virNetworkObjDeleteConfig(driver->networkConfigDir,
+                                  driver->networkAutostartDir,
+                                  network) < 0)
         goto cleanup;
 
     event = virNetworkEventLifecycleNew(network->def->name,
@@ -3339,7 +3649,7 @@ networkUndefine(virNetworkPtr net)
         /* if the network still exists, it was active, and we need to make
          * it transient (by deleting the persistent def)
          */
-        virNetworkObjAssignDef(network, NULL, false);
+        virNetworkObjUpdateAssignDef(network, NULL, false);
     }
 
     ret = 0;
@@ -3350,6 +3660,7 @@ networkUndefine(virNetworkPtr net)
     virNetworkObjEndAPI(&network);
     return ret;
 }
+
 
 static int
 networkUpdate(virNetworkPtr net,
@@ -3510,10 +3821,8 @@ networkUpdate(virNetworkPtr net,
         }
 
         /* save current network state to disk */
-        if ((ret = virNetworkSaveStatus(driver->stateDir,
-                                        network)) < 0) {
+        if ((ret = virNetworkObjSaveStatus(driver->stateDir, network)) < 0)
             goto cleanup;
-        }
     }
 
     /* call the 'updated' network hook script */
@@ -3527,7 +3836,9 @@ networkUpdate(virNetworkPtr net,
     return ret;
 }
 
-static int networkCreate(virNetworkPtr net)
+
+static int
+networkCreate(virNetworkPtr net)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkObjPtr network;
@@ -3555,7 +3866,9 @@ static int networkCreate(virNetworkPtr net)
     return ret;
 }
 
-static int networkDestroy(virNetworkPtr net)
+
+static int
+networkDestroy(virNetworkPtr net)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkObjPtr network;
@@ -3596,8 +3909,10 @@ static int networkDestroy(virNetworkPtr net)
     return ret;
 }
 
-static char *networkGetXMLDesc(virNetworkPtr net,
-                               unsigned int flags)
+
+static char *
+networkGetXMLDesc(virNetworkPtr net,
+                  unsigned int flags)
 {
     virNetworkObjPtr network;
     virNetworkDefPtr def;
@@ -3623,7 +3938,10 @@ static char *networkGetXMLDesc(virNetworkPtr net,
     return ret;
 }
 
-static char *networkGetBridgeName(virNetworkPtr net) {
+
+static char *
+networkGetBridgeName(virNetworkPtr net)
+{
     virNetworkObjPtr network;
     char *bridge = NULL;
 
@@ -3647,8 +3965,10 @@ static char *networkGetBridgeName(virNetworkPtr net) {
     return bridge;
 }
 
-static int networkGetAutostart(virNetworkPtr net,
-                               int *autostart)
+
+static int
+networkGetAutostart(virNetworkPtr net,
+                    int *autostart)
 {
     virNetworkObjPtr network;
     int ret = -1;
@@ -3667,8 +3987,10 @@ static int networkGetAutostart(virNetworkPtr net,
     return ret;
 }
 
-static int networkSetAutostart(virNetworkPtr net,
-                               int autostart)
+
+static int
+networkSetAutostart(virNetworkPtr net,
+                    int autostart)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     virNetworkObjPtr network;
@@ -3729,6 +4051,7 @@ static int networkSetAutostart(virNetworkPtr net,
     virNetworkObjEndAPI(&network);
     return ret;
 }
+
 
 static int
 networkGetDHCPLeases(virNetworkPtr network,
@@ -3953,7 +4276,8 @@ static virStateDriver networkStateDriver = {
     .stateReload = networkStateReload,
 };
 
-int networkRegister(void)
+int
+networkRegister(void)
 {
     if (virSetSharedNetworkDriver(&networkDriver) < 0)
         return -1;
@@ -3961,6 +4285,7 @@ int networkRegister(void)
         return -1;
     return 0;
 }
+
 
 /********************************************************/
 
@@ -3998,6 +4323,7 @@ networkLogAllocation(virNetworkDefPtr netdef,
         }
     }
 }
+
 
 /* Private API to deal with logical switch capabilities.
  * These functions are exported so that other parts of libvirt can
@@ -4343,6 +4669,9 @@ networkAllocateActualDevice(virDomainDefPtr dom,
         }
     }
 
+    if (networkMacMgrAdd(driver, network, dom->name, &iface->mac) < 0)
+        goto error;
+
     if (virNetDevVPortProfileCheckComplete(virtport, true) < 0)
         goto error;
 
@@ -4424,6 +4753,7 @@ networkAllocateActualDevice(virDomainDefPtr dom,
     goto cleanup;
 }
 
+
 /* networkNotifyActualDevice:
  * @dom: domain definition that @iface belongs to
  * @iface:  the domain's NetDef with an "actual" device already filled in.
@@ -4431,11 +4761,12 @@ networkAllocateActualDevice(virDomainDefPtr dom,
  * Called to notify the network driver when libvirtd is restarted and
  * finds an already running domain. If appropriate it will force an
  * allocation of the actual->direct.linkdev to get everything back in
- * order.
+ * order, or re-attach the interface's tap device to the network's
+ * bridge.
  *
- * Returns 0 on success, -1 on failure.
+ * No return value (but does log any failures)
  */
-int
+void
 networkNotifyActualDevice(virDomainDefPtr dom,
                           virDomainNetDefPtr iface)
 {
@@ -4445,10 +4776,10 @@ networkNotifyActualDevice(virDomainDefPtr dom,
     virNetworkDefPtr netdef;
     virNetworkForwardIfDefPtr dev = NULL;
     size_t i;
-    int ret = -1;
+    char *master = NULL;
 
     if (iface->type != VIR_DOMAIN_NET_TYPE_NETWORK)
-        return 0;
+        return;
 
     network = virNetworkObjFindByName(driver->networks, iface->data.network.name);
     if (!network) {
@@ -4458,6 +4789,13 @@ networkNotifyActualDevice(virDomainDefPtr dom,
         goto error;
     }
     netdef = network->def;
+
+    if (!virNetworkObjIsActive(network)) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       _("network '%s' is not active"),
+                       netdef->name);
+        goto error;
+    }
 
     /* if we're restarting libvirtd after an upgrade from a version
      * that didn't save bridge name in actualNetDef for
@@ -4469,6 +4807,31 @@ networkNotifyActualDevice(virDomainDefPtr dom,
         (VIR_STRDUP(iface->data.network.actual->data.bridge.brname,
                     netdef->bridge) < 0))
             goto error;
+
+    /* see if we're connected to the correct bridge */
+    if (netdef->bridge) {
+        if (virNetDevGetMaster(iface->ifname, &master) < 0)
+            goto error;
+
+        if (STRNEQ_NULLABLE(netdef->bridge, master)) {
+            /* disconnect from current (incorrect) bridge */
+            if (master)
+                ignore_value(virNetDevBridgeRemovePort(master, iface->ifname));
+
+            /* attach/reattach to correct bridge.
+             * NB: we can't notify the guest of any MTU change anyway,
+             * so there is no point in trying to learn the actualMTU
+             * (final arg to virNetDevTapAttachBridge())
+             */
+            if (virNetDevTapAttachBridge(iface->ifname, netdef->bridge,
+                                         &iface->mac, dom->uuid,
+                                         virDomainNetGetActualVirtPortProfile(iface),
+                                         virDomainNetGetActualVlan(iface),
+                                         iface->mtu, NULL) < 0) {
+                goto error;
+            }
+        }
+    }
 
     if (!iface->data.network.actual ||
         (actualType != VIR_DOMAIN_NET_TYPE_DIRECT &&
@@ -4599,15 +4962,14 @@ networkNotifyActualDevice(virDomainDefPtr dom,
     }
     networkLogAllocation(netdef, actualType, dev, iface, true);
 
-    ret = 0;
  cleanup:
     virNetworkObjEndAPI(&network);
-    return ret;
+    VIR_FREE(master);
+    return;
 
  error:
     goto cleanup;
 }
-
 
 
 /* networkReleaseActualDevice:
@@ -4729,6 +5091,8 @@ networkReleaseActualDevice(virDomainDefPtr dom,
     }
 
  success:
+    networkMacMgrDel(driver, network, dom->name, &iface->mac);
+
     if (iface->data.network.actual) {
         netdef->connections--;
         if (dev)
@@ -4751,6 +5115,7 @@ networkReleaseActualDevice(virDomainDefPtr dom,
     goto cleanup;
 }
 
+
 /*
  * networkGetNetworkAddress:
  * @netname: the name of a network
@@ -4771,7 +5136,8 @@ networkReleaseActualDevice(virDomainDefPtr dom,
  * completely unsupported.
  */
 int
-networkGetNetworkAddress(const char *netname, char **netaddr)
+networkGetNetworkAddress(const char *netname,
+                         char **netaddr)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
     int ret = -1;
@@ -4814,6 +5180,8 @@ networkGetNetworkAddress(const char *netname, char **netaddr)
          * fall through if netdef->bridge wasn't set, since that is
          * macvtap bridge mode network.
          */
+        ATTRIBUTE_FALLTHROUGH;
+
     case VIR_NETWORK_FORWARD_PRIVATE:
     case VIR_NETWORK_FORWARD_VEPA:
     case VIR_NETWORK_FORWARD_PASSTHROUGH:
@@ -4845,6 +5213,7 @@ networkGetNetworkAddress(const char *netname, char **netaddr)
     virNetworkObjEndAPI(&network);
     return ret;
 }
+
 
 /* networkGetActualType:
  * @dom: domain definition that @iface belongs to
@@ -5008,6 +5377,7 @@ networkCheckBandwidth(virNetworkObjPtr net,
     return ret;
 }
 
+
 /**
  * networkNextClassID:
  * @net: network object
@@ -5062,7 +5432,7 @@ networkPlugBandwidthImpl(virNetworkObjPtr net,
     /* update sum of 'floor'-s of attached NICs */
     net->floor_sum += ifaceBand->in->floor;
     /* update status file */
-    if (virNetworkSaveStatus(driver->stateDir, net) < 0) {
+    if (virNetworkObjSaveStatus(driver->stateDir, net) < 0) {
         ignore_value(virBitmapClearBit(net->class_id, class_id));
         net->floor_sum -= ifaceBand->in->floor;
         iface->data.network.actual->class_id = 0;
@@ -5122,6 +5492,7 @@ networkPlugBandwidth(virNetworkObjPtr net,
     return ret;
 }
 
+
 static int
 networkUnplugBandwidth(virNetworkObjPtr net,
                        virDomainNetDefPtr iface)
@@ -5154,7 +5525,7 @@ networkUnplugBandwidth(virNetworkObjPtr net,
         ignore_value(virBitmapClearBit(net->class_id,
                                        iface->data.network.actual->class_id));
         /* update status file */
-        if (virNetworkSaveStatus(driver->stateDir, net) < 0) {
+        if (virNetworkObjSaveStatus(driver->stateDir, net) < 0) {
             net->floor_sum += ifaceBand->in->floor;
             ignore_value(virBitmapSetBit(net->class_id,
                                          iface->data.network.actual->class_id));
@@ -5173,6 +5544,7 @@ networkUnplugBandwidth(virNetworkObjPtr net,
  cleanup:
     return ret;
 }
+
 
 static void
 networkNetworkObjTaint(virNetworkObjPtr net,
@@ -5283,7 +5655,7 @@ networkBandwidthUpdate(virDomainNetDefPtr iface,
     /* Okay, there are three possible scenarios: */
 
     if (ifaceBand && ifaceBand->in && ifaceBand->in->floor &&
-        newBandwidth && newBandwidth->in && newBandwidth->in->floor) {
+        newBandwidth->in && newBandwidth->in->floor) {
         /* Either we just need to update @floor .. */
 
         if (virNetDevBandwidthUpdateRate(network->def->bridge,
@@ -5298,7 +5670,7 @@ networkBandwidthUpdate(virDomainNetDefPtr iface,
 
         if (virNetDevBandwidthUpdateRate(network->def->bridge, 2,
                                          network->def->bandwidth, new_rate) < 0 ||
-            virNetworkSaveStatus(driver->stateDir, network) < 0) {
+            virNetworkObjSaveStatus(driver->stateDir, network) < 0) {
             /* Ouch, rollback */
             network->floor_sum -= newBandwidth->in->floor;
             network->floor_sum += ifaceBand->in->floor;

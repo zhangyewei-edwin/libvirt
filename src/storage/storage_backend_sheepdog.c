@@ -29,10 +29,12 @@
 
 #include "virerror.h"
 #include "storage_backend_sheepdog.h"
+#include "storage_backend_sheepdog_priv.h"
 #include "storage_conf.h"
 #include "vircommand.h"
 #include "viralloc.h"
 #include "virstring.h"
+#include "storage_util.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -173,7 +175,7 @@ virStorageBackendSheepdogRefreshAllVol(virConnectPtr conn ATTRIBUTE_UNUSED,
                 goto cleanup;
         }
 
-        virStringFreeList(cells);
+        virStringListFree(cells);
         cells = NULL;
     }
 
@@ -181,8 +183,8 @@ virStorageBackendSheepdogRefreshAllVol(virConnectPtr conn ATTRIBUTE_UNUSED,
 
  cleanup:
     virCommandFree(cmd);
-    virStringFreeList(lines);
-    virStringFreeList(cells);
+    virStringListFree(lines);
+    virStringListFree(cells);
     VIR_FREE(output);
     return ret;
 }
@@ -415,3 +417,10 @@ virStorageBackend virStorageBackendSheepdog = {
     .deleteVol = virStorageBackendSheepdogDeleteVol,
     .resizeVol = virStorageBackendSheepdogResizeVol,
 };
+
+
+int
+virStorageBackendSheepdogRegister(void)
+{
+    return virStorageBackendRegister(&virStorageBackendSheepdog);
+}

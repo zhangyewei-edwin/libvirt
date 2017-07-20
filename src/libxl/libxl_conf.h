@@ -41,6 +41,7 @@
 # include "locking/lock_manager.h"
 # include "virfirmware.h"
 # include "libxl_capabilities.h"
+# include "libxl_logger.h"
 
 # define LIBXL_DRIVER_NAME "xenlight"
 # define LIBXL_VNC_PORT_MIN  5900
@@ -57,6 +58,7 @@
 # define LIBXL_LIB_DIR LOCALSTATEDIR "/lib/libvirt/libxl"
 # define LIBXL_SAVE_DIR LIBXL_LIB_DIR "/save"
 # define LIBXL_DUMP_DIR LIBXL_LIB_DIR "/dump"
+# define LIBXL_CHANNEL_DIR LIBXL_LIB_DIR "/channel/target"
 # define LIBXL_BOOTLOADER_PATH "pygrub"
 
 
@@ -73,8 +75,7 @@ struct _libxlDriverConfig {
     unsigned int version;
 
     /* log stream for driver-wide libxl ctx */
-    FILE *logger_file;
-    xentoollog_logger *logger;
+    libxlLoggerPtr logger;
     /* libxl ctx for driver wide ops; getVersion, getNodeInfo, ... */
     libxl_ctx *ctx;
 
@@ -98,6 +99,7 @@ struct _libxlDriverConfig {
     char *libDir;
     char *saveDir;
     char *autoDumpDir;
+    char *channelDir;
 
     virFirmwarePtr *firmwares;
     size_t nfirmwares;
@@ -172,11 +174,20 @@ int libxlDriverConfigLoadFile(libxlDriverConfigPtr cfg,
                               const char *filename);
 
 int
+libxlDriverGetDom0MaxmemConf(libxlDriverConfigPtr cfg,
+                             unsigned long long *maxmem);
+
+int
 libxlMakeDisk(virDomainDiskDefPtr l_dev, libxl_device_disk *x_dev);
+
+void
+libxlUpdateDiskDef(virDomainDiskDefPtr l_dev, libxl_device_disk *x_dev);
+
 int
 libxlMakeNic(virDomainDefPtr def,
              virDomainNetDefPtr l_nic,
-             libxl_device_nic *x_nic);
+             libxl_device_nic *x_nic,
+             bool attach);
 int
 libxlMakeVfb(virPortAllocatorPtr graphicsports,
              virDomainGraphicsDefPtr l_vfb, libxl_device_vfb *x_vfb);
@@ -196,10 +207,17 @@ libxlMakeUSB(virDomainHostdevDefPtr hostdev, libxl_device_usbdev *usbdev);
 virDomainXMLOptionPtr
 libxlCreateXMLConf(void);
 
+# ifdef LIBXL_HAVE_DEVICE_CHANNEL
+#  define LIBXL_ATTR_UNUSED
+# else
+#  define LIBXL_ATTR_UNUSED ATTRIBUTE_UNUSED
+# endif
 int
 libxlBuildDomainConfig(virPortAllocatorPtr graphicsports,
                        virDomainDefPtr def,
+                       const char *channelDir LIBXL_ATTR_UNUSED,
                        libxl_ctx *ctx,
+                       virCapsPtr caps,
                        libxl_domain_config *d_config);
 
 static inline void

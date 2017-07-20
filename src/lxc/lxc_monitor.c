@@ -105,8 +105,7 @@ virLXCMonitorHandleEventInit(virNetClientProgramPtr prog ATTRIBUTE_UNUSED,
     virLXCMonitorPtr mon = opaque;
     virLXCMonitorInitEventMsg *msg = evdata;
 
-    VIR_DEBUG("Event init %llu",
-              (unsigned long long)msg->initpid);
+    VIR_DEBUG("Event init %lld", (long long) msg->initpid);
     if (mon->cb.initNotify)
         mon->cb.initNotify(mon, (pid_t)msg->initpid, mon->vm);
 }
@@ -176,7 +175,7 @@ virLXCMonitorPtr virLXCMonitorNew(virDomainObjPtr vm,
                                mon->program) < 0)
         goto error;
 
-    mon->vm = vm;
+    mon->vm = virObjectRef(vm);
     memcpy(&mon->cb, cb, sizeof(mon->cb));
 
     virObjectRef(mon);
@@ -202,6 +201,7 @@ static void virLXCMonitorDispose(void *opaque)
     if (mon->cb.destroy)
         (mon->cb.destroy)(mon, mon->vm);
     virObjectUnref(mon->program);
+    virObjectUnref(mon->vm);
 }
 
 

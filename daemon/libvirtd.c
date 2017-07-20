@@ -58,6 +58,7 @@
 #include "viraccessmanager.h"
 #include "virutil.h"
 #include "virgettext.h"
+#include "util/virnetdevopenvswitch.h"
 
 #ifdef WITH_DRIVER_MODULES
 # include "driver.h"
@@ -261,49 +262,47 @@ daemonUnixSocketPaths(struct daemonConfig *config,
                       char **rosockfile,
                       char **admsockfile)
 {
+    int ret = -1;
+    char *rundir = NULL;
+
     if (config->unix_sock_dir) {
         if (virAsprintf(sockfile, "%s/libvirt-sock", config->unix_sock_dir) < 0)
-            goto error;
+            goto cleanup;
 
         if (privileged) {
-            if (virAsprintf(rosockfile, "%s/libvirt-sock-ro", config->unix_sock_dir) < 0)
-                goto error;
-            if (virAsprintf(admsockfile, "%s/libvirt-admin-sock", config->unix_sock_dir) < 0)
-                goto error;
+            if (virAsprintf(rosockfile, "%s/libvirt-sock-ro", config->unix_sock_dir) < 0 ||
+                virAsprintf(admsockfile, "%s/libvirt-admin-sock", config->unix_sock_dir) < 0)
+                goto cleanup;
         }
     } else {
         if (privileged) {
             if (VIR_STRDUP(*sockfile, LOCALSTATEDIR "/run/libvirt/libvirt-sock") < 0 ||
                 VIR_STRDUP(*rosockfile, LOCALSTATEDIR "/run/libvirt/libvirt-sock-ro") < 0 ||
                 VIR_STRDUP(*admsockfile, LOCALSTATEDIR "/run/libvirt/libvirt-admin-sock") < 0)
-                goto error;
+                goto cleanup;
         } else {
-            char *rundir = NULL;
             mode_t old_umask;
 
             if (!(rundir = virGetUserRuntimeDirectory()))
-                goto error;
+                goto cleanup;
 
             old_umask = umask(077);
             if (virFileMakePath(rundir) < 0) {
                 umask(old_umask);
-                goto error;
+                goto cleanup;
             }
             umask(old_umask);
 
             if (virAsprintf(sockfile, "%s/libvirt-sock", rundir) < 0 ||
-                virAsprintf(admsockfile, "%s/libvirt-admin-sock", rundir) < 0) {
-                VIR_FREE(rundir);
-                goto error;
-            }
-
-            VIR_FREE(rundir);
+                virAsprintf(admsockfile, "%s/libvirt-admin-sock", rundir) < 0)
+                goto cleanup;
         }
     }
-    return 0;
 
- error:
-    return -1;
+    ret = 0;
+ cleanup:
+    VIR_FREE(rundir);
+    return ret;
 }
 
 
@@ -341,6 +340,14 @@ static int daemonErrorLogFilter(virErrorPtr err, int priority)
     return priority;
 }
 
+
+#ifdef WITH_DRIVER_MODULES
+# define VIR_DAEMON_LOAD_MODULE(func, module) \
+    virDriverLoadModule(module, #func)
+#else
+# define VIR_DAEMON_LOAD_MODULE(func, module) \
+    func()
+#endif
 static void daemonInitialize(void)
 {
     /*
@@ -350,99 +357,55 @@ static void daemonInitialize(void)
      * driver, since their resources must be auto-started before any
      * domains can be auto-started.
      */
-#ifdef WITH_DRIVER_MODULES
     /* We don't care if any of these fail, because the whole point
      * is to allow users to only install modules they want to use.
      * If they try to open a connection for a module that
      * is not loaded they'll get a suitable error at that point
      */
-# ifdef WITH_NETWORK
-    virDriverLoadModule("network");
-# endif
-# ifdef WITH_INTERFACE
-    virDriverLoadModule("interface");
-# endif
-# ifdef WITH_STORAGE
-    virDriverLoadModule("storage");
-# endif
-# ifdef WITH_NODE_DEVICES
-    virDriverLoadModule("nodedev");
-# endif
-# ifdef WITH_SECRETS
-    virDriverLoadModule("secret");
-# endif
-# ifdef WITH_NWFILTER
-    virDriverLoadModule("nwfilter");
-# endif
-# ifdef WITH_XEN
-    virDriverLoadModule("xen");
-# endif
-# ifdef WITH_LIBXL
-    virDriverLoadModule("libxl");
-# endif
-# ifdef WITH_QEMU
-    virDriverLoadModule("qemu");
-# endif
-# ifdef WITH_LXC
-    virDriverLoadModule("lxc");
-# endif
-# ifdef WITH_UML
-    virDriverLoadModule("uml");
-# endif
-# ifdef WITH_VBOX
-    virDriverLoadModule("vbox");
-# endif
-# ifdef WITH_BHYVE
-    virDriverLoadModule("bhyve");
-# endif
-# ifdef WITH_VZ
-    virDriverLoadModule("vz");
-# endif
-#else
-# ifdef WITH_NETWORK
-    networkRegister();
-# endif
-# ifdef WITH_INTERFACE
-    interfaceRegister();
-# endif
-# ifdef WITH_STORAGE
-    storageRegister();
-# endif
-# ifdef WITH_NODE_DEVICES
-    nodedevRegister();
-# endif
-# ifdef WITH_SECRETS
-    secretRegister();
-# endif
-# ifdef WITH_NWFILTER
-    nwfilterRegister();
-# endif
-# ifdef WITH_XEN
-    xenRegister();
-# endif
-# ifdef WITH_LIBXL
-    libxlRegister();
-# endif
-# ifdef WITH_QEMU
-    qemuRegister();
-# endif
-# ifdef WITH_LXC
-    lxcRegister();
-# endif
-# ifdef WITH_UML
-    umlRegister();
-# endif
-# ifdef WITH_VBOX
-    vboxRegister();
-# endif
-# ifdef WITH_BHYVE
-    bhyveRegister();
-# endif
-# ifdef WITH_VZ
-    vzRegister();
-# endif
+#ifdef WITH_NETWORK
+    VIR_DAEMON_LOAD_MODULE(networkRegister, "network");
+#endif
+#ifdef WITH_INTERFACE
+    VIR_DAEMON_LOAD_MODULE(interfaceRegister, "interface");
+#endif
+#ifdef WITH_STORAGE
+    VIR_DAEMON_LOAD_MODULE(storageRegister, "storage");
+#endif
+#ifdef WITH_NODE_DEVICES
+    VIR_DAEMON_LOAD_MODULE(nodedevRegister, "nodedev");
+#endif
+#ifdef WITH_SECRETS
+    VIR_DAEMON_LOAD_MODULE(secretRegister, "secret");
+#endif
+#ifdef WITH_NWFILTER
+    VIR_DAEMON_LOAD_MODULE(nwfilterRegister, "nwfilter");
+#endif
+#ifdef WITH_XEN
+    VIR_DAEMON_LOAD_MODULE(xenRegister, "xen");
+#endif
+#ifdef WITH_LIBXL
+    VIR_DAEMON_LOAD_MODULE(libxlRegister, "libxl");
+#endif
+#ifdef WITH_QEMU
+    VIR_DAEMON_LOAD_MODULE(qemuRegister, "qemu");
+#endif
+#ifdef WITH_LXC
+    VIR_DAEMON_LOAD_MODULE(lxcRegister, "lxc");
+#endif
+#ifdef WITH_UML
+    VIR_DAEMON_LOAD_MODULE(umlRegister, "uml");
+#endif
+#ifdef WITH_VBOX
+    VIR_DAEMON_LOAD_MODULE(vboxRegister, "vbox");
+#endif
+#ifdef WITH_BHYVE
+    VIR_DAEMON_LOAD_MODULE(bhyveRegister, "bhyve");
+#endif
+#ifdef WITH_VZ
+    VIR_DAEMON_LOAD_MODULE(vzRegister, "vz");
 #endif
 }
+#undef VIR_DAEMON_LOAD_MODULE
 
 
 static int ATTRIBUTE_NONNULL(3)
@@ -579,6 +542,23 @@ daemonSetupNetworking(virNetServerPtr srv,
             if (config->ca_file ||
                 config->cert_file ||
                 config->key_file) {
+                if (!config->ca_file) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("No CA certificate path set to match server key/cert"));
+                    goto cleanup;
+                }
+                if (!config->cert_file) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("No server certificate path set to match server key"));
+                    goto cleanup;
+                }
+                if (!config->key_file) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("No server key path set to match server cert"));
+                    goto cleanup;
+                }
+                VIR_DEBUG("Using CA='%s' cert='%s' key='%s'",
+                          config->ca_file, config->cert_file, config->key_file);
                 if (!(ctxt = virNetTLSContextNewServer(config->ca_file,
                                                        config->crl_file,
                                                        config->cert_file,
@@ -631,11 +611,11 @@ daemonSetupNetworking(virNetServerPtr srv,
 
 #if WITH_SASL
     if (config->auth_unix_rw == REMOTE_AUTH_SASL ||
-        config->auth_unix_ro == REMOTE_AUTH_SASL ||
+        (sock_path_ro && config->auth_unix_ro == REMOTE_AUTH_SASL) ||
 # if WITH_GNUTLS
-        config->auth_tls == REMOTE_AUTH_SASL ||
+        (ipsock && config->listen_tls && config->auth_tls == REMOTE_AUTH_SASL) ||
 # endif
-        config->auth_tcp == REMOTE_AUTH_SASL) {
+        (ipsock && config->listen_tcp && config->auth_tcp == REMOTE_AUTH_SASL)) {
         saslCtxt = virNetSASLContextNewServer(
             (const char *const*)config->sasl_allowed_username_list);
         if (!saslCtxt)
@@ -658,6 +638,16 @@ daemonSetupNetworking(virNetServerPtr srv,
 
 
 /*
+ * Set up the openvswitch timeout
+ */
+static void
+daemonSetupNetDevOpenvswitch(struct daemonConfig *config)
+{
+    virNetDevOpenvswitchSetTimeout(config->ovs_timeout);
+}
+
+
+/*
  * Set up the logging environment
  * By default if daemonized all errors go to the logfile libvirtd.log,
  * but if verbose or error debugging is asked for then also output
@@ -675,26 +665,25 @@ daemonSetupLogging(struct daemonConfig *config,
      * Libvirtd's order of precedence is:
      * cmdline > environment > config
      *
-     * In order to achieve this, we must process configuration in
-     * different order for the log level versus the filters and
-     * outputs. Because filters and outputs append, we have to look at
-     * the environment first and then only check the config file if
-     * there was no result from the environment. The default output is
-     * then applied only if there was no setting from either of the
-     * first two. Because we don't have a way to determine if the log
-     * level has been set, we must process variables in the opposite
+     * The default output is applied only if there was no setting from either
+     * the config or the environment. Because we don't have a way to determine
+     * if the log level has been set, we must process variables in the opposite
      * order, each one overriding the previous.
      */
     if (config->log_level != 0)
         virLogSetDefaultPriority(config->log_level);
 
+    if (virLogSetDefaultOutput("libvirtd.log", godaemon, privileged) < 0)
+        return -1;
+
+    /* In case the config is empty, the filters become empty and outputs will
+     * be set to default
+     */
+    ignore_value(virLogSetFilters(config->log_filters));
+    ignore_value(virLogSetOutputs(config->log_outputs));
+
+    /* If there are some environment variables defined, use those instead */
     virLogSetFromEnv();
-
-    if (virLogGetNbFilters() == 0)
-        virLogParseFilters(config->log_filters);
-
-    if (virLogGetNbOutputs() == 0)
-        virLogParseOutputs(config->log_outputs);
 
     /*
      * Command line override for --verbose
@@ -702,76 +691,7 @@ daemonSetupLogging(struct daemonConfig *config,
     if ((verbose) && (virLogGetDefaultPriority() > VIR_LOG_INFO))
         virLogSetDefaultPriority(VIR_LOG_INFO);
 
-    /*
-     * If no defined outputs, and either running
-     * as daemon or not on a tty, then first try
-     * to direct it to the systemd journal
-     * (if it exists)....
-     */
-    if (virLogGetNbOutputs() == 0 &&
-        (godaemon || !isatty(STDIN_FILENO))) {
-        char *tmp;
-        if (access("/run/systemd/journal/socket", W_OK) >= 0) {
-            virLogPriority priority = virLogGetDefaultPriority();
-
-            /* By default we don't want to log too much stuff into journald as
-             * it may employ rate limiting and thus block libvirt execution. */
-            if (priority == VIR_LOG_DEBUG)
-                priority = VIR_LOG_INFO;
-
-            if (virAsprintf(&tmp, "%d:journald", priority) < 0)
-                goto error;
-            virLogParseOutputs(tmp);
-            VIR_FREE(tmp);
-        }
-    }
-
-    /*
-     * otherwise direct to libvirtd.log when running
-     * as daemon. Otherwise the default output is stderr.
-     */
-    if (virLogGetNbOutputs() == 0) {
-        char *tmp = NULL;
-
-        if (godaemon) {
-            if (privileged) {
-                if (virAsprintf(&tmp, "%d:file:%s/log/libvirt/libvirtd.log",
-                                virLogGetDefaultPriority(),
-                                LOCALSTATEDIR) == -1)
-                    goto error;
-            } else {
-                char *logdir = virGetUserCacheDirectory();
-                mode_t old_umask;
-
-                if (!logdir)
-                    goto error;
-
-                old_umask = umask(077);
-                if (virFileMakePath(logdir) < 0) {
-                    umask(old_umask);
-                    goto error;
-                }
-                umask(old_umask);
-
-                if (virAsprintf(&tmp, "%d:file:%s/libvirtd.log",
-                                virLogGetDefaultPriority(), logdir) == -1) {
-                    VIR_FREE(logdir);
-                    goto error;
-                }
-                VIR_FREE(logdir);
-            }
-        } else {
-            if (virAsprintf(&tmp, "%d:stderr", virLogGetDefaultPriority()) < 0)
-                goto error;
-        }
-        virLogParseOutputs(tmp);
-        VIR_FREE(tmp);
-    }
-
     return 0;
-
- error:
-    return -1;
 }
 
 
@@ -875,7 +795,7 @@ static void daemonInhibitCallback(bool inhibit, void *opaque)
 }
 
 
-#ifdef HAVE_DBUS
+#ifdef WITH_DBUS
 static DBusConnection *sessionBus;
 static DBusConnection *systemBus;
 
@@ -967,7 +887,7 @@ static void daemonRunStateInit(void *opaque)
 
     driversInitialized = true;
 
-#ifdef HAVE_DBUS
+#ifdef WITH_DBUS
     /* Tie the non-privileged libvirtd to the session/shutdown lifecycle */
     if (!virNetDaemonIsPrivileged(dmn)) {
 
@@ -1337,6 +1257,8 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    daemonSetupNetDevOpenvswitch(config);
+
     if (daemonSetupAccessManager(config) < 0) {
         VIR_ERROR(_("Can't initialize access manager"));
         exit(EXIT_FAILURE);
@@ -1628,7 +1550,6 @@ int main(int argc, char **argv) {
     virObjectUnref(qemuProgram);
     virObjectUnref(adminProgram);
     virNetDaemonClose(dmn);
-    virObjectUnref(dmn);
     virObjectUnref(srv);
     virObjectUnref(srvAdm);
     virNetlinkShutdown();
@@ -1658,6 +1579,9 @@ int main(int argc, char **argv) {
         driversInitialized = false;
         virStateCleanup();
     }
+    /* Now that the hypervisor shutdown inhibition functions that use
+     * 'dmn' as a parameter are done, we can finally unref 'dmn' */
+    virObjectUnref(dmn);
 
     return ret;
 }

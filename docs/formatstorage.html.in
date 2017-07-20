@@ -24,20 +24,21 @@
       (<span class="since">since 0.9.13</span>), <code>sheepdog</code>
       (<span class="since">since 0.10.0</span>),
       <code>gluster</code> (<span class="since">since
-      1.2.0</span>) or <code>zfs</code> (<span class="since">since
-      1.2.8</span>). This corresponds to the
+      1.2.0</span>),  <code>zfs</code> (<span class="since">since
+      1.2.8</span>) or <code>vstorage</code> (<span class="since">since
+      3.1.0</span>). This corresponds to the
       storage backend drivers listed further along in this document.
     </p>
     <h3><a name="StoragePoolFirst">General metadata</a></h3>
 
     <pre>
-      &lt;pool type="iscsi"&gt;
-        &lt;name&gt;virtimages&lt;/name&gt;
-        &lt;uuid&gt;3e3fce45-4f53-4fa7-bb32-11f34168b82b&lt;/uuid&gt;
-        &lt;allocation&gt;10000000&lt;/allocation&gt;
-        &lt;capacity&gt;50000000&lt;/capacity&gt;
-        &lt;available&gt;40000000&lt;/available&gt;
-        ...</pre>
+&lt;pool type="iscsi"&gt;
+  &lt;name&gt;virtimages&lt;/name&gt;
+  &lt;uuid&gt;3e3fce45-4f53-4fa7-bb32-11f34168b82b&lt;/uuid&gt;
+  &lt;allocation&gt;10000000&lt;/allocation&gt;
+  &lt;capacity&gt;50000000&lt;/capacity&gt;
+  &lt;available&gt;40000000&lt;/available&gt;
+  ...</pre>
 
     <dl>
       <dt><code>name</code></dt>
@@ -75,56 +76,56 @@
     </p>
 
     <pre>
-        ...
-        &lt;source&gt;
-          &lt;host name="iscsi.example.com"/&gt;
-          &lt;device path="iqn.2013-06.com.example:iscsi-pool"/&gt;
-          &lt;auth type='chap' username='myname'&gt;
-            &lt;secret usage='mycluster_myname'/&gt;
-          &lt;/auth&gt;
-          &lt;vendor name="Acme"/&gt;
-          &lt;product name="model"/&gt;
-        &lt;/source&gt;
-        ...</pre>
+...
+&lt;source&gt;
+  &lt;host name="iscsi.example.com"/&gt;
+  &lt;device path="iqn.2013-06.com.example:iscsi-pool"/&gt;
+  &lt;auth type='chap' username='myname'&gt;
+    &lt;secret usage='mycluster_myname'/&gt;
+  &lt;/auth&gt;
+  &lt;vendor name="Acme"/&gt;
+  &lt;product name="model"/&gt;
+&lt;/source&gt;
+...</pre>
 
     <pre>
-        ...
-        &lt;source&gt;
-          &lt;device path='/dev/mapper/mpatha' part_separator='no'/&gt;
-          &lt;format type='gpt'/&gt;
-        &lt;/source&gt;
-        ...</pre>
+...
+&lt;source&gt;
+  &lt;device path='/dev/mapper/mpatha' part_separator='no'/&gt;
+  &lt;format type='gpt'/&gt;
+&lt;/source&gt;
+...</pre>
 
     <pre>
-        ...
-        &lt;source&gt;
-          &lt;adapter type='scsi_host' name='scsi_host1'/&gt;
-        &lt;/source&gt;
-        ...</pre>
+...
+&lt;source&gt;
+  &lt;adapter type='scsi_host' name='scsi_host1'/&gt;
+&lt;/source&gt;
+...</pre>
 
     <pre>
-        ...
-        &lt;source&gt;
-          &lt;adapter type='scsi_host'&gt;
-            &lt;parentaddr unique_id='1'&gt;
-              &lt;address domain='0x0000' bus='0x00' slot='0x1f' addr='0x2'/&gt;
-            &lt;/parentaddr&gt;
-          &lt;/adapter&gt;
-        &lt;/source&gt;
-        ...</pre>
+...
+&lt;source&gt;
+  &lt;adapter type='scsi_host'&gt;
+    &lt;parentaddr unique_id='1'&gt;
+      &lt;address domain='0x0000' bus='0x00' slot='0x1f' addr='0x2'/&gt;
+    &lt;/parentaddr&gt;
+  &lt;/adapter&gt;
+&lt;/source&gt;
+...</pre>
 
     <pre>
-        ...
-        &lt;source&gt;
-          &lt;adapter type='fc_host' parent='scsi_host5' wwnn='20000000c9831b4b' wwpn='10000000c9831b4b'/&gt;
-        &lt;/source&gt;
-        ...</pre>
+...
+&lt;source&gt;
+  &lt;adapter type='fc_host' parent='scsi_host5' wwnn='20000000c9831b4b' wwpn='10000000c9831b4b'/&gt;
+&lt;/source&gt;
+...</pre>
 
     <dl>
       <dt><code>device</code></dt>
       <dd>Provides the source for pools backed by physical devices
         (pool types <code>fs</code>, <code>logical</code>, <code>disk</code>,
-        <code>iscsi</code>, <code>zfs</code>).
+        <code>iscsi</code>, <code>zfs</code>, <code>vstorage</code>).
         May be repeated multiple times depending on backend driver. Contains
         a required attribute <code>path</code> which is either the fully
         qualified path to the block device node or for <code>iscsi</code>
@@ -138,7 +139,10 @@
         causes libvirt to attempt to generate and find target volume path's
         using a "p" separator. The default algorithm used by device mapper
         is to add the "p" separator only when the source device path ends
-        with a number.
+        with a number; however, it's possible to configure the devmapper
+        device to not use 'user_friendly_names' thus creating partitions
+        with the "p" separator even when the device source path does not
+        end with a number.
         <span class="since">Since 1.3.1</span></p></dd>
       <dt><code>dir</code></dt>
       <dd>Provides the source for pools backed by directories (pool
@@ -236,6 +240,23 @@
             used in order to ensure a new definition doesn't duplicate using
             the scsi_hostN of some existing storage pool.
             <span class="since">Since 1.0.4</span>
+          </dd>
+          <dt><code>parent_wwnn</code> and <code>parent_wwpn</code></dt>
+          <dd>Instead of the <code>parent</code> to specify which scsi_host
+            to use by name, it's possible to provide the wwnn and wwpn of
+            the parent to be used for the vHBA in order to ensure that
+            between reboots or after a hardware configuration change that
+            the scsi_host parent name doesn't change. Both the parent_wwnn
+            and parent_wwpn must be provided.
+            <span class="since">Since 3.0.0</span>
+          </dd>
+          <dt><code>parent_fabric_wwn</code></dt>
+          <dd>Instead of the <code>parent</code> to specify which scsi_host
+            to use by name, it's possible to provide the fabric_wwn on which
+            the scsi_host exists. This provides flexibility for choosing
+            a scsi_host that may be available on the fabric rather than
+            requiring a specific parent by wwnn or wwpn to be available.
+            <span class="since">Since 3.0.0</span>
           </dd>
           <dt><code>managed</code></dt>
           <dd>An optional attribute to instruct the SCSI storage backend to
@@ -380,32 +401,24 @@
       <code>pool</code> element for some types of pools (pool
       types <code>dir</code>, <code>fs</code>, <code>netfs</code>,
       <code>logical</code>, <code>disk</code>, <code>iscsi</code>,
-      <code>scsi</code>, <code>mpath</code>). This tag is used to
-      describe the mapping of
+      <code>scsi</code>, <code>mpath</code>, <code>zfs</code>).
+      This tag is used to describe the mapping of
       the storage pool into the host filesystem. It can contain the following
       child elements:
     </p>
 
     <pre>
-        ...
-        &lt;target&gt;
-          &lt;path&gt;/dev/disk/by-path&lt;/path&gt;
-          &lt;permissions&gt;
-            &lt;owner&gt;107&lt;/owner&gt;
-            &lt;group&gt;107&lt;/group&gt;
-            &lt;mode&gt;0744&lt;/mode&gt;
-            &lt;label&gt;virt_image_t&lt;/label&gt;
-          &lt;/permissions&gt;
-          &lt;timestamps&gt;
-            &lt;atime&gt;1341933637.273190990&lt;/atime&gt;
-            &lt;mtime&gt;1341930622.047245868&lt;/mtime&gt;
-            &lt;ctime&gt;1341930622.047245868&lt;/ctime&gt;
-          &lt;/timestamps&gt;
-          &lt;encryption type='...'&gt;
-            ...
-          &lt;/encryption&gt;
-        &lt;/target&gt;
-      &lt;/pool&gt;</pre>
+  ...
+  &lt;target&gt;
+    &lt;path&gt;/dev/disk/by-path&lt;/path&gt;
+    &lt;permissions&gt;
+      &lt;owner&gt;107&lt;/owner&gt;
+      &lt;group&gt;107&lt;/group&gt;
+      &lt;mode&gt;0744&lt;/mode&gt;
+      &lt;label&gt;virt_image_t&lt;/label&gt;
+    &lt;/permissions&gt;
+  &lt;/target&gt;
+&lt;/pool&gt;</pre>
 
     <dl>
       <dt><code>path</code></dt>
@@ -419,6 +432,8 @@
         guaranteed stable across reboots, since they are allocated on
         demand. It is preferable to use a stable location such as one
         of the <code>/dev/disk/by-{path|id|uuid|label}</code> locations.
+        For <code>logical</code> and <code>zfs</code> pool types, a
+        provided value is ignored and a default path generated.
         For a Multipath pool (type <code>mpath</code>), the provided
         value is ignored and the default value of "/dev/mapper" is used.
         <span class="since">Since 0.4.1</span>
@@ -429,7 +444,7 @@
         namespace. It provides information about the permissions to use for the
         final directory when the pool is built. There are 4 child elements.
         The <code>mode</code> element contains the octal permission set.
-        The <code>mode</code> defaults to 0755 when not provided.
+        The <code>mode</code> defaults to 0711 when not provided.
         The <code>owner</code> element contains the numeric user ID.
         The <code>group</code> element contains the numeric group ID.
         If <code>owner</code> or <code>group</code> aren't specified when
@@ -440,24 +455,6 @@
         For running directory or filesystem based pools, these fields
         will be filled with the values used by the existing directory.
         <span class="since">Since 1.2.16</span>
-      </dd>
-      <dt><code>timestamps</code></dt>
-      <dd>Provides timing information about the volume. Up to four
-        sub-elements are present,
-        where <code>atime</code>, <code>btime</code>, <code>ctime</code>
-        and <code>mtime</code> hold the access, birth, change and
-        modification time of the volume, where known. The used time
-        format is &lt;seconds&gt;.&lt;nanoseconds&gt; since the
-        beginning of the epoch (1 Jan 1970). If nanosecond resolution
-        is 0 or otherwise unsupported by the host OS or filesystem,
-        then the nanoseconds part is omitted.  This is a readonly
-        attribute and is ignored when creating a volume.
-        <span class="since">Since 0.10.0</span>
-      </dd>
-      <dt><code>encryption</code></dt>
-      <dd>If present, specifies how the volume is encrypted.  See
-        the <a href="formatstorageencryption.html">Storage Encryption</a> page
-        for more information.
       </dd>
     </dl>
 
@@ -494,12 +491,12 @@
     <h3><a name="StorageVolFirst">General metadata</a></h3>
 
     <pre>
-      &lt;volume type='file'&gt;
-        &lt;name&gt;sparse.img&lt;/name&gt;
-        &lt;key&gt;/var/lib/xen/images/sparse.img&lt;/key&gt;
-        &lt;allocation&gt;0&lt;/allocation&gt;
-        &lt;capacity unit="T"&gt;1&lt;/capacity&gt;
-        ...</pre>
+&lt;volume type='file'&gt;
+  &lt;name&gt;sparse.img&lt;/name&gt;
+  &lt;key&gt;/var/lib/xen/images/sparse.img&lt;/key&gt;
+  &lt;allocation&gt;0&lt;/allocation&gt;
+  &lt;capacity unit="T"&gt;1&lt;/capacity&gt;
+  ...</pre>
 
     <dl>
       <dt><code>name</code></dt>
@@ -556,6 +553,11 @@
         specified with the same semantics as for <code>allocation</code>
         This is compulsory when creating a volume.
         <span class="since">Since 0.4.1</span></dd>
+      <dt><code>physical</code></dt>
+      <dd>This output only element provides the host physical size of
+        the target storage volume. The default output <code>unit</code>
+        will be in bytes.
+        <span class="since">Since 3.0.0</span></dd>
       <dt><code>source</code></dt>
       <dd>Provides information about the underlying storage allocation
         of the volume. This may not be available for some pool types.
@@ -575,22 +577,30 @@
     </p>
 
     <pre>
-        ...
-        &lt;target&gt;
-          &lt;path&gt;/var/lib/virt/images/sparse.img&lt;/path&gt;
-          &lt;format type='qcow2'/&gt;
-          &lt;permissions&gt;
-            &lt;owner&gt;107&lt;/owner&gt;
-            &lt;group&gt;107&lt;/group&gt;
-            &lt;mode&gt;0744&lt;/mode&gt;
-            &lt;label&gt;virt_image_t&lt;/label&gt;
-          &lt;/permissions&gt;
-          &lt;compat&gt;1.1&lt;/compat&gt;
-          &lt;nocow/&gt;
-          &lt;features&gt;
-            &lt;lazy_refcounts/&gt;
-          &lt;/features&gt;
-        &lt;/target&gt;</pre>
+...
+&lt;target&gt;
+  &lt;path&gt;/var/lib/virt/images/sparse.img&lt;/path&gt;
+  &lt;format type='qcow2'/&gt;
+  &lt;permissions&gt;
+    &lt;owner&gt;107&lt;/owner&gt;
+    &lt;group&gt;107&lt;/group&gt;
+    &lt;mode&gt;0744&lt;/mode&gt;
+    &lt;label&gt;virt_image_t&lt;/label&gt;
+  &lt;/permissions&gt;
+  &lt;timestamps&gt;
+    &lt;atime&gt;1341933637.273190990&lt;/atime&gt;
+    &lt;mtime&gt;1341930622.047245868&lt;/mtime&gt;
+    &lt;ctime&gt;1341930622.047245868&lt;/ctime&gt;
+  &lt;/timestamps&gt;
+  &lt;encryption type='...'&gt;
+    ...
+  &lt;/encryption&gt;
+  &lt;compat&gt;1.1&lt;/compat&gt;
+  &lt;nocow/&gt;
+  &lt;features&gt;
+    &lt;lazy_refcounts/&gt;
+  &lt;/features&gt;
+&lt;/target&gt;</pre>
 
     <dl>
       <dt><code>path</code></dt>
@@ -630,6 +640,24 @@
         will be filled with the values used by the existing file.
         <span class="since">Since 0.4.1</span>
       </dd>
+      <dt><code>timestamps</code></dt>
+      <dd>Provides timing information about the volume. Up to four
+        sub-elements are present,
+        where <code>atime</code>, <code>btime</code>, <code>ctime</code>
+        and <code>mtime</code> hold the access, birth, change and
+        modification time of the volume, where known. The used time
+        format is &lt;seconds&gt;.&lt;nanoseconds&gt; since the
+        beginning of the epoch (1 Jan 1970). If nanosecond resolution
+        is 0 or otherwise unsupported by the host OS or filesystem,
+        then the nanoseconds part is omitted.  This is a readonly
+        attribute and is ignored when creating a volume.
+        <span class="since">Since 0.10.0</span>
+      </dd>
+      <dt><code>encryption</code></dt>
+      <dd>If present, specifies how the volume is encrypted.  See
+        the <a href="formatstorageencryption.html">Storage Encryption</a> page
+        for more information.
+      </dd>
       <dt><code>compat</code></dt>
       <dd>Specify compatibility level. So far, this is only used for
         <code>type='qcow2'</code> volumes. Valid values are <code>0.10</code>
@@ -665,18 +693,18 @@
     </p>
 
     <pre>
-        ...
-        &lt;backingStore&gt;
-          &lt;path&gt;/var/lib/virt/images/master.img&lt;/path&gt;
-          &lt;format type='raw'/&gt;
-          &lt;permissions&gt;
-            &lt;owner&gt;107&lt;/owner&gt;
-            &lt;group&gt;107&lt;/group&gt;
-            &lt;mode&gt;0744&lt;/mode&gt;
-            &lt;label&gt;virt_image_t&lt;/label&gt;
-          &lt;/permissions&gt;
-        &lt;/backingStore&gt;
-      &lt;/volume&gt;</pre>
+  ...
+  &lt;backingStore&gt;
+    &lt;path&gt;/var/lib/virt/images/master.img&lt;/path&gt;
+    &lt;format type='raw'/&gt;
+    &lt;permissions&gt;
+      &lt;owner&gt;107&lt;/owner&gt;
+      &lt;group&gt;107&lt;/group&gt;
+      &lt;mode&gt;0744&lt;/mode&gt;
+      &lt;label&gt;virt_image_t&lt;/label&gt;
+    &lt;/permissions&gt;
+  &lt;/backingStore&gt;
+&lt;/volume&gt;</pre>
 
     <dl>
       <dt><code>path</code></dt>
@@ -711,62 +739,62 @@
     <h3><a name="exampleFile">File based storage pool</a></h3>
 
     <pre>
-      &lt;pool type="dir"&gt;
-        &lt;name&gt;virtimages&lt;/name&gt;
-        &lt;target&gt;
-          &lt;path&gt;/var/lib/virt/images&lt;/path&gt;
-        &lt;/target&gt;
-      &lt;/pool&gt;</pre>
+&lt;pool type="dir"&gt;
+  &lt;name&gt;virtimages&lt;/name&gt;
+  &lt;target&gt;
+    &lt;path&gt;/var/lib/virt/images&lt;/path&gt;
+  &lt;/target&gt;
+&lt;/pool&gt;</pre>
 
     <h3><a name="exampleISCSI">iSCSI based storage pool</a></h3>
 
     <pre>
-      &lt;pool type="iscsi"&gt;
-        &lt;name&gt;virtimages&lt;/name&gt;
-        &lt;source&gt;
-          &lt;host name="iscsi.example.com"/&gt;
-          &lt;device path="iqn.2013-06.com.example:iscsi-pool"/&gt;
-          &lt;auth type='chap' username='myuser'&gt;
-            &lt;secret usage='libvirtiscsi'/&gt;
-          &lt;/auth&gt;
-        &lt;/source&gt;
-        &lt;target&gt;
-          &lt;path&gt;/dev/disk/by-path&lt;/path&gt;
-        &lt;/target&gt;
-      &lt;/pool&gt;</pre>
+&lt;pool type="iscsi"&gt;
+  &lt;name&gt;virtimages&lt;/name&gt;
+  &lt;source&gt;
+    &lt;host name="iscsi.example.com"/&gt;
+    &lt;device path="iqn.2013-06.com.example:iscsi-pool"/&gt;
+    &lt;auth type='chap' username='myuser'&gt;
+      &lt;secret usage='libvirtiscsi'/&gt;
+    &lt;/auth&gt;
+  &lt;/source&gt;
+  &lt;target&gt;
+    &lt;path&gt;/dev/disk/by-path&lt;/path&gt;
+  &lt;/target&gt;
+&lt;/pool&gt;</pre>
 
     <h3><a name="exampleVol">Storage volume</a></h3>
 
     <pre>
-      &lt;volume&gt;
-        &lt;name&gt;sparse.img&lt;/name&gt;
-        &lt;allocation&gt;0&lt;/allocation&gt;
-        &lt;capacity unit="T"&gt;1&lt;/capacity&gt;
-        &lt;target&gt;
-          &lt;path&gt;/var/lib/virt/images/sparse.img&lt;/path&gt;
-          &lt;permissions&gt;
-            &lt;owner&gt;107&lt;/owner&gt;
-            &lt;group&gt;107&lt;/group&gt;
-            &lt;mode&gt;0744&lt;/mode&gt;
-            &lt;label&gt;virt_image_t&lt;/label&gt;
-          &lt;/permissions&gt;
-        &lt;/target&gt;
-      &lt;/volume&gt;</pre>
+&lt;volume&gt;
+  &lt;name&gt;sparse.img&lt;/name&gt;
+  &lt;allocation&gt;0&lt;/allocation&gt;
+  &lt;capacity unit="T"&gt;1&lt;/capacity&gt;
+  &lt;target&gt;
+    &lt;path&gt;/var/lib/virt/images/sparse.img&lt;/path&gt;
+    &lt;permissions&gt;
+      &lt;owner&gt;107&lt;/owner&gt;
+      &lt;group&gt;107&lt;/group&gt;
+      &lt;mode&gt;0744&lt;/mode&gt;
+      &lt;label&gt;virt_image_t&lt;/label&gt;
+    &lt;/permissions&gt;
+  &lt;/target&gt;
+&lt;/volume&gt;</pre>
 
     <h3><a name="exampleLuks">Storage volume using LUKS</a></h3>
 
     <pre>
-      &lt;volume&gt;
-        &lt;name&gt;MyLuks.img&lt;/name&gt;
-        &lt;capacity unit="G"&gt;5&lt;/capacity&gt;
-        &lt;target&gt;
-          &lt;path&gt;/var/lib/virt/images/MyLuks.img&lt;/path&gt;
-          &lt;format type='raw'/&gt;
-          &lt;encryption format='luks'&gt;
-            &lt;secret type='passphrase' uuid='f52a81b2-424e-490c-823d-6bd4235bc572'/&gt;
-          &lt;/encryption&gt;
-        &lt;/target&gt;
-      &lt;/volume&gt;
+&lt;volume&gt;
+  &lt;name&gt;MyLuks.img&lt;/name&gt;
+  &lt;capacity unit="G"&gt;5&lt;/capacity&gt;
+  &lt;target&gt;
+    &lt;path&gt;/var/lib/virt/images/MyLuks.img&lt;/path&gt;
+    &lt;format type='raw'/&gt;
+    &lt;encryption format='luks'&gt;
+      &lt;secret type='passphrase' uuid='f52a81b2-424e-490c-823d-6bd4235bc572'/&gt;
+    &lt;/encryption&gt;
+  &lt;/target&gt;
+&lt;/volume&gt;
     </pre>
   </body>
 </html>

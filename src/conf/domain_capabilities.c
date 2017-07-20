@@ -82,6 +82,7 @@ virDomainCapsDispose(void *obj)
     VIR_FREE(caps->path);
     VIR_FREE(caps->machine);
     virObjectUnref(caps->cpu.custom);
+    virCPUDefFree(caps->cpu.hostModel);
 
     virDomainCapsStringValuesFree(&caps->os.loader.values);
 }
@@ -176,7 +177,8 @@ virDomainCapsCPUModelsCopy(virDomainCapsCPUModelsPtr old)
 
 virDomainCapsCPUModelsPtr
 virDomainCapsCPUModelsFilter(virDomainCapsCPUModelsPtr old,
-                             const char **models)
+                             const char **models,
+                             const char **blacklist)
 {
     virDomainCapsCPUModelsPtr cpuModels;
     size_t i;
@@ -185,7 +187,10 @@ virDomainCapsCPUModelsFilter(virDomainCapsCPUModelsPtr old,
         return NULL;
 
     for (i = 0; i < old->nmodels; i++) {
-        if (models && !virStringArrayHasString(models, old->models[i].name))
+        if (models && !virStringListHasString(models, old->models[i].name))
+            continue;
+
+        if (blacklist && virStringListHasString(blacklist, old->models[i].name))
             continue;
 
         if (virDomainCapsCPUModelsAdd(cpuModels,
@@ -523,7 +528,8 @@ virDomainCapsFormatInternal(virBufferPtr buf,
 
     virBufferEscapeString(buf, "<path>%s</path>\n", caps->path);
     virBufferAsprintf(buf, "<domain>%s</domain>\n", virttype_str);
-    virBufferAsprintf(buf, "<machine>%s</machine>\n", caps->machine);
+    if (caps->machine)
+        virBufferAsprintf(buf, "<machine>%s</machine>\n", caps->machine);
     virBufferAsprintf(buf, "<arch>%s</arch>\n", arch_str);
 
     if (caps->maxvcpus)

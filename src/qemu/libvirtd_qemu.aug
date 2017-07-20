@@ -29,6 +29,7 @@ module Libvirtd_qemu =
    (* Config entry grouped by function - same order as example config *)
    let default_tls_entry = str_entry "default_tls_x509_cert_dir"
                  | bool_entry "default_tls_x509_verify"
+                 | str_entry "default_tls_x509_secret_uuid"
 
    let vnc_entry = str_entry "vnc_listen"
                  | bool_entry "vnc_auto_unix_socket"
@@ -51,6 +52,11 @@ module Libvirtd_qemu =
    let chardev_entry = bool_entry "chardev_tls"
                  | str_entry "chardev_tls_x509_cert_dir"
                  | bool_entry "chardev_tls_x509_verify"
+                 | str_entry "chardev_tls_x509_secret_uuid"
+
+   let migrate_entry = str_entry "migrate_tls_x509_cert_dir"
+                 | bool_entry "migrate_tls_x509_verify"
+                 | str_entry "migrate_tls_x509_secret_uuid"
 
    let nogfx_entry = bool_entry "nographics_allow_host_audio"
 
@@ -68,6 +74,7 @@ module Libvirtd_qemu =
                  | str_array_entry "cgroup_controllers"
                  | str_array_entry "cgroup_device_acl"
                  | int_entry "seccomp_sandbox"
+                 | str_array_entry "namespaces"
 
    let save_entry =  str_entry "save_image_format"
                  | str_entry "dump_image_format"
@@ -104,11 +111,16 @@ module Libvirtd_qemu =
 
    let nvram_entry = str_array_entry "nvram"
 
+   let gluster_debug_level_entry = int_entry "gluster_debug_level"
+
+   let memory_entry = str_entry "memory_backing_dir"
+
    (* Each entry in the config is one of the following ... *)
    let entry = default_tls_entry
              | vnc_entry
              | spice_entry
              | chardev_entry
+             | migrate_entry
              | nogfx_entry
              | remote_display_entry
              | security_entry
@@ -119,6 +131,8 @@ module Libvirtd_qemu =
              | network_entry
              | log_entry
              | nvram_entry
+             | gluster_debug_level_entry
+             | memory_entry
 
    let comment = [ label "#comment" . del /#[ \t]*/ "# " .  store /([^ \t\n][^\n]*)?/ . del /\n/ "\n" ]
    let empty = [ label "#empty" . eol ]

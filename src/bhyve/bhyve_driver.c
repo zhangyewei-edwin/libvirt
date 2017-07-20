@@ -37,7 +37,7 @@
 #include "domain_audit.h"
 #include "domain_event.h"
 #include "snapshot_conf.h"
-#include "fdstream.h"
+#include "virfdstream.h"
 #include "storage_conf.h"
 #include "node_device_conf.h"
 #include "virdomainobjlist.h"
@@ -50,11 +50,11 @@
 #include "virstring.h"
 #include "cpu/cpu.h"
 #include "viraccessapicheck.h"
-#include "nodeinfo.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
 #include "conf/domain_capabilities.h"
 
+#include "bhyve_conf.h"
 #include "bhyve_device.h"
 #include "bhyve_driver.h"
 #include "bhyve_command.h"
@@ -538,7 +538,10 @@ bhyveDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
         return NULL;
 
     if ((def = virDomainDefParseString(xml, caps, privconn->xmlopt,
-                                       parse_flags)) == NULL)
+                                       NULL, parse_flags)) == NULL)
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
         goto cleanup;
 
     if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
@@ -567,9 +570,7 @@ bhyveDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
                                               VIR_DOMAIN_EVENT_DEFINED_ADDED :
                                               VIR_DOMAIN_EVENT_DEFINED_UPDATED);
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virObjectUnref(caps);
@@ -725,21 +726,40 @@ bhyveConnectDomainXMLToNative(virConnectPtr conn,
         goto cleanup;
 
     if (!(def = virDomainDefParseString(xmlData, caps, privconn->xmlopt,
-                                  VIR_DOMAIN_DEF_PARSE_INACTIVE)))
+                                        NULL, VIR_DOMAIN_DEF_PARSE_INACTIVE)))
         goto cleanup;
 
     if (bhyveDomainAssignAddresses(def, NULL) < 0)
         goto cleanup;
 
-    if (!(loadcmd = virBhyveProcessBuildLoadCmd(conn, def, "<device.map>",
+    if (def->os.bootloader == NULL &&
+        def->os.loader) {
+
+        if ((def->os.loader->readonly != VIR_TRISTATE_BOOL_YES) ||
+            (def->os.loader->type != VIR_DOMAIN_LOADER_TYPE_PFLASH)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only read-only pflash is supported."));
+            goto cleanup;
+        }
+
+        if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_LPC_BOOTROM) == 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Installed bhyve binary does not support "
+                          "bootrom"));
+            goto cleanup;
+        }
+    } else {
+        if (!(loadcmd = virBhyveProcessBuildLoadCmd(conn, def, "<device.map>",
                                                 NULL)))
-        goto cleanup;
+            goto cleanup;
+
+        virBufferAdd(&buf, virCommandToString(loadcmd), -1);
+        virBufferAddChar(&buf, '\n');
+    }
 
     if (!(cmd = virBhyveProcessBuildBhyveCmd(conn, def, true)))
         goto cleanup;
 
-    virBufferAdd(&buf, virCommandToString(loadcmd), -1);
-    virBufferAddChar(&buf, '\n');
     virBufferAdd(&buf, virCommandToString(cmd), -1);
 
     if (virBufferCheckError(&buf) < 0)
@@ -795,9 +815,7 @@ bhyveDomainLookupByUUID(virConnectPtr conn,
     if (virDomainLookupByUUIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -823,9 +841,7 @@ static virDomainPtr bhyveDomainLookupByName(virConnectPtr conn,
     if (virDomainLookupByNameEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -851,9 +867,7 @@ bhyveDomainLookupByID(virConnectPtr conn,
     if (virDomainLookupByIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -938,7 +952,7 @@ bhyveDomainCreateXML(virConnectPtr conn,
         return NULL;
 
     if ((def = virDomainDefParseString(xml, caps, privconn->xmlopt,
-                                       parse_flags)) == NULL)
+                                       NULL, parse_flags)) == NULL)
         goto cleanup;
 
     if (virDomainCreateXMLEnsureACL(conn, def) < 0)
@@ -969,9 +983,7 @@ bhyveDomainCreateXML(virConnectPtr conn,
                                               VIR_DOMAIN_EVENT_STARTED,
                                               VIR_DOMAIN_EVENT_STARTED_BOOTED);
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virObjectUnref(caps);
@@ -1080,7 +1092,7 @@ bhyveDomainOpenConsole(virDomainPtr dom,
 
     chr = vm->def->serials[0];
 
-    if (virFDStreamOpenPTY(st, chr->source.data.nmdm.slave,
+    if (virFDStreamOpenPTY(st, chr->source->data.nmdm.slave,
                            0, 0, O_RDWR) < 0)
         goto cleanup;
 
@@ -1120,6 +1132,13 @@ bhyveDomainSetMetadata(virDomainPtr dom,
     ret = virDomainObjSetMetadata(vm, type, metadata, key, uri, caps,
                                   privconn->xmlopt, BHYVE_STATE_DIR,
                                   BHYVE_CONFIG_DIR, flags);
+
+    if (ret == 0) {
+        virObjectEventPtr ev = NULL;
+        ev = virDomainEventMetadataChangeNewFromObj(vm, type, uri);
+        virObjectEventStateQueue(privconn->domainEventState, ev);
+    }
+
 
  cleanup:
     virObjectUnref(caps);
@@ -1177,12 +1196,12 @@ bhyveNodeGetMemoryStats(virConnectPtr conn,
 
 static int
 bhyveNodeGetInfo(virConnectPtr conn,
-                      virNodeInfoPtr nodeinfo)
+                 virNodeInfoPtr nodeinfo)
 {
     if (virNodeGetInfoEnsureACL(conn) < 0)
         return -1;
 
-    return nodeGetInfo(nodeinfo);
+    return virCapabilitiesGetNodeInfo(nodeinfo);
 }
 
 static int
@@ -1198,7 +1217,8 @@ bhyveStateCleanup(void)
     virObjectUnref(bhyve_driver->xmlopt);
     virSysinfoDefFree(bhyve_driver->hostsysinfo);
     virObjectUnref(bhyve_driver->closeCallbacks);
-    virObjectEventStateFree(bhyve_driver->domainEventState);
+    virObjectUnref(bhyve_driver->domainEventState);
+    virObjectUnref(bhyve_driver->config);
 
     virMutexDestroy(&bhyve_driver->lock);
     VIR_FREE(bhyve_driver);
@@ -1236,9 +1256,7 @@ bhyveStateInitialize(bool privileged,
     if (virBhyveProbeGrubCaps(&bhyve_driver->grubcaps) < 0)
         goto cleanup;
 
-    if (!(bhyve_driver->xmlopt = virDomainXMLOptionNew(&virBhyveDriverDomainDefParserConfig,
-                                                       &virBhyveDriverPrivateDataCallbacks,
-                                                       NULL)))
+    if (!(bhyve_driver->xmlopt = virBhyveDriverCreateXMLConf(bhyve_driver)))
         goto cleanup;
 
     if (!(bhyve_driver->domains = virDomainObjListNew()))
@@ -1248,6 +1266,12 @@ bhyveStateInitialize(bool privileged,
         goto cleanup;
 
     bhyve_driver->hostsysinfo = virSysinfoRead();
+
+    if (!(bhyve_driver->config = virBhyveDriverConfigNew()))
+        goto cleanup;
+
+    if (virBhyveLoadDriverConfig(bhyve_driver->config, SYSCONFDIR "/libvirt/bhyve.conf") < 0)
+        goto cleanup;
 
     if (virFileMakePath(BHYVE_LOG_DIR) < 0) {
         virReportSystemError(errno,
@@ -1436,7 +1460,8 @@ bhyveConnectCompareCPU(virConnectPtr conn,
             ret = VIR_CPU_COMPARE_INCOMPATIBLE;
         }
     } else {
-        ret = cpuCompareXML(caps->host.cpu, xmlDesc, failIncompatible);
+        ret = virCPUCompareXML(caps->host.arch, caps->host.cpu,
+                               xmlDesc, failIncompatible);
     }
 
  cleanup:
@@ -1478,7 +1503,7 @@ bhyveConnectDomainEventDeregisterAny(virConnectPtr conn,
 
     if (virObjectEventStateDeregisterID(conn,
                                         privconn->domainEventState,
-                                        callbackID) < 0)
+                                        callbackID, true) < 0)
         return -1;
 
     return 0;
@@ -1629,7 +1654,8 @@ bhyveConnectGetDomainCapabilities(virConnectPtr conn,
         goto cleanup;
     }
 
-    if (!(caps = virBhyveDomainCapsBuild(emulatorbin, machine, arch, virttype)))
+    if (!(caps = virBhyveDomainCapsBuild(conn->privateData, emulatorbin,
+                                         machine, arch, virttype)))
         goto cleanup;
 
     ret = virDomainCapsFormat(caps);

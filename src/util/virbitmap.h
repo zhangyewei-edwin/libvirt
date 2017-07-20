@@ -94,14 +94,12 @@ virBitmapParseSeparator(const char *str,
                         char terminator,
                         virBitmapPtr *bitmap,
                         size_t bitmapSize);
-int
-virBitmapParseUnlimited(const char *str,
-                        virBitmapPtr *bitmap)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+virBitmapPtr
+virBitmapParseUnlimited(const char *str);
 
 virBitmapPtr virBitmapNewCopy(virBitmapPtr src) ATTRIBUTE_NONNULL(1);
 
-virBitmapPtr virBitmapNewData(void *data, int len) ATTRIBUTE_NONNULL(1);
+virBitmapPtr virBitmapNewData(const void *data, int len) ATTRIBUTE_NONNULL(1);
 
 int virBitmapToData(virBitmapPtr bitmap, unsigned char **data, int *dataLen)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
@@ -138,7 +136,7 @@ ssize_t virBitmapNextClearBit(virBitmapPtr bitmap, ssize_t pos)
 size_t virBitmapCountBits(virBitmapPtr bitmap)
     ATTRIBUTE_NONNULL(1);
 
-char *virBitmapDataToString(void *data,
+char *virBitmapDataToString(const void *data,
                             int len)
     ATTRIBUTE_NONNULL(1);
 bool virBitmapOverlaps(virBitmapPtr b1,

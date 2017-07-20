@@ -60,7 +60,8 @@ int qemuMonitorJSONSystemReset(qemuMonitorPtr mon);
 
 int qemuMonitorJSONQueryCPUs(qemuMonitorPtr mon,
                              struct qemuMonitorQueryCpusEntry **entries,
-                             size_t *nentries);
+                             size_t *nentries,
+                             bool force);
 int qemuMonitorJSONGetVirtType(qemuMonitorPtr mon,
                                virDomainVirtType *virtType);
 int qemuMonitorJSONUpdateVideoMemorySize(qemuMonitorPtr mon,
@@ -327,7 +328,9 @@ int qemuMonitorJSONOpenGraphics(qemuMonitorPtr mon,
 int qemuMonitorJSONSetBlockIoThrottle(qemuMonitorPtr mon,
                                       const char *device,
                                       virDomainBlockIoTuneInfoPtr info,
-                                      bool supportMaxOptions);
+                                      bool supportMaxOptions,
+                                      bool supportGroupNameOption,
+                                      bool supportMaxLengthOptions);
 
 int qemuMonitorJSONGetBlockIoThrottle(qemuMonitorPtr mon,
                                       const char *device,
@@ -349,6 +352,13 @@ int qemuMonitorJSONGetMachines(qemuMonitorPtr mon,
 int qemuMonitorJSONGetCPUDefinitions(qemuMonitorPtr mon,
                                      qemuMonitorCPUDefInfoPtr **cpus)
     ATTRIBUTE_NONNULL(2);
+
+int qemuMonitorJSONGetCPUModelExpansion(qemuMonitorPtr mon,
+                                        qemuMonitorCPUModelExpansionType type,
+                                        const char *model_name,
+                                        bool migratable,
+                                        qemuMonitorCPUModelInfoPtr *model_info)
+    ATTRIBUTE_NONNULL(3) ATTRIBUTE_NONNULL(5);
 
 int qemuMonitorJSONGetCommands(qemuMonitorPtr mon,
                                char ***commands)
@@ -466,7 +476,8 @@ int qemuMonitorJSONGetCPUx86Data(qemuMonitorPtr mon,
 
 int qemuMonitorJSONGetGuestCPU(qemuMonitorPtr mon,
                                virArch arch,
-                               virCPUDataPtr *data);
+                               virCPUDataPtr *data,
+                               virCPUDataPtr *disabled);
 
 int qemuMonitorJSONRTCResetReinjection(qemuMonitorPtr mon);
 
@@ -499,4 +510,16 @@ int qemuMonitorJSONGetHotpluggableCPUs(qemuMonitorPtr mon,
                                        struct qemuMonitorQueryHotpluggableCpusEntry **entries,
                                        size_t *nentries)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
+
+virHashTablePtr qemuMonitorJSONQueryQMPSchema(qemuMonitorPtr mon)
+    ATTRIBUTE_NONNULL(1);
+
+int qemuMonitorJSONSetBlockThreshold(qemuMonitorPtr mon,
+                                     const char *nodename,
+                                     unsigned long long threshold)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+
+virJSONValuePtr qemuMonitorJSONQueryNamedBlockNodes(qemuMonitorPtr mon)
+    ATTRIBUTE_NONNULL(1);
+
 #endif /* QEMU_MONITOR_JSON_H */

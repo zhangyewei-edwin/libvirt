@@ -1549,11 +1549,18 @@ virStorageVolCreateXMLFrom(virStoragePoolPtr pool,
  * @stream: stream to use as output
  * @offset: position in @vol to start reading from
  * @length: limit on amount of data to download
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virStorageVolDownloadFlags
  *
  * Download the content of the volume as a stream. If @length
  * is zero, then the remaining contents of the volume after
  * @offset will be downloaded.
+ *
+ * If VIR_STORAGE_VOL_DOWNLOAD_SPARSE_STREAM is set in @flags
+ * effective transmission of holes is enabled. This assumes using
+ * the @stream with combination of virStreamSparseRecvAll() or
+ * virStreamRecvFlags(stream, ..., flags =
+ * VIR_STREAM_RECV_STOP_AT_HOLE) for honouring holes sent by
+ * server.
  *
  * This call sets up an asynchronous stream; subsequent use of
  * stream APIs is necessary to transfer the actual data,
@@ -1613,13 +1620,18 @@ virStorageVolDownload(virStorageVolPtr vol,
  * @stream: stream to use as input
  * @offset: position to start writing to
  * @length: limit on amount of data to upload
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virStorageVolUploadFlags
  *
  * Upload new content to the volume from a stream. This call
  * will fail if @offset + @length exceeds the size of the
  * volume. Otherwise, if @length is non-zero, an error
  * will be raised if an attempt is made to upload greater
  * than @length bytes of data.
+ *
+ * If VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM is set in @flags
+ * effective transmission of holes is enabled. This assumes using
+ * the @stream with combination of virStreamSparseSendAll() or
+ * virStreamSendHole() to preserve source file sparseness.
  *
  * This call sets up an asynchronous stream; subsequent use of
  * stream APIs is necessary to transfer the actual data,
@@ -1900,6 +1912,57 @@ virStorageVolGetInfo(virStorageVolPtr vol,
     if (conn->storageDriver->storageVolGetInfo) {
         int ret;
         ret = conn->storageDriver->storageVolGetInfo(vol, info);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(vol->conn);
+    return -1;
+}
+
+
+/**
+ * virStorageVolGetInfoFlags:
+ * @vol: pointer to storage volume
+ * @info: pointer at which to store info
+ * @flags: bitwise-OR of virStorageVolInfoFlags
+ *
+ * Fetches volatile information about the storage
+ * volume such as its current allocation.
+ *
+ * If the @flags argument is VIR_STORAGE_VOL_GET_PHYSICAL, then the physical
+ * bytes used for the volume will be returned in the @info allocation field.
+ * This is useful for sparse files and certain volume file types where the
+ * physical on disk usage can be different than the calculated allocation value
+ * as is the case with qcow2 files.
+ *
+ * Returns 0 on success, or -1 on failure
+ */
+int
+virStorageVolGetInfoFlags(virStorageVolPtr vol,
+                          virStorageVolInfoPtr info,
+                          unsigned int flags)
+{
+    virConnectPtr conn;
+    VIR_DEBUG("vol=%p, info=%p, flags=%x", vol, info, flags);
+
+    virResetLastError();
+
+    if (info)
+        memset(info, 0, sizeof(*info));
+
+    virCheckStorageVolReturn(vol, -1);
+    virCheckNonNullArgGoto(info, error);
+
+    conn = vol->conn;
+
+    if (conn->storageDriver->storageVolGetInfoFlags) {
+        int ret;
+        ret = conn->storageDriver->storageVolGetInfoFlags(vol, info, flags);
         if (ret < 0)
             goto error;
         return ret;

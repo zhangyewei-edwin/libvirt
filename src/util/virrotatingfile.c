@@ -483,18 +483,19 @@ virRotatingFileWriterAppend(virRotatingFileWriterPtr file,
 
         if ((file->entry->pos == file->maxlen && len) ||
             forceRollover) {
-            virRotatingFileWriterEntryPtr tmp = file->entry;
+            virRotatingFileWriterEntryPtr tmp;
             VIR_DEBUG("Hit max size %zu on %s (force=%d)\n",
                       file->maxlen, file->basepath, forceRollover);
 
             if (virRotatingFileWriterRollover(file) < 0)
                 return -1;
 
-            if (!(file->entry = virRotatingFileWriterEntryNew(file->basepath,
-                                                              file->mode)))
+            if (!(tmp = virRotatingFileWriterEntryNew(file->basepath,
+                                                      file->mode)))
                 return -1;
 
-            virRotatingFileWriterEntryFree(tmp);
+            virRotatingFileWriterEntryFree(file->entry);
+            file->entry = tmp;
         }
     }
 
@@ -512,7 +513,7 @@ virRotatingFileWriterAppend(virRotatingFileWriterPtr file,
  * If no file with a inode matching @inode currently
  * exists, then seeks to the start of the oldest
  * file, on the basis that the requested file has
- * probably been rotated out of existance
+ * probably been rotated out of existence
  */
 int
 virRotatingFileReaderSeek(virRotatingFileReaderPtr file,

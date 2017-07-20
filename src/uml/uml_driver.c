@@ -45,10 +45,8 @@
 #include "uml_driver.h"
 #include "uml_conf.h"
 #include "virbuffer.h"
-#include "nodeinfo.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
-#include "virstats.h"
 #include "capabilities.h"
 #include "viralloc.h"
 #include "viruuid.h"
@@ -59,7 +57,7 @@
 #include "domain_nwfilter.h"
 #include "nwfilter_conf.h"
 #include "virfile.h"
-#include "fdstream.h"
+#include "virfdstream.h"
 #include "configmake.h"
 #include "virnetdevtap.h"
 #include "virnodesuspend.h"
@@ -244,8 +242,8 @@ umlIdentifyOneChrPTY(struct uml_driver *driver,
         return -1;
 
     if (res && STRPREFIX(res, "pts:")) {
-        VIR_FREE(def->source.data.file.path);
-        if (VIR_STRDUP(def->source.data.file.path, res + 4) < 0) {
+        VIR_FREE(def->source->data.file.path);
+        if (VIR_STRDUP(def->source->data.file.path, res + 4) < 0) {
             VIR_FREE(res);
             VIR_FREE(cmd);
             return -1;
@@ -274,13 +272,13 @@ umlIdentifyChrPTY(struct uml_driver *driver,
     size_t i;
 
     for (i = 0; i < dom->def->nconsoles; i++)
-        if (dom->def->consoles[i]->source.type == VIR_DOMAIN_CHR_TYPE_PTY)
+        if (dom->def->consoles[i]->source->type == VIR_DOMAIN_CHR_TYPE_PTY)
         if (umlIdentifyOneChrPTY(driver, dom,
                                  dom->def->consoles[i], "con") < 0)
             return -1;
 
     for (i = 0; i < dom->def->nserials; i++)
-        if (dom->def->serials[i]->source.type == VIR_DOMAIN_CHR_TYPE_PTY &&
+        if (dom->def->serials[i]->source->type == VIR_DOMAIN_CHR_TYPE_PTY &&
             umlIdentifyOneChrPTY(driver, dom,
                                  dom->def->serials[i], "ssl") < 0)
             return -1;
@@ -410,7 +408,8 @@ umlDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
                             const virDomainDef *def ATTRIBUTE_UNUSED,
                             virCapsPtr caps ATTRIBUTE_UNUSED,
                             unsigned int parseFlags ATTRIBUTE_UNUSED,
-                            void *opaque ATTRIBUTE_UNUSED)
+                            void *opaque ATTRIBUTE_UNUSED,
+                            void *parseOpaque ATTRIBUTE_UNUSED)
 {
     if (dev->type == VIR_DOMAIN_DEVICE_CHR &&
         dev->data.chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&
@@ -435,7 +434,8 @@ static int
 umlDomainDefPostParse(virDomainDefPtr def ATTRIBUTE_UNUSED,
                       virCapsPtr caps ATTRIBUTE_UNUSED,
                       unsigned int parseFlags ATTRIBUTE_UNUSED,
-                      void *opaque ATTRIBUTE_UNUSED)
+                      void *opaque ATTRIBUTE_UNUSED,
+                      void *parseOpaque ATTRIBUTE_UNUSED)
 {
     return 0;
 }
@@ -533,7 +533,7 @@ umlStateInitialize(bool privileged,
         goto out_of_memory;
 
     if (!(uml_driver->xmlopt = virDomainXMLOptionNew(&umlDriverDomainDefParserConfig,
-                                                     &privcb, NULL)))
+                                                     &privcb, NULL, NULL, NULL)))
         goto error;
 
     if ((uml_driver->inotifyFD = inotify_init()) < 0) {
@@ -683,7 +683,7 @@ umlStateCleanup(void)
 
     virObjectUnref(uml_driver->domains);
 
-    virObjectEventStateFree(uml_driver->domainEventState);
+    virObjectUnref(uml_driver->domainEventState);
 
     VIR_FREE(uml_driver->logDir);
     VIR_FREE(uml_driver->configDir);
@@ -1359,8 +1359,7 @@ static virDomainPtr umlDomainLookupByID(virConnectPtr conn,
     if (virDomainLookupByIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -1387,8 +1386,7 @@ static virDomainPtr umlDomainLookupByUUID(virConnectPtr conn,
     if (virDomainLookupByUUIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -1415,8 +1413,7 @@ static virDomainPtr umlDomainLookupByName(virConnectPtr conn,
     if (virDomainLookupByNameEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1588,7 +1585,7 @@ static virDomainPtr umlDomainCreateXML(virConnectPtr conn, const char *xml,
     virNWFilterReadLockFilterUpdates();
     umlDriverLock(driver);
     if (!(def = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
         goto cleanup;
 
     if (virDomainCreateXMLEnsureACL(conn, def) < 0)
@@ -1616,8 +1613,7 @@ static virDomainPtr umlDomainCreateXML(virConnectPtr conn, const char *xml,
                                      VIR_DOMAIN_EVENT_STARTED,
                                      VIR_DOMAIN_EVENT_STARTED_BOOTED);
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -2069,7 +2065,10 @@ umlDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
 
     umlDriverLock(driver);
     if (!(def = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
         goto cleanup;
 
     if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
@@ -2090,8 +2089,7 @@ umlDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -2622,14 +2620,14 @@ umlDomainOpenConsole(virDomainPtr dom,
         goto cleanup;
     }
 
-    if (chr->source.type != VIR_DOMAIN_CHR_TYPE_PTY) {
+    if (chr->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                         _("character device %s is not using a PTY"),
                        dev_name ? dev_name : NULLSTR(chr->info.alias));
         goto cleanup;
     }
 
-    if (virFDStreamOpenFile(st, chr->source.data.file.path,
+    if (virFDStreamOpenFile(st, chr->source->data.file.path,
                             0, 0, O_RDWR) < 0)
         goto cleanup;
 
@@ -2723,7 +2721,7 @@ umlConnectDomainEventDeregisterAny(virConnectPtr conn,
     umlDriverLock(driver);
     if (virObjectEventStateDeregisterID(conn,
                                         driver->domainEventState,
-                                        callbackID) < 0)
+                                        callbackID, true) < 0)
         ret = -1;
     umlDriverUnlock(driver);
 
@@ -2766,7 +2764,7 @@ umlNodeGetInfo(virConnectPtr conn,
     if (virNodeGetInfoEnsureACL(conn) < 0)
         return -1;
 
-    return nodeGetInfo(nodeinfo);
+    return virCapabilitiesGetNodeInfo(nodeinfo);
 }
 
 
@@ -2874,7 +2872,7 @@ umlNodeSuspendForDuration(virConnectPtr conn,
     if (virNodeSuspendForDurationEnsureACL(conn) < 0)
         return -1;
 
-    return nodeSuspendForDuration(target, duration, flags);
+    return virNodeSuspend(target, duration, flags);
 }
 
 

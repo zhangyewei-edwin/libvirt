@@ -32,10 +32,12 @@
 #include "virerror.h"
 #include "storage_conf.h"
 #include "storage_backend.h"
+#include "storage_backend_mpath.h"
 #include "viralloc.h"
 #include "virlog.h"
 #include "virfile.h"
 #include "virstring.h"
+#include "storage_util.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -198,6 +200,7 @@ virStorageBackendCreateVols(virStoragePoolObjPtr pool,
 
     retval = 0;
  out:
+    VIR_FREE(map_device);
     return retval;
 }
 
@@ -260,7 +263,7 @@ virStorageBackendMpathRefreshPool(virConnectPtr conn ATTRIBUTE_UNUSED,
 
     pool->def->allocation = pool->def->capacity = pool->def->available = 0;
 
-    virFileWaitForDevices();
+    virWaitForDevices();
 
     virStorageBackendGetMaps(pool);
 
@@ -277,3 +280,10 @@ virStorageBackend virStorageBackendMpath = {
     .downloadVol = virStorageBackendVolDownloadLocal,
     .wipeVol = virStorageBackendVolWipeLocal,
 };
+
+
+int
+virStorageBackendMpathRegister(void)
+{
+    return virStorageBackendRegister(&virStorageBackendMpath);
+}

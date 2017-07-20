@@ -179,7 +179,7 @@ vshNameSorter(const void *a, const void *b)
 /*
  * Convert the strings separated by ',' into array. The returned
  * array is a NULL terminated string list. The caller has to free
- * the array using virStringFreeList or a similar method.
+ * the array using virStringListFree or a similar method.
  *
  * Returns the length of the filled array on success, or -1
  * on error.
@@ -242,12 +242,11 @@ virErrorPtr last_error;
  * Quieten libvirt until we're done with the command.
  */
 void
-vshErrorHandler(void *opaque ATTRIBUTE_UNUSED, virErrorPtr error)
+vshErrorHandler(void *opaque ATTRIBUTE_UNUSED,
+                virErrorPtr error ATTRIBUTE_UNUSED)
 {
     virFreeError(last_error);
     last_error = virSaveLastError();
-    if (virGetEnvAllowSUID("VSH_DEBUG") != NULL)
-        virDefaultErrorFunc(error);
 }
 
 /* Store a libvirt error that is from a helper API that doesn't raise errors
@@ -258,6 +257,21 @@ vshSaveLibvirtError(void)
     virFreeError(last_error);
     last_error = virSaveLastError();
 }
+
+
+/* Store libvirt error from helper API but don't overwrite existing errors */
+void
+vshSaveLibvirtHelperError(void)
+{
+    if (last_error)
+        return;
+
+    if (!virGetLastError())
+        return;
+
+    vshSaveLibvirtError();
+}
+
 
 /*
  * Reset libvirt error on graceful fallback paths
@@ -1523,10 +1537,11 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser)
             /* if we encountered --help, replace parsed command with
              * 'help <cmdname>' */
             for (tmpopt = first; tmpopt; tmpopt = tmpopt->next) {
+                const vshCmdDef *help;
                 if (STRNEQ(tmpopt->def->name, "help"))
                     continue;
 
-                const vshCmdDef *help = vshCmddefSearch("help");
+                help = vshCmddefSearch("help");
                 vshCommandOptFree(first);
                 first = vshMalloc(ctl, sizeof(vshCmdOpt));
                 first->def = help->opts;
@@ -2619,7 +2634,6 @@ vshReadlineOptionsGenerator(const char *text, int state, const vshCmdDef *cmd_pa
         return NULL;
 
     while ((name = cmd->opts[list_index].name)) {
-        const vshCmdOptDef *opt = &cmd->opts[list_index];
         char *res;
 
         list_index++;
@@ -2648,14 +2662,14 @@ vshReadlineParse(const char *text, int state)
     static vshCommandParser parser, sanitizer;
     vshCommandToken tk;
     static const vshCmdDef *cmd;
-    const vshCmdOptDef *opt;
+    const vshCmdOptDef *opt = NULL;
     char *tkdata, *optstr, *const_tkdata, *completed_name;
     char *res = NULL;
     static char *ctext, *sanitized_text;
     static char **completed_list;
     static unsigned int completed_list_index;
     static uint64_t const_opts_need_arg, const_opts_required, const_opts_seen;
-    uint64_t opts_need_arg, opts_seen;
+    uint64_t opts_seen;
     size_t opt_index;
     static bool cmd_exists, opts_filled, opt_exists;
     static bool non_bool_opt_exists, data_complete;
@@ -2728,7 +2742,6 @@ vshReadlineParse(const char *text, int state)
                 if (vshCmddefOptParse(cmd, &const_opts_need_arg,
                                       &const_opts_required) < 0)
                     goto error;
-                opts_need_arg = const_opts_need_arg;
                 opts_seen = const_opts_seen;
                 opts_filled = true;
             } else if (tkdata[0] == '-' && tkdata[1] == '-' &&
@@ -2788,11 +2801,11 @@ vshReadlineParse(const char *text, int state)
                 /* No -- option provided and some other token given
                  * Try to find the default option.
                  */
-                if (!(opt = vshCmddefGetData(cmd, &opts_need_arg, &opts_seen))
-                    && opt->type == VSH_OT_BOOL)
+                if (!(opt = vshCmddefGetData(cmd, &const_opts_need_arg,
+                                             &const_opts_seen))
+                    || opt->type == VSH_OT_BOOL)
                     goto error;
                 opt_exists = true;
-                opts_need_arg = const_opts_need_arg;
                 opts_seen = const_opts_seen;
             } else {
                 /* In every other case, return NULL */
@@ -2825,7 +2838,7 @@ vshReadlineParse(const char *text, int state)
         res = vshReadlineCommandGenerator(sanitized_text, state);
     } else if (opts_filled && !non_bool_opt_exists) {
         res = vshReadlineOptionsGenerator(sanitized_text, state, cmd);
-    } else if (non_bool_opt_exists && data_complete && opt->completer) {
+    } else if (non_bool_opt_exists && data_complete && opt && opt->completer) {
         if (!completed_list)
             completed_list = opt->completer(autoCompleteOpaque,
                                             opt->completer_flags);
@@ -2838,7 +2851,7 @@ vshReadlineParse(const char *text, int state)
                 return res;
             }
             res = NULL;
-            virStringFreeList(completed_list);
+            virStringListFree(completed_list);
             completed_list_index = 0;
         }
     }
@@ -2859,7 +2872,9 @@ vshReadlineParse(const char *text, int state)
 }
 
 static char **
-vshReadlineCompletion(const char *text, int start, int end ATTRIBUTE_UNUSED)
+vshReadlineCompletion(const char *text,
+                      int start ATTRIBUTE_UNUSED,
+                      int end ATTRIBUTE_UNUSED)
 {
     char **matches = (char **) NULL;
 
@@ -3017,8 +3032,8 @@ vshInitDebug(vshControl *ctl)
             int debug;
             if (virStrToLong_i(debugEnv, NULL, 10, &debug) < 0 ||
                 debug < VSH_ERR_DEBUG || debug > VSH_ERR_ERROR) {
-                vshError(ctl, "%s",
-                         _("VSH_DEBUG not set with a valid numeric value"));
+                vshError(ctl, _("%s_DEBUG not set with a valid numeric value"),
+                         ctl->env_prefix);
             } else {
                 ctl->debug = debug;
             }
@@ -3093,8 +3108,9 @@ vshInitReload(vshControl *ctl)
 void
 vshDeinit(vshControl *ctl)
 {
-    if (ctl->imode)
-        vshReadlineDeinit(ctl);
+    /* NB: Don't make calling of vshReadlineDeinit conditional on active
+     * interactive mode. */
+    vshReadlineDeinit(ctl);
     vshCloseLogFile(ctl);
 }
 
@@ -3269,7 +3285,7 @@ cmdEcho(vshControl *ctl, const vshCmd *cmd)
         if (xml) {
             virBufferEscapeString(&xmlbuf, "%s", arg);
             if (virBufferError(&xmlbuf)) {
-                vshPrint(ctl, "%s", _("Failed to allocate XML buffer"));
+                vshError(ctl, "%s", _("Failed to allocate XML buffer"));
                 return false;
             }
             str = virBufferContentAndReset(&xmlbuf);
@@ -3286,7 +3302,7 @@ cmdEcho(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (virBufferError(&buf)) {
-        vshPrint(ctl, "%s", _("Failed to allocate XML buffer"));
+        vshError(ctl, "%s", _("Failed to allocate XML buffer"));
         return false;
     }
     arg = virBufferContentAndReset(&buf);
@@ -3361,7 +3377,8 @@ const vshCmdInfo info_selftest[] = {
  * That runs vshCmddefOptParse which validates
  * the per-command options structure. */
 bool
-cmdSelfTest(vshControl *ctl, const vshCmd *cmd ATTRIBUTE_UNUSED)
+cmdSelfTest(vshControl *ctl ATTRIBUTE_UNUSED,
+            const vshCmd *cmd ATTRIBUTE_UNUSED)
 {
     const vshCmdGrp *grp;
     const vshCmdDef *def;

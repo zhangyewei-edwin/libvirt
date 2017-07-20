@@ -35,9 +35,8 @@ VIR_LOG_INIT("conf.domain_addr");
 virDomainPCIConnectFlags
 virDomainPCIControllerModelToConnectType(virDomainControllerModelPCI model)
 {
-    /* given a VIR_DOMAIN_CONTROLLER_MODEL_PCI*, set connectType to
-     * the equivalent VIR_PCI_CONNECT_TYPE_*. return 0 on success, -1
-     * if the model wasn't recognized.
+    /* given a VIR_DOMAIN_CONTROLLER_MODEL_PCI*, return
+     * the equivalent VIR_PCI_CONNECT_TYPE_*.
      */
     switch (model) {
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_LAST:
@@ -51,11 +50,7 @@ virDomainPCIControllerModelToConnectType(virDomainControllerModelPCI model)
         return 0;
 
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE:
-        /* pci-bridge is treated like a standard
-         * PCI endpoint device, because it can plug into any
-         * standard PCI slot (it just can't be hotplugged).
-         */
-        return VIR_PCI_CONNECT_TYPE_PCI_DEVICE;
+        return VIR_PCI_CONNECT_TYPE_PCI_BRIDGE;
 
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_EXPANDER_BUS:
         return VIR_PCI_CONNECT_TYPE_PCI_EXPANDER_BUS;
@@ -67,26 +62,48 @@ virDomainPCIControllerModelToConnectType(virDomainControllerModelPCI model)
         return VIR_PCI_CONNECT_TYPE_DMI_TO_PCI_BRIDGE;
 
     case VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT_PORT:
-        return VIR_PCI_CONNECT_TYPE_PCIE_ROOT_PORT;
+        return VIR_PCI_CONNECT_TYPE_PCIE_ROOT_PORT | VIR_PCI_CONNECT_AGGREGATE_SLOT;
 
     case VIR_DOMAIN_CONTROLLER_MODEL_PCIE_SWITCH_UPSTREAM_PORT:
         return VIR_PCI_CONNECT_TYPE_PCIE_SWITCH_UPSTREAM_PORT;
 
     case VIR_DOMAIN_CONTROLLER_MODEL_PCIE_SWITCH_DOWNSTREAM_PORT:
         return VIR_PCI_CONNECT_TYPE_PCIE_SWITCH_DOWNSTREAM_PORT;
-
-        /* if this happens, there is an error in the code. A
-         * PCI controller should always have a proper model
-         * set
-         */
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("PCI controller model incorrectly set to 'last'"));
-        return -1;
     }
     return 0;
 }
 
-bool
+
+static int
+virDomainPCIControllerConnectTypeToModel(virDomainPCIConnectFlags flags)
+{
+    if (flags & VIR_PCI_CONNECT_TYPE_PCIE_ROOT_PORT)
+        return VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT_PORT;
+
+    if (flags & VIR_PCI_CONNECT_TYPE_PCIE_SWITCH_UPSTREAM_PORT)
+        return VIR_DOMAIN_CONTROLLER_MODEL_PCIE_SWITCH_UPSTREAM_PORT;
+
+    if (flags & VIR_PCI_CONNECT_TYPE_PCIE_SWITCH_DOWNSTREAM_PORT)
+        return VIR_DOMAIN_CONTROLLER_MODEL_PCIE_SWITCH_DOWNSTREAM_PORT;
+
+    if (flags & VIR_PCI_CONNECT_TYPE_DMI_TO_PCI_BRIDGE)
+        return VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE;
+
+    if (flags & VIR_PCI_CONNECT_TYPE_PCI_EXPANDER_BUS)
+        return VIR_DOMAIN_CONTROLLER_MODEL_PCI_EXPANDER_BUS;
+
+    if (flags & VIR_PCI_CONNECT_TYPE_PCIE_EXPANDER_BUS)
+        return VIR_DOMAIN_CONTROLLER_MODEL_PCIE_EXPANDER_BUS;
+
+    if (flags & VIR_PCI_CONNECT_TYPE_PCI_BRIDGE)
+        return VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE;
+
+    /* some connect types don't correspond to a controller model */
+    return -1;
+}
+
+
+static bool
 virDomainPCIAddressFlagsCompatible(virPCIDeviceAddressPtr addr,
                                    const char *addrStr,
                                    virDomainPCIConnectFlags busFlags,
@@ -100,7 +117,9 @@ virDomainPCIAddressFlagsCompatible(virPCIDeviceAddressPtr addr,
     if (fromConfig) {
         /* If the requested connection was manually specified in
          * config, allow a PCI device to connect to a PCIe slot, or
-         * vice versa.
+         * vice versa. In order to do so, we add *both* the PCI_DEVICE
+         * and the PCIE_DEVICE flags to the bus if it already has either
+         * of them, using the ENDPOINT mask.
          */
         if (busFlags & VIR_PCI_CONNECT_TYPES_ENDPOINT)
             busFlags |= VIR_PCI_CONNECT_TYPES_ENDPOINT;
@@ -110,6 +129,12 @@ virDomainPCIAddressFlagsCompatible(virPCIDeviceAddressPtr addr,
          */
         if (devFlags & VIR_PCI_CONNECT_HOTPLUGGABLE)
             busFlags |= VIR_PCI_CONNECT_HOTPLUGGABLE;
+        /* if the device is a pci-bridge, allow manually
+         * assigning to any bus that would also accept a
+         * standard PCI device.
+         */
+        if (devFlags & VIR_PCI_CONNECT_TYPE_PCI_BRIDGE)
+            devFlags |= VIR_PCI_CONNECT_TYPE_PCI_DEVICE;
     }
 
     /* If this bus doesn't allow the type of connection (PCI
@@ -138,6 +163,8 @@ virDomainPCIAddressFlagsCompatible(virPCIDeviceAddressPtr addr,
             connectStr = "pci-expander-bus";
         } else if (devFlags & VIR_PCI_CONNECT_TYPE_PCIE_EXPANDER_BUS) {
             connectStr = "pcie-expander-bus";
+        } else if (devFlags & VIR_PCI_CONNECT_TYPE_PCI_BRIDGE) {
+            connectStr = "pci-bridge";
         } else {
             /* this should never happen. If it does, there is a
              * bug in the code that sets the flag bits for devices.
@@ -247,19 +274,22 @@ virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT:
         bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
                       VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE |
                       VIR_PCI_CONNECT_TYPE_PCI_EXPANDER_BUS);
         bus->minSlot = 1;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE:
         bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
-                      VIR_PCI_CONNECT_TYPE_PCI_DEVICE);
+                      VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE);
         bus->minSlot = 1;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_EXPANDER_BUS:
         bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
-                      VIR_PCI_CONNECT_TYPE_PCI_DEVICE);
+                      VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE);
         bus->minSlot = 0;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
@@ -280,7 +310,8 @@ virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
     case VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE:
         /* slots 0 - 31, standard PCI slots,
          * but *not* hot-pluggable */
-        bus->flags = VIR_PCI_CONNECT_TYPE_PCI_DEVICE;
+        bus->flags = (VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE);
         bus->minSlot = 0;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
@@ -304,18 +335,18 @@ virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_PCIE_EXPANDER_BUS:
-        /* single slot, no hotplug, only accepts pcie-root-port or
+        /* 32 slots, no hotplug, only accepts pcie-root-port or
          * dmi-to-pci-bridge
          */
         bus->flags = (VIR_PCI_CONNECT_TYPE_PCIE_ROOT_PORT |
                       VIR_PCI_CONNECT_TYPE_DMI_TO_PCI_BRIDGE);
         bus->minSlot = 0;
-        bus->maxSlot = 0;
+        bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
 
-    default:
+    case VIR_DOMAIN_CONTROLLER_MODEL_PCI_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid PCI controller model %d"), model);
+                       "%s", _("PCI controller model was not set correctly"));
         return -1;
     }
 
@@ -324,49 +355,173 @@ virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
 }
 
 
-/* Ensure addr fits in the address set, by expanding it if needed.
- * This will only grow if the flags say that we need a normal
- * hot-pluggable PCI slot. If we need a different type of slot, it
- * will fail.
+bool
+virDomainPCIAddressBusIsFullyReserved(virDomainPCIAddressBusPtr bus)
+{
+    size_t i;
+
+    for (i = bus->minSlot; i <= bus->maxSlot; i++) {
+        if (!bus->slot[i].functions)
+            return false;
+    }
+
+    return true;
+}
+
+
+bool
+virDomainPCIAddressBusIsEmpty(virDomainPCIAddressBusPtr bus)
+{
+    size_t i;
+
+    for (i = bus->minSlot; i <= bus->maxSlot; i++) {
+        if (bus->slot[i].functions)
+            return false;
+    }
+
+    return true;
+}
+
+
+/* Ensure addr fits in the address set, by expanding it if needed
  *
  * Return value:
  * -1 = OOM
  *  0 = no action performed
  * >0 = number of buses added
  */
-int
+static int
 virDomainPCIAddressSetGrow(virDomainPCIAddressSetPtr addrs,
                            virPCIDeviceAddressPtr addr,
                            virDomainPCIConnectFlags flags)
 {
     int add;
     size_t i;
+    int model;
+    bool needDMIToPCIBridge = false;
 
     add = addr->bus - addrs->nbuses + 1;
-    i = addrs->nbuses;
     if (add <= 0)
         return 0;
 
-    /* auto-grow only works when we're adding plain PCI devices */
-    if (!(flags & VIR_PCI_CONNECT_TYPE_PCI_DEVICE)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot automatically add a new PCI bus for a "
-                         "device requiring a slot other than standard PCI."));
+    /* remember that the flags aren't for the type of controller that
+     * we want to add, they are the type of *device* that we want to
+     * plug in, and this function must decide on the appropriate
+     * controller to add in order to give us a slot for that device.
+     */
+
+    if (flags & VIR_PCI_CONNECT_TYPE_PCI_DEVICE) {
+        if (addrs->multipleRootsSupported) {
+            /* Use a pci-root controller to expand the guest's PCI
+             * topology if it supports having more than one */
+            model = VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT;
+        } else {
+            model = VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE;
+
+            /* if there aren't yet any buses that will accept a
+             * pci-bridge, and the caller is asking for one, we'll need to
+             * add a dmi-to-pci-bridge first.
+             */
+            needDMIToPCIBridge = true;
+            for (i = 0; i < addrs->nbuses; i++) {
+                if (addrs->buses[i].flags & VIR_PCI_CONNECT_TYPE_PCI_BRIDGE) {
+                    needDMIToPCIBridge = false;
+                    break;
+                }
+            }
+            if (needDMIToPCIBridge && add == 1) {
+                /* We need to add a single pci-bridge to provide the bus
+                 * our legacy PCI device will be plugged into; however, we
+                 * have also determined that there isn't yet any proper
+                 * place to connect that pci-bridge we're about to add (on
+                 * a system with pcie-root, that "proper place" would be a
+                 * dmi-to-pci-bridge". So, to give the pci-bridge a place
+                 * to connect, we increase the count of buses to add,
+                 * while also incrementing the bus number in the address
+                 * for the device (since the pci-bridge will now be at an
+                 * index 1 higher than the caller had anticipated).
+                 */
+                add++;
+                addr->bus++;
+            }
+        }
+    } else if (flags & VIR_PCI_CONNECT_TYPE_PCI_BRIDGE &&
+               addrs->buses[0].model == VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT) {
+        /* NB: if the root bus is pci-root, and we couldn't find an
+         * open place to connect a pci-bridge, then there is nothing
+         * we can do (since the only way to gain a new slot that
+         * accepts a pci-bridge is to add *a pci-bridge* (which is the
+         * reason we're here in the first place!)
+         */
+        model = VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE;
+    } else if (flags & (VIR_PCI_CONNECT_TYPE_PCIE_DEVICE |
+                        VIR_PCI_CONNECT_TYPE_PCIE_SWITCH_UPSTREAM_PORT)) {
+        model = VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT_PORT;
+    } else {
+        /* The types of devices that we can't auto-add a controller for:
+         *
+         * VIR_CONNECT_TYPE_DMI_TO_PCI_BRIDGE &
+         * VIR_PCI_CONNECT_TYPE_ROOT_PORT - these can only plug into
+         *  pcie-root or pcie-expander-bus. By definition there is
+         *  only 1 pcie-root, and we don't support auto-adding
+         *  pcie-expander-bus (because it is intended for NUMA usage,
+         *  and we can't automatically decide which numa node to
+         *  associate it with)
+         *
+         * VIR_CONNECT_TYPE_PCIE_SWITCH_DOWNSTREAM_PORT - we ndon't
+         *  support this, because it can only plug into an
+         *  upstream-port, and the upstream port might need a
+         *  root-port; supporting this extra layer needlessly
+         *  complicates the code, and upstream/downstream ports are
+         *  outside the scope of our "automatic-bus-expansion" model
+         *  anyway.
+         *
+         * VIR_CONNECT_TYPE_PCI[E]_EXPANDER_BUS - these were created
+         *  to support guest awareness of the NUMA node placement of
+         *  devices on the host, and are also outside the scope of our
+         *  "automatic-bus-expansion".
+         *
+         * VIR_PCI_CONNECT_TYPE_PCI_BRIDGE (when the root bus is
+         *  pci-root) - see the comment above in the case that handles
+         *  adding a slot for pci-bridge to a guest with pcie-root.
+         *
+         */
+        int existingContModel = virDomainPCIControllerConnectTypeToModel(flags);
+
+        if (existingContModel >= 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("a PCI slot is needed to connect a PCI controller "
+                             "model='%s', but none is available, and it "
+                             "cannot be automatically added"),
+                           virDomainControllerModelPCITypeToString(existingContModel));
+        } else {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Cannot automatically add a new PCI bus for a "
+                             "device with connect flags %.2x"), flags);
+        }
         return -1;
     }
+
+    i = addrs->nbuses;
 
     if (VIR_EXPAND_N(addrs->buses, addrs->nbuses, add) < 0)
         return -1;
 
-    for (; i < addrs->nbuses; i++) {
-        /* Any time we auto-add a bus, we will want a multi-slot
-         * bus. Currently the only type of bus we will auto-add is a
-         * pci-bridge, which is hot-pluggable and provides standard
-         * PCI slots.
+    if (needDMIToPCIBridge) {
+        /* first of the new buses is dmi-to-pci-bridge, the
+         * rest are of the requested type
          */
-        virDomainPCIAddressBusSetModel(&addrs->buses[i],
-                                       VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE);
+        if (virDomainPCIAddressBusSetModel(&addrs->buses[i++],
+                                           VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE) < 0) {
+            return -1;
+        }
     }
+
+    for (; i < addrs->nbuses; i++) {
+        if (virDomainPCIAddressBusSetModel(&addrs->buses[i], model) < 0)
+            return -1;
+    }
+
     return add;
 }
 
@@ -392,25 +547,23 @@ bool
 virDomainPCIAddressSlotInUse(virDomainPCIAddressSetPtr addrs,
                              virPCIDeviceAddressPtr addr)
 {
-    return !!addrs->buses[addr->bus].slots[addr->slot];
+    return !!addrs->buses[addr->bus].slot[addr->slot].functions;
 }
 
 
 /*
- * Reserve a slot (or just one function) for a device. If
- * reserveEntireSlot is true, all functions for the slot are reserved,
- * otherwise only one. If fromConfig is true, the address being
- * requested came directly from the config and errors should be worded
- * appropriately. If fromConfig is false, the address was
+ * Reserve a function in a slot. If fromConfig is true, the address
+ * being requested came directly from the config and errors should be
+ * worded appropriately. If fromConfig is false, the address was
  * automatically created by libvirt, so it is an internal error (not
  * XML).
  */
-int
-virDomainPCIAddressReserveAddr(virDomainPCIAddressSetPtr addrs,
-                               virPCIDeviceAddressPtr addr,
-                               virDomainPCIConnectFlags flags,
-                               bool reserveEntireSlot,
-                               bool fromConfig)
+static int ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
+virDomainPCIAddressReserveAddrInternal(virDomainPCIAddressSetPtr addrs,
+                                       virPCIDeviceAddressPtr addr,
+                                       virDomainPCIConnectFlags flags,
+                                       unsigned int isolationGroup,
+                                       bool fromConfig)
 {
     int ret = -1;
     char *addrStr = NULL;
@@ -432,33 +585,45 @@ virDomainPCIAddressReserveAddr(virDomainPCIAddressSetPtr addrs,
 
     bus = &addrs->buses[addr->bus];
 
-    if (reserveEntireSlot) {
-        if (bus->slots[addr->slot]) {
-            virReportError(errType,
-                           _("Attempted double use of PCI slot %s "
-                             "(may need \"multifunction='on'\" for "
-                             "device on function 0)"), addrStr);
-            goto cleanup;
-        }
-        bus->slots[addr->slot] = 0xFF; /* reserve all functions of slot */
-        VIR_DEBUG("Reserving PCI slot %s (multifunction='off')", addrStr);
-    } else {
-        if (bus->slots[addr->slot] & (1 << addr->function)) {
-            if (addr->function == 0) {
-                virReportError(errType,
-                               _("Attempted double use of PCI Address %s"),
-                               addrStr);
-            } else {
-                virReportError(errType,
-                               _("Attempted double use of PCI Address %s "
-                                 "(may need \"multifunction='on'\" "
-                                 "for device on function 0)"), addrStr);
-            }
-            goto cleanup;
-        }
-        bus->slots[addr->slot] |= (1 << addr->function);
-        VIR_DEBUG("Reserving PCI address %s", addrStr);
+    if (bus->slot[addr->slot].functions & (1 << addr->function)) {
+        virReportError(errType,
+                       _("Attempted double use of PCI Address %s"), addrStr);
+        goto cleanup;
     }
+
+    /* if this is the first function to be reserved on this slot, and
+     * the device it's being reserved for can aggregate multiples on a
+     * slot, set the slot's aggregate flag.
+    */
+    if (!bus->slot[addr->slot].functions &&
+        flags & VIR_PCI_CONNECT_AGGREGATE_SLOT) {
+        bus->slot[addr->slot].aggregate = true;
+    }
+
+    if (virDomainPCIAddressBusIsEmpty(bus) && !bus->isolationGroupLocked) {
+        /* The first device decides the isolation group for the
+         * entire bus */
+        bus->isolationGroup = isolationGroup;
+        VIR_DEBUG("PCI bus %.4x:%.2x assigned isolation group %u because of "
+                  "first device %s",
+                  addr->domain, addr->bus, isolationGroup, addrStr);
+    } else if (bus->isolationGroup != isolationGroup && fromConfig) {
+        /* If this is not the first function and its isolation group
+         * doesn't match the bus', then it should not be using this
+         * address. However, if the address comes from the user then
+         * we comply with the request and change the isolation group
+         * back to the default (because at that point isolation can't
+         * be guaranteed anymore) */
+        bus->isolationGroup = 0;
+        VIR_DEBUG("PCI bus %.4x:%.2x assigned isolation group %u because of "
+                  "user assigned address %s",
+                  addr->domain, addr->bus, isolationGroup, addrStr);
+    }
+
+    /* mark the requested function as reserved */
+    bus->slot[addr->slot].functions |= (1 << addr->function);
+    VIR_DEBUG("Reserving PCI address %s (aggregate='%s')", addrStr,
+              bus->slot[addr->slot].aggregate ? "true" : "false");
 
     ret = 0;
  cleanup:
@@ -468,26 +633,28 @@ virDomainPCIAddressReserveAddr(virDomainPCIAddressSetPtr addrs,
 
 
 int
-virDomainPCIAddressReserveSlot(virDomainPCIAddressSetPtr addrs,
+virDomainPCIAddressReserveAddr(virDomainPCIAddressSetPtr addrs,
                                virPCIDeviceAddressPtr addr,
-                               virDomainPCIConnectFlags flags)
+                               virDomainPCIConnectFlags flags,
+                               unsigned int isolationGroup)
 {
-    return virDomainPCIAddressReserveAddr(addrs, addr, flags, true, false);
+    return virDomainPCIAddressReserveAddrInternal(addrs, addr, flags,
+                                                  isolationGroup, true);
 }
 
 int
 virDomainPCIAddressEnsureAddr(virDomainPCIAddressSetPtr addrs,
-                              virDomainDeviceInfoPtr dev)
+                              virDomainDeviceInfoPtr dev,
+                              virDomainPCIConnectFlags flags)
 {
     int ret = -1;
     char *addrStr = NULL;
-    /* Flags should be set according to the particular device,
-     * but only the caller knows the type of device. Currently this
-     * function is only used for hot-plug, though, and hot-plug is
-     * only supported for standard PCI devices, so we can safely use
-     * the setting below */
-    virDomainPCIConnectFlags flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
-                                      VIR_PCI_CONNECT_TYPE_PCI_DEVICE);
+
+    /* if flags is 0, the particular model of this device on this
+     * machinetype doesn't need a PCI address, so we're done.
+     */
+    if (!flags)
+       return 0;
 
     if (!(addrStr = virDomainPCIAddressAsString(&dev->addr.pci)))
         goto cleanup;
@@ -507,10 +674,11 @@ virDomainPCIAddressEnsureAddr(virDomainPCIAddressSetPtr addrs,
                                          addrStr, flags, true))
             goto cleanup;
 
-        ret = virDomainPCIAddressReserveAddr(addrs, &dev->addr.pci, flags,
-                                             true, true);
+        ret = virDomainPCIAddressReserveAddrInternal(addrs, &dev->addr.pci,
+                                                     flags, dev->isolationGroup,
+                                                     true);
     } else {
-        ret = virDomainPCIAddressReserveNextSlot(addrs, dev, flags);
+        ret = virDomainPCIAddressReserveNextAddr(addrs, dev, flags, -1);
     }
 
  cleanup:
@@ -523,34 +691,9 @@ int
 virDomainPCIAddressReleaseAddr(virDomainPCIAddressSetPtr addrs,
                                virPCIDeviceAddressPtr addr)
 {
-    addrs->buses[addr->bus].slots[addr->slot] &= ~(1 << addr->function);
+    addrs->buses[addr->bus].slot[addr->slot].functions &= ~(1 << addr->function);
     return 0;
 }
-
-int
-virDomainPCIAddressReleaseSlot(virDomainPCIAddressSetPtr addrs,
-                               virPCIDeviceAddressPtr addr)
-{
-    /* permit any kind of connection type in validation, since we
-     * already had it, and are giving it back.
-     */
-    virDomainPCIConnectFlags flags = VIR_PCI_CONNECT_TYPES_MASK;
-    int ret = -1;
-    char *addrStr = NULL;
-
-    if (!(addrStr = virDomainPCIAddressAsString(addr)))
-        goto cleanup;
-
-    if (!virDomainPCIAddressValidate(addrs, addr, addrStr, flags, false))
-        goto cleanup;
-
-    addrs->buses[addr->bus].slots[addr->slot] = 0;
-    ret = 0;
- cleanup:
-    VIR_FREE(addrStr);
-    return ret;
-}
-
 
 virDomainPCIAddressSetPtr
 virDomainPCIAddressSetAlloc(unsigned int nbuses)
@@ -583,57 +726,139 @@ virDomainPCIAddressSetFree(virDomainPCIAddressSetPtr addrs)
 }
 
 
-int
-virDomainPCIAddressGetNextSlot(virDomainPCIAddressSetPtr addrs,
-                               virPCIDeviceAddressPtr next_addr,
-                               virDomainPCIConnectFlags flags)
+static int
+virDomainPCIAddressFindUnusedFunctionOnBus(virDomainPCIAddressBusPtr bus,
+                                           virPCIDeviceAddressPtr searchAddr,
+                                           int function,
+                                           virDomainPCIConnectFlags flags,
+                                           bool *found)
 {
-    /* default to starting the search for a free slot from
-     * the first slot of domain 0 bus 0...
-     */
-    virPCIDeviceAddress a = {0};
+    int ret = -1;
     char *addrStr = NULL;
+
+    *found = false;
+
+    if (!(addrStr = virDomainPCIAddressAsString(searchAddr)))
+        goto cleanup;
+
+    if (!virDomainPCIAddressFlagsCompatible(searchAddr, addrStr, bus->flags,
+                                            flags, false, false)) {
+        VIR_DEBUG("PCI bus %.4x:%.2x is not compatible with the device",
+                  searchAddr->domain, searchAddr->bus);
+    } else {
+        while (searchAddr->slot <= bus->maxSlot) {
+            if (bus->slot[searchAddr->slot].functions == 0) {
+                *found = true;
+                break;
+            }
+
+            if (flags & VIR_PCI_CONNECT_AGGREGATE_SLOT &&
+                bus->slot[searchAddr->slot].aggregate) {
+                /* slot and device are okay with aggregating devices */
+                if ((bus->slot[searchAddr->slot].functions &
+                     (1 << searchAddr->function)) == 0) {
+                    *found = true;
+                    break;
+                }
+
+                /* also check for *any* unused function if caller
+                 * sent function = -1
+                 */
+                if (function == -1) {
+                    while (searchAddr->function < 8) {
+                        if ((bus->slot[searchAddr->slot].functions &
+                             (1 << searchAddr->function)) == 0) {
+                            *found = true;
+                            break; /* out of inner while */
+                        }
+                        searchAddr->function++;
+                    }
+                    if (*found)
+                       break; /* out of outer while */
+                    searchAddr->function = 0; /* reset for next try */
+                }
+            }
+
+            VIR_DEBUG("PCI slot %.4x:%.2x:%.2x already in use",
+                      searchAddr->domain, searchAddr->bus, searchAddr->slot);
+            searchAddr->slot++;
+        }
+    }
+
+    ret = 0;
+
+ cleanup:
+    VIR_FREE(addrStr);
+    return ret;
+}
+
+
+static int ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
+virDomainPCIAddressGetNextAddr(virDomainPCIAddressSetPtr addrs,
+                               virPCIDeviceAddressPtr next_addr,
+                               virDomainPCIConnectFlags flags,
+                               unsigned int isolationGroup,
+                               int function)
+{
+    virPCIDeviceAddress a = { 0 };
 
     if (addrs->nbuses == 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s", _("No PCI buses available"));
         goto error;
     }
 
-    /* ...unless this search is for the exact same type of device as
-     * last time, then continue the search from the next slot after
-     * the previous match (the "next slot" may possibly be the first
-     * slot of the next bus).
-     */
-    if (flags == addrs->lastFlags) {
-        a = addrs->lastaddr;
-        if (++a.slot > addrs->buses[a.bus].maxSlot &&
-            ++a.bus < addrs->nbuses)
-            a.slot = addrs->buses[a.bus].minSlot;
-    } else {
-        a.slot = addrs->buses[0].minSlot;
+    /* if the caller asks for "any function", give them function 0 */
+    if (function == -1)
+        a.function = 0;
+    else
+        a.function = function;
+
+    /* When looking for a suitable bus for the device, start by being
+     * very strict and ignoring all those where the isolation groups
+     * don't match. This ensures all devices sharing the same isolation
+     * group will end up on the same bus */
+    for (a.bus = 0; a.bus < addrs->nbuses; a.bus++) {
+        virDomainPCIAddressBusPtr bus = &addrs->buses[a.bus];
+        bool found = false;
+
+        if (bus->isolationGroup != isolationGroup)
+            continue;
+
+        a.slot = bus->minSlot;
+
+        if (virDomainPCIAddressFindUnusedFunctionOnBus(bus, &a, function,
+                                                       flags, &found) < 0) {
+            goto error;
+        }
+
+        if (found)
+            goto success;
     }
 
-    while (a.bus < addrs->nbuses) {
-        VIR_FREE(addrStr);
-        if (!(addrStr = virDomainPCIAddressAsString(&a)))
-            goto error;
-        if (!virDomainPCIAddressFlagsCompatible(&a, addrStr,
-                                                addrs->buses[a.bus].flags,
-                                                flags, false, false)) {
-            VIR_DEBUG("PCI bus %.4x:%.2x is not compatible with the device",
-                      a.domain, a.bus);
-        } else {
-            while (a.slot <= addrs->buses[a.bus].maxSlot) {
-                if (!virDomainPCIAddressSlotInUse(addrs, &a))
-                    goto success;
+    /* We haven't been able to find a perfectly matching bus, but we
+     * might still be able to make this work by altering the isolation
+     * group for a bus that's currently empty. So let's try that */
+    for (a.bus = 0; a.bus < addrs->nbuses; a.bus++) {
+        virDomainPCIAddressBusPtr bus = &addrs->buses[a.bus];
+        bool found = false;
 
-                VIR_DEBUG("PCI slot %.4x:%.2x:%.2x already in use",
-                          a.domain, a.bus, a.slot);
-                a.slot++;
-            }
+        /* We can only change the isolation group for a bus when
+         * plugging in the first device; moreover, some buses are
+         * prevented from ever changing it */
+        if (!virDomainPCIAddressBusIsEmpty(bus) || bus->isolationGroupLocked)
+            continue;
+
+        a.slot = bus->minSlot;
+
+        if (virDomainPCIAddressFindUnusedFunctionOnBus(bus, &a, function,
+                                                       flags, &found) < 0) {
+            goto error;
         }
-        if (++a.bus < addrs->nbuses)
-            a.slot = addrs->buses[a.bus].minSlot;
+
+        /* The isolation group for the bus will actually be changed
+         * later, in virDomainPCIAddressReserveAddrInternal() */
+        if (found)
+            goto success;
     }
 
     /* There were no free slots after the last used one */
@@ -644,55 +869,52 @@ virDomainPCIAddressGetNextSlot(virDomainPCIAddressSetPtr addrs,
         /* this device will use the first slot of the new bus */
         a.slot = addrs->buses[a.bus].minSlot;
         goto success;
-    } else if (flags == addrs->lastFlags) {
-        /* Check the buses from 0 up to the last used one */
-        for (a.bus = 0; a.bus <= addrs->lastaddr.bus; a.bus++) {
-            a.slot = addrs->buses[a.bus].minSlot;
-            VIR_FREE(addrStr);
-            if (!(addrStr = virDomainPCIAddressAsString(&a)))
-                goto error;
-            if (!virDomainPCIAddressFlagsCompatible(&a, addrStr,
-                                                    addrs->buses[a.bus].flags,
-                                                    flags, false, false)) {
-                VIR_DEBUG("PCI bus %.4x:%.2x is not compatible with the device",
-                          a.domain, a.bus);
-            } else {
-                while (a.slot <= addrs->buses[a.bus].maxSlot) {
-                    if (!virDomainPCIAddressSlotInUse(addrs, &a))
-                        goto success;
-
-                    VIR_DEBUG("PCI slot %.4x:%.2x:%.2x already in use",
-                              a.domain, a.bus, a.slot);
-                    a.slot++;
-                }
-            }
-        }
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
                    "%s", _("No more available PCI slots"));
  error:
-    VIR_FREE(addrStr);
     return -1;
 
  success:
     VIR_DEBUG("Found free PCI slot %.4x:%.2x:%.2x",
               a.domain, a.bus, a.slot);
     *next_addr = a;
-    VIR_FREE(addrStr);
     return 0;
 }
 
+
+/**
+ * virDomainPCIAddressReserveNextAddr:
+ *
+ * @addrs: a set of PCI addresses.
+ * @dev: virDomainDeviceInfo that should get the new address.
+ * @flags: CONNECT_TYPE flags for the device that needs an address.
+ * @function: which function on the slot to mark as reserved
+ *
+ * Find the next *completely unreserved* slot with compatible
+ * connection @flags, mark one function of the slot as in-use
+ * (according to @function), then set @dev->addr.pci with this newly
+ * reserved address. If @function is -1, then the lowest unused
+ * function of the slot will be reserved (and since we only look for
+ * completely unused slots, that means "0").
+ *
+ * returns 0 on success, or -1 on failure.
+ */
 int
-virDomainPCIAddressReserveNextSlot(virDomainPCIAddressSetPtr addrs,
+virDomainPCIAddressReserveNextAddr(virDomainPCIAddressSetPtr addrs,
                                    virDomainDeviceInfoPtr dev,
-                                   virDomainPCIConnectFlags flags)
+                                   virDomainPCIConnectFlags flags,
+                                   int function)
 {
     virPCIDeviceAddress addr;
-    if (virDomainPCIAddressGetNextSlot(addrs, &addr, flags) < 0)
+
+    if (virDomainPCIAddressGetNextAddr(addrs, &addr, flags,
+                                       dev->isolationGroup, function) < 0)
         return -1;
 
-    if (virDomainPCIAddressReserveSlot(addrs, &addr, flags) < 0)
+    if (virDomainPCIAddressReserveAddrInternal(addrs, &addr, flags,
+                                               dev->isolationGroup, false) < 0)
         return -1;
 
     if (!addrs->dryRun) {
@@ -700,9 +922,90 @@ virDomainPCIAddressReserveNextSlot(virDomainPCIAddressSetPtr addrs,
         dev->addr.pci = addr;
     }
 
-    addrs->lastaddr = addr;
-    addrs->lastFlags = flags;
     return 0;
+}
+
+
+static int
+virDomainPCIAddressSetMultiIter(virDomainDefPtr def ATTRIBUTE_UNUSED,
+                                virDomainDeviceDefPtr dev ATTRIBUTE_UNUSED,
+                                virDomainDeviceInfoPtr info,
+                                void *data)
+{
+    virPCIDeviceAddressPtr testAddr = data;
+    virPCIDeviceAddressPtr thisAddr;
+
+    if (!info || info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI)
+       return 0;
+
+    thisAddr = &info->addr.pci;
+
+    if (thisAddr->domain == testAddr->domain &&
+        thisAddr->bus == testAddr->bus &&
+        thisAddr->slot == testAddr->slot &&
+        thisAddr->function == 0) {
+
+        /* only set to ON if it wasn't previously set
+         * (assuming that the user must have better information
+         * than us if they explicitly set it OFF)
+         */
+        if (thisAddr->multi == VIR_TRISTATE_SWITCH_ABSENT)
+            thisAddr->multi = VIR_TRISTATE_SWITCH_ON;
+
+        return -1; /* finish early, *NOT* an error */
+    }
+
+    return 0;
+}
+
+
+static int
+virDomainPCIAddressSetAllMultiIter(virDomainDefPtr def,
+                                   virDomainDeviceDefPtr dev ATTRIBUTE_UNUSED,
+                                   virDomainDeviceInfoPtr info,
+                                   void *data ATTRIBUTE_UNUSED)
+{
+    virPCIDeviceAddressPtr testAddr;
+
+    if (!info || info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI)
+       return 0;
+
+    testAddr = &info->addr.pci;
+
+    if (testAddr->function != 0) {
+        ignore_value(virDomainDeviceInfoIterate(def,
+                                                virDomainPCIAddressSetMultiIter,
+                                                testAddr));
+    }
+
+    return 0;
+}
+
+
+/**
+ * virDomainPCIAddressSetAllMulti():
+ *
+ * @def: the domain definition whose devices may need adjusting
+ * @addrs: address set keeping track of all addresses in use.
+ *
+ * Look for any PCI slots that have multiple functions assigned, and
+ * set multi to ON in the address for the device at function 0
+ * (unless it has been explicitly set to OFF).
+ *
+ * No return code, since there is no possibility of failure.
+ */
+void
+virDomainPCIAddressSetAllMulti(virDomainDefPtr def)
+{
+    /* Use nested iterators over all the devices - the outer iterator
+     * scans through all the devices looking for those whose address
+     * has a non-0 function; when one is found, the inner iterator looks
+     * for the device that uses function 0 on the same slot and marks
+     * it as multi = ON
+     */
+    ignore_value(virDomainDeviceInfoIterate(def,
+                                            virDomainPCIAddressSetAllMultiIter,
+                                            NULL));
 }
 
 
@@ -1144,10 +1447,10 @@ virDomainVirtioSerialAddrNextFromController(virDomainVirtioSerialAddrSetPtr addr
  * or assign a virtio serial address to the device
  */
 int
-virDomainVirtioSerialAddrAutoAssign(virDomainDefPtr def,
-                                    virDomainVirtioSerialAddrSetPtr addrs,
-                                    virDomainDeviceInfoPtr info,
-                                    bool allowZero)
+virDomainVirtioSerialAddrAutoAssignFromCache(virDomainDefPtr def,
+                                             virDomainVirtioSerialAddrSetPtr addrs,
+                                             virDomainDeviceInfoPtr info,
+                                             bool allowZero)
 {
     bool portOnly = info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL;
     if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL &&
@@ -1155,6 +1458,27 @@ virDomainVirtioSerialAddrAutoAssign(virDomainDefPtr def,
         return virDomainVirtioSerialAddrReserve(NULL, NULL, info, addrs);
     else
         return virDomainVirtioSerialAddrAssign(def, addrs, info, allowZero, portOnly);
+}
+
+int
+virDomainVirtioSerialAddrAutoAssign(virDomainDefPtr def,
+                                    virDomainDeviceInfoPtr info,
+                                    bool allowZero)
+{
+    virDomainVirtioSerialAddrSetPtr addrs = NULL;
+    int ret = -1;
+
+    if (!(addrs = virDomainVirtioSerialAddrSetCreateFromDomain(def)))
+        goto cleanup;
+
+    if (virDomainVirtioSerialAddrAutoAssignFromCache(def, addrs, info, allowZero) < 0)
+        goto cleanup;
+
+    ret = 0;
+
+ cleanup:
+    virDomainVirtioSerialAddrSetFree(addrs);
+    return ret;
 }
 
 
@@ -1412,6 +1736,7 @@ virDomainUSBAddressControllerModelToPorts(virDomainControllerDefPtr cont)
         return 3;
 
     case VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI:
+    case VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI:
         if (cont->opts.usbopts.ports != -1)
             return cont->opts.usbopts.ports;
         return 4;
@@ -1515,7 +1840,7 @@ virDomainUSBAddressFindPort(virDomainUSBAddressSetPtr addrs,
                             const char *portStr)
 {
     virDomainUSBAddressHubPtr hub = NULL;
-    ssize_t i, lastIdx;
+    ssize_t i, lastIdx, targetPort;
 
     if (info->addr.usb.bus >= addrs->nbuses ||
         !addrs->buses[info->addr.usb.bus]) {
@@ -1550,12 +1875,18 @@ virDomainUSBAddressFindPort(virDomainUSBAddressSetPtr addrs,
         }
     }
 
-    *targetIdx = info->addr.usb.port[lastIdx] - 1;
+    targetPort = info->addr.usb.port[lastIdx] - 1;
+    if (targetPort >= virBitmapSize(hub->portmap)) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("requested USB port %s not present on USB bus %u"),
+                       portStr, info->addr.usb.bus);
+        return NULL;
+    }
+
+    *targetIdx = targetPort;
     return hub;
 }
 
-
-#define VIR_DOMAIN_USB_HUB_PORTS 8
 
 int
 virDomainUSBAddressSetAddHub(virDomainUSBAddressSetPtr addrs,
@@ -1742,7 +2073,8 @@ virDomainUSBAddressAssign(virDomainUSBAddressSetPtr addrs,
 
     if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB) {
         VIR_DEBUG("A USB port on bus %u was requested", info->addr.usb.bus);
-        if (!addrs->buses[info->addr.usb.bus]) {
+        if (info->addr.usb.bus >= addrs->nbuses ||
+            !addrs->buses[info->addr.usb.bus]) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("USB bus %u requested but no controller "
                              "with that index is present"), info->addr.usb.bus);
@@ -1761,6 +2093,18 @@ virDomainUSBAddressAssign(virDomainUSBAddressSetPtr addrs,
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("No free USB ports"));
+    return -1;
+}
+
+
+int
+virDomainUSBAddressPresent(virDomainDeviceInfoPtr info,
+                           void *data ATTRIBUTE_UNUSED)
+{
+    if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB &&
+        virDomainUSBAddressPortIsValid(info->addr.usb.port))
+        return 0;
+
     return -1;
 }
 

@@ -26,16 +26,18 @@
  */
 
 #ifdef LIBVIRT_SETUID_RPC_CLIENT
-# undef HAVE_LIBDEVMAPPER_H
 # undef HAVE_LIBNL
 # undef HAVE_LIBNL3
 # undef HAVE_LIBSASL2
+# undef HAVE_SYS_ACL_H
 # undef WITH_CAPNG
 # undef WITH_CURL
 # undef WITH_DBUS
+# undef WITH_DEVMAPPER
 # undef WITH_DTRACE_PROBES
 # undef WITH_GNUTLS
 # undef WITH_GNUTLS_GCRYPT
+# undef WITH_LIBSSH
 # undef WITH_MACVTAP
 # undef WITH_NUMACTL
 # undef WITH_SASL
@@ -51,15 +53,17 @@
  * explanation above.
  */
 #ifdef LIBVIRT_NSS
-# undef HAVE_LIBDEVMAPPER_H
 # undef HAVE_LIBNL
 # undef HAVE_LIBNL3
 # undef HAVE_LIBSASL2
+# undef HAVE_SYS_ACL_H
 # undef WITH_CAPNG
 # undef WITH_CURL
+# undef WITH_DEVMAPPER
 # undef WITH_DTRACE_PROBES
 # undef WITH_GNUTLS
 # undef WITH_GNUTLS_GCRYPT
+# undef WITH_LIBSSH
 # undef WITH_MACVTAP
 # undef WITH_NUMACTL
 # undef WITH_SASL
@@ -70,20 +74,22 @@
 # undef WITH_CAPNG
 #endif /* LIBVIRT_NSS */
 
+#ifndef __GNUC__
+# error "Libvirt requires GCC >= 4.4, or CLang"
+#endif
+
 /*
- * Define __GNUC__ to a sane default if it isn't yet defined.
+ * Define __GNUC_PREREQ to a sane default if it isn't yet defined.
  * This is done here so that it's included as early as possible; gnulib relies
  * on this to be defined in features.h, which should be included from ctype.h.
  * This doesn't happen on many non-glibc systems.
- * When __GNUC__ is not defined, gnulib defines it to 0, which breaks things.
+ * When __GNUC_PREREQ is not defined, gnulib defines it to 0, which breaks things.
  */
-#ifdef __GNUC__
-# ifndef __GNUC_PREREQ
-#  if defined __GNUC__ && defined __GNUC_MINOR__
-#   define __GNUC_PREREQ(maj, min)                                        \
-   ((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
-#  else
-#   define __GNUC_PREREQ(maj, min) 0
-#  endif
-# endif
+#ifndef __GNUC_PREREQ
+# define __GNUC_PREREQ(maj, min)                                        \
+    ((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
+#endif
+
+#if !(__GNUC_PREREQ(4, 4) || defined(__clang__))
+# error "Libvirt requires GCC >= 4.4, or CLang"
 #endif

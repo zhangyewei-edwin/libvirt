@@ -167,6 +167,14 @@ typedef enum {
 # endif
 } virStorageVolWipeAlgorithm;
 
+typedef enum {
+    VIR_STORAGE_VOL_USE_ALLOCATION = 0,
+
+    /* Return the physical size in allocation */
+    VIR_STORAGE_VOL_GET_PHYSICAL = 1 << 0,
+
+} virStorageVolInfoFlags;
+
 typedef struct _virStorageVolInfo virStorageVolInfo;
 
 struct _virStorageVolInfo {
@@ -232,6 +240,7 @@ typedef enum {
     VIR_CONNECT_LIST_STORAGE_POOLS_SHEEPDOG      = 1 << 15,
     VIR_CONNECT_LIST_STORAGE_POOLS_GLUSTER       = 1 << 16,
     VIR_CONNECT_LIST_STORAGE_POOLS_ZFS           = 1 << 17,
+    VIR_CONNECT_LIST_STORAGE_POOLS_VSTORAGE      = 1 << 18,
 } virConnectListAllStoragePoolsFlags;
 
 int                     virConnectListAllStoragePools(virConnectPtr conn,
@@ -337,11 +346,20 @@ virStorageVolPtr        virStorageVolCreateXMLFrom      (virStoragePoolPtr pool,
                                                          const char *xmldesc,
                                                          virStorageVolPtr clonevol,
                                                          unsigned int flags);
+
+typedef enum {
+    VIR_STORAGE_VOL_DOWNLOAD_SPARSE_STREAM = 1 << 0, /* Use sparse stream */
+} virStorageVolDownloadFlags;
+
 int                     virStorageVolDownload           (virStorageVolPtr vol,
                                                          virStreamPtr stream,
                                                          unsigned long long offset,
                                                          unsigned long long length,
                                                          unsigned int flags);
+typedef enum {
+    VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM = 1 << 0,  /* Use sparse stream */
+} virStorageVolUploadFlags;
+
 int                     virStorageVolUpload             (virStorageVolPtr vol,
                                                          virStreamPtr stream,
                                                          unsigned long long offset,
@@ -359,6 +377,9 @@ int                     virStorageVolFree               (virStorageVolPtr vol);
 
 int                     virStorageVolGetInfo            (virStorageVolPtr vol,
                                                          virStorageVolInfoPtr info);
+int                     virStorageVolGetInfoFlags       (virStorageVolPtr vol,
+                                                         virStorageVolInfoPtr info,
+                                                         unsigned int flags);
 char *                  virStorageVolGetXMLDesc         (virStorageVolPtr pool,
                                                          unsigned int flags);
 

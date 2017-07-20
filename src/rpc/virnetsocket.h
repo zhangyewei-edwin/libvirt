@@ -100,6 +100,19 @@ int virNetSocketNewConnectLibSSH2(const char *host,
                                   virURIPtr uri,
                                   virNetSocketPtr *retsock);
 
+int virNetSocketNewConnectLibssh(const char *host,
+                                 const char *port,
+                                 int family,
+                                 const char *username,
+                                 const char *privkey,
+                                 const char *knownHosts,
+                                 const char *knownHostsVerify,
+                                 const char *authMethods,
+                                 const char *command,
+                                 virConnectAuthPtr auth,
+                                 virURIPtr uri,
+                                 virNetSocketPtr *retsock);
+
 int virNetSocketNewConnectExternal(const char **cmdargv,
                                    virNetSocketPtr *addr);
 
@@ -123,12 +136,16 @@ int virNetSocketGetUNIXIdentity(virNetSocketPtr sock,
                                 uid_t *uid,
                                 gid_t *gid,
                                 pid_t *pid,
-                                unsigned long long *timestamp);
+                                unsigned long long *timestamp)
+    ATTRIBUTE_NOINLINE;
 int virNetSocketGetSELinuxContext(virNetSocketPtr sock,
-                                  char **context);
+                                  char **context)
+    ATTRIBUTE_NOINLINE;
 
 int virNetSocketSetBlocking(virNetSocketPtr sock,
                             bool blocking);
+
+void virNetSocketSetQuietEOF(virNetSocketPtr sock);
 
 ssize_t virNetSocketRead(virNetSocketPtr sock, char *buf, size_t len);
 ssize_t virNetSocketWrite(virNetSocketPtr sock, const char *buf, size_t len);

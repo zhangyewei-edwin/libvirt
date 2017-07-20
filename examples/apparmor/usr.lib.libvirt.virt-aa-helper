@@ -16,12 +16,23 @@ profile virt-aa-helper /usr/{lib,lib64}/libvirt/virt-aa-helper {
   owner @{PROC}/[0-9]*/status r,
   @{PROC}/filesystems r,
 
+  /etc/libnl-3/classid r,
+
   # for hostdev
   /sys/devices/ r,
   /sys/devices/** r,
+  deny /dev/sd* r,
+  deny /dev/vd* r,
+  deny /dev/dm-* r,
+  deny /dev/drbd[0-9]* r,
+  deny /dev/dasd* r,
+  deny /dev/nvme* r,
+  deny /dev/zd[0-9]* r,
+  deny /dev/mapper/ r,
+  deny /dev/mapper/* r,
 
   /usr/{lib,lib64}/libvirt/virt-aa-helper mr,
-  /sbin/apparmor_parser Ux,
+  /{usr/,}sbin/apparmor_parser Ux,
 
   /etc/apparmor.d/libvirt/* r,
   /etc/apparmor.d/libvirt/libvirt-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]* rw,

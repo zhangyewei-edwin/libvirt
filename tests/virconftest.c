@@ -394,7 +394,7 @@ static int testConfParseStringList(const void *opaque ATTRIBUTE_UNUSED)
 
     ret = 0;
  cleanup:
-    virStringFreeList(str);
+    virStringListFree(str);
     virConfFree(conf);
     return ret;
 }
@@ -430,4 +430,4 @@ mymain(void)
 }
 
 
-VIRT_TEST_MAIN(mymain)
+VIR_TEST_MAIN(mymain)

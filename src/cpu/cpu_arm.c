@@ -37,12 +37,6 @@ static const virArch archs[] = {
     VIR_ARCH_AARCH64,
 };
 
-static void
-armDataFree(virCPUDataPtr data)
-{
-    VIR_FREE(data);
-}
-
 
 static int
 virCPUarmUpdate(virCPUDefPtr guest,
@@ -67,7 +61,7 @@ virCPUarmUpdate(virCPUDefPtr guest,
     if (virCPUDefCopyModel(updated, host, true) < 0)
         goto cleanup;
 
-    virCPUDefStealModel(guest, updated);
+    virCPUDefStealModel(guest, updated, false);
     guest->mode = VIR_CPU_MODE_CUSTOM;
     guest->match = VIR_CPU_MATCH_EXACT;
     ret = 0;
@@ -78,26 +72,14 @@ virCPUarmUpdate(virCPUDefPtr guest,
 }
 
 
-static virCPUCompareResult
-armGuestData(virCPUDefPtr host ATTRIBUTE_UNUSED,
-             virCPUDefPtr guest ATTRIBUTE_UNUSED,
-             virCPUDataPtr *data ATTRIBUTE_UNUSED,
-             char **message ATTRIBUTE_UNUSED)
-{
-    return VIR_CPU_COMPARE_IDENTICAL;
-}
-
 static virCPUDefPtr
 armBaseline(virCPUDefPtr *cpus,
             unsigned int ncpus ATTRIBUTE_UNUSED,
             const char **models ATTRIBUTE_UNUSED,
             unsigned int nmodels ATTRIBUTE_UNUSED,
-            unsigned int flags)
+            bool migratable ATTRIBUTE_UNUSED)
 {
     virCPUDefPtr cpu = NULL;
-
-    virCheckFlags(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES |
-                  VIR_CONNECT_BASELINE_CPU_MIGRATABLE, NULL);
 
     if (VIR_ALLOC(cpu) < 0 ||
         VIR_STRDUP(cpu->model, cpus[0]->model) < 0) {
@@ -126,9 +108,6 @@ struct cpuArchDriver cpuDriverArm = {
     .compare = virCPUarmCompare,
     .decode = NULL,
     .encode = NULL,
-    .free = armDataFree,
-    .nodeData = NULL,
-    .guestData = armGuestData,
     .baseline = armBaseline,
     .update = virCPUarmUpdate,
 };

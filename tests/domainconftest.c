@@ -52,7 +52,7 @@ static int testGetFilesystem(const void *opaque)
                     abs_srcdir, data->filename) < 0)
         goto cleanup;
 
-    if (!(def = virDomainDefParseFile(filename, caps, xmlopt, 0)))
+    if (!(def = virDomainDefParseFile(filename, caps, xmlopt, NULL, 0)))
         goto cleanup;
 
     fsdef = virDomainGetFilesystemForTarget(def,
@@ -113,4 +113,4 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIRT_TEST_MAIN(mymain)
+VIR_TEST_MAIN(mymain)

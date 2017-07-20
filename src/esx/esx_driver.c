@@ -1509,12 +1509,10 @@ esxDomainLookupByID(virConnectPtr conn, int id)
         if (id != id_candidate)
             continue;
 
-        domain = virGetDomain(conn, name_candidate, uuid_candidate);
+        domain = virGetDomain(conn, name_candidate, uuid_candidate, id);
 
         if (!domain)
             goto cleanup;
-
-        domain->id = id;
 
         break;
     }
@@ -1557,17 +1555,11 @@ esxDomainLookupByUUID(virConnectPtr conn, const unsigned char *uuid)
         goto cleanup;
     }
 
-    domain = virGetDomain(conn, name, uuid);
-
-    if (!domain)
-        goto cleanup;
-
     /* Only running/suspended virtual machines have an ID != -1 */
-    if (powerState != esxVI_VirtualMachinePowerState_PoweredOff) {
-        domain->id = id;
-    } else {
-        domain->id = -1;
-    }
+    if (powerState == esxVI_VirtualMachinePowerState_PoweredOff)
+        id = -1;
+
+    domain = virGetDomain(conn, name, uuid, id);
 
  cleanup:
     esxVI_String_Free(&propertyNameList);
@@ -1613,17 +1605,11 @@ esxDomainLookupByName(virConnectPtr conn, const char *name)
         goto cleanup;
     }
 
-    domain = virGetDomain(conn, name, uuid);
-
-    if (!domain)
-        goto cleanup;
-
     /* Only running/suspended virtual machines have an ID != -1 */
-    if (powerState != esxVI_VirtualMachinePowerState_PoweredOff) {
-        domain->id = id;
-    } else {
-        domain->id = -1;
-    }
+    if (powerState == esxVI_VirtualMachinePowerState_PoweredOff)
+        id = -1;
+
+    domain = virGetDomain(conn, name, uuid, id);
 
  cleanup:
     esxVI_String_Free(&propertyNameList);
@@ -2831,7 +2817,7 @@ esxConnectDomainXMLToNative(virConnectPtr conn, const char *nativeFormat,
         return NULL;
 
     def = virDomainDefParseString(domainXml, priv->caps, priv->xmlopt,
-                                  VIR_DOMAIN_DEF_PARSE_INACTIVE);
+                                  NULL, VIR_DOMAIN_DEF_PARSE_INACTIVE);
 
     if (!def)
         return NULL;
@@ -3046,10 +3032,13 @@ esxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
 
     /* Parse domain XML */
     def = virDomainDefParseString(xml, priv->caps, priv->xmlopt,
-                                  parse_flags);
+                                  NULL, parse_flags);
 
     if (!def)
         return NULL;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
+        goto cleanup;
 
     /* Check if an existing domain should be edited */
     if (esxVI_LookupVirtualMachineByUuid(priv->primary, def->uuid, NULL,
@@ -3205,10 +3194,7 @@ esxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
         goto cleanup;
     }
 
-    domain = virGetDomain(conn, def->name, def->uuid);
-
-    if (domain)
-        domain->id = -1;
+    domain = virGetDomain(conn, def->name, def->uuid, -1);
 
     /* FIXME: Add proper rollback in case of an error */
 
@@ -4279,7 +4265,7 @@ esxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
 
     virUUIDFormat(snapshot->domain->uuid, uuid_string);
 
-    xml = virDomainSnapshotDefFormat(uuid_string, &def, priv->caps,
+    xml = virDomainSnapshotDefFormat(uuid_string, &def, priv->caps, priv->xmlopt,
                                      virDomainDefFormatConvertXMLFlags(flags),
                                      0);
 
@@ -5102,14 +5088,12 @@ esxConnectListAllDomains(virConnectPtr conn,
         if (VIR_RESIZE_N(doms, ndoms, count, 2) < 0)
             goto cleanup;
 
-        if (!(dom = virGetDomain(conn, name, uuid)))
-            goto cleanup;
-
         /* Only running/suspended virtual machines have an ID != -1 */
-        if (powerState != esxVI_VirtualMachinePowerState_PoweredOff)
-            dom->id = id;
-        else
-            dom->id = -1;
+        if (powerState == esxVI_VirtualMachinePowerState_PoweredOff)
+            id = -1;
+
+        if (!(dom = virGetDomain(conn, name, uuid, id)))
+            goto cleanup;
 
         doms[count++] = dom;
     }

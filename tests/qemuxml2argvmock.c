@@ -28,9 +28,11 @@
 #include "virnetdev.h"
 #include "virnetdevip.h"
 #include "virnetdevtap.h"
+#include "virnetdevopenvswitch.h"
 #include "virnuma.h"
 #include "virrandom.h"
 #include "virscsi.h"
+#include "virscsivhost.h"
 #include "virstring.h"
 #include "virtpm.h"
 #include "virutil.h"
@@ -107,6 +109,14 @@ virSCSIDeviceGetSgName(const char *sysfs_prefix ATTRIBUTE_UNUSED,
 }
 
 int
+virSCSIVHostOpenVhostSCSI(int *vhostfd)
+{
+    *vhostfd = STDERR_FILENO + 1;
+
+    return 0;
+}
+
+int
 virNetDevTapCreate(char **ifname,
                    const char *tunpath ATTRIBUTE_UNUSED,
                    int *tapfd,
@@ -170,4 +180,11 @@ virCryptoGenerateRandom(size_t nbytes)
     ignore_value(virRandomBytes(buf, nbytes));
 
     return buf;
+}
+
+int
+virNetDevOpenvswitchGetVhostuserIfname(const char *path ATTRIBUTE_UNUSED,
+                                       char **ifname)
+{
+    return VIR_STRDUP(*ifname, "vhost-user0");
 }

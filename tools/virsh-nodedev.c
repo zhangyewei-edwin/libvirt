@@ -156,7 +156,7 @@ cmdNodeDeviceDestroy(vshControl *ctl, const vshCmd *cmd)
 
     ret = true;
  cleanup:
-    virStringFreeList(arr);
+    virStringListFree(arr);
     if (dev)
         virNodeDeviceFree(dev);
     return ret;
@@ -414,7 +414,7 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd ATTRIBUTE_UNUSED)
             goto cleanup;
         }
 
-        switch (cap_type) {
+        switch ((virNodeDevCapType) cap_type) {
         case VIR_NODE_DEV_CAP_SYSTEM:
             flags |= VIR_CONNECT_LIST_NODE_DEVICES_CAP_SYSTEM;
             break;
@@ -451,7 +451,19 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd ATTRIBUTE_UNUSED)
         case VIR_NODE_DEV_CAP_SCSI_GENERIC:
             flags |= VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI_GENERIC;
             break;
-        default:
+        case VIR_NODE_DEV_CAP_DRM:
+            flags |= VIR_CONNECT_LIST_NODE_DEVICES_CAP_DRM;
+            break;
+        case VIR_NODE_DEV_CAP_MDEV_TYPES:
+            flags |= VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV_TYPES;
+            break;
+        case VIR_NODE_DEV_CAP_MDEV:
+            flags |= VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV;
+            break;
+        case VIR_NODE_DEV_CAP_CCW_DEV:
+            flags |= VIR_CONNECT_LIST_NODE_DEVICES_CAP_CCW_DEV;
+            break;
+        case VIR_NODE_DEV_CAP_LAST:
             break;
         }
     }
@@ -498,7 +510,7 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd ATTRIBUTE_UNUSED)
     }
 
  cleanup:
-    virStringFreeList(caps);
+    virStringListFree(caps);
     virshNodeDeviceListFree(list);
     return ret;
 }
@@ -567,7 +579,7 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
 
     ret = true;
  cleanup:
-    virStringFreeList(arr);
+    virStringListFree(arr);
     VIR_FREE(xml);
     if (device)
         virNodeDeviceFree(device);
@@ -818,7 +830,7 @@ vshEventGenericPrint(virConnectPtr conn ATTRIBUTE_UNUSED,
         if (virTimeStringNowRaw(timestamp) < 0)
             timestamp[0] = '\0';
 
-        vshPrint(data->ctl, _("%s: event '%s'' for node device %s\n"),
+        vshPrint(data->ctl, _("%s: event '%s' for node device %s\n"),
                  timestamp,
                  data->cb->name,
                  virNodeDeviceGetName(dev));

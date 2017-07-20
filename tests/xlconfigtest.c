@@ -89,15 +89,15 @@ testCompareParseXML(const char *xlcfg, const char *xml, bool replaceVars)
         if (!(replacedXML = testReplaceVarsXML(xml)))
             goto fail;
         if (!(def = virDomainDefParseString(replacedXML, caps, xmlopt,
-                                            VIR_DOMAIN_XML_INACTIVE)))
+                                            NULL, VIR_DOMAIN_XML_INACTIVE)))
             goto fail;
     } else {
         if (!(def = virDomainDefParseFile(xml, caps, xmlopt,
-                                          VIR_DOMAIN_XML_INACTIVE)))
+                                          NULL, VIR_DOMAIN_XML_INACTIVE)))
             goto fail;
     }
 
-    if (!virDomainDefCheckABIStability(def, def)) {
+    if (!virDomainDefCheckABIStability(def, def, xmlopt)) {
         fprintf(stderr, "ABI stability check failed on %s", xml);
         goto fail;
     }
@@ -258,16 +258,28 @@ mymain(void)
     DO_TEST("new-disk");
     DO_TEST_FORMAT("disk-positional-parms-full", false);
     DO_TEST_FORMAT("disk-positional-parms-partial", false);
+#ifdef LIBXL_HAVE_QED
+    DO_TEST_FORMAT("disk-qed", false);
+#endif
     DO_TEST("spice");
     DO_TEST("spice-features");
     DO_TEST("vif-rate");
     DO_TEST("fullvirt-nohap");
+    DO_TEST("fullvirt-hpet-timer");
+    DO_TEST("fullvirt-tsc-timer");
+    DO_TEST("fullvirt-multi-timer");
+    DO_TEST("fullvirt-nestedhvm");
+    DO_TEST("fullvirt-nestedhvm-disabled");
 
     DO_TEST("paravirt-cmdline");
     DO_TEST_FORMAT("paravirt-cmdline-extra-root", false);
     DO_TEST_FORMAT("paravirt-cmdline-bogus-extra-root", false);
     DO_TEST("rbd-multihost-noauth");
 
+#ifdef LIBXL_HAVE_DEVICE_CHANNEL
+    DO_TEST("channel-pty");
+    DO_TEST("channel-unix");
+#endif
 #ifdef LIBXL_HAVE_BUILDINFO_SERIAL_LIST
     DO_TEST("fullvirt-multiserial");
 #endif
@@ -289,4 +301,4 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIRT_TEST_MAIN(mymain)
+VIR_TEST_MAIN(mymain)

@@ -30,6 +30,7 @@
 # include <dirent.h>
 
 # include "internal.h"
+# include "virbitmap.h"
 # include "virstoragefile.h"
 
 typedef enum {
@@ -101,11 +102,14 @@ void virFileWrapperFdFree(virFileWrapperFdPtr dfd);
 int virFileLock(int fd, bool shared, off_t start, off_t len, bool waitForLock);
 int virFileUnlock(int fd, off_t start, off_t len);
 
-typedef int (*virFileRewriteFunc)(int fd, void *opaque);
+typedef int (*virFileRewriteFunc)(int fd, const void *opaque);
 int virFileRewrite(const char *path,
                    mode_t mode,
                    virFileRewriteFunc rewrite,
-                   void *opaque);
+                   const void *opaque);
+int virFileRewriteStr(const char *path,
+                      mode_t mode,
+                      const char *str);
 
 int virFileTouch(const char *path, mode_t mode);
 
@@ -163,6 +167,9 @@ int virFileResolveAllLinks(const char *linkpath,
 int virFileIsLink(const char *linkpath)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_RETURN_CHECK;
 
+int virFileReadLink(const char *linkpath, char **resultpath)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_RETURN_CHECK;
+
 char *virFindFileInPath(const char *file);
 
 char *virFileFindResource(const char *filename,
@@ -179,8 +186,9 @@ char *virFileFindResourceFull(const char *filename,
 void virFileActivateDirOverride(const char *argv0)
     ATTRIBUTE_NONNULL(1);
 
+off_t virFileLength(const char *path, int fd) ATTRIBUTE_NONNULL(1);
 bool virFileIsDir (const char *file) ATTRIBUTE_NONNULL(1);
-bool virFileExists(const char *file) ATTRIBUTE_NONNULL(1);
+bool virFileExists(const char *file) ATTRIBUTE_NONNULL(1) ATTRIBUTE_NOINLINE;
 bool virFileIsExecutable(const char *file) ATTRIBUTE_NONNULL(1);
 
 enum {
@@ -285,8 +293,6 @@ int virFileOpenTty(int *ttymaster,
 
 char *virFileFindMountPoint(const char *type);
 
-void virFileWaitForDevices(void);
-
 /* NB: this should be combined with virFileBuildPath */
 # define virBuildPath(path, ...) \
     virBuildPathInternal(path, __VA_ARGS__, NULL)
@@ -307,4 +313,43 @@ int virFileGetHugepageSize(const char *path,
                            unsigned long long *size);
 int virFileFindHugeTLBFS(virHugeTLBFSPtr *ret_fs,
                          size_t *ret_nfs);
+
+int virFileSetupDev(const char *path,
+                    const char *mount_options);
+
+int virFileBindMountDevice(const char *src,
+                           const char *dst);
+
+int virFileMoveMount(const char *src,
+                     const char *dst);
+
+int virFileGetACLs(const char *file,
+                   void **acl);
+
+int virFileSetACLs(const char *file,
+                   void *acl);
+
+void virFileFreeACLs(void **acl);
+
+int virFileCopyACLs(const char *src,
+                    const char *dst);
+
+int virFileComparePaths(const char *p1, const char *p2);
+
+int virFileReadValueInt(int *value, const char *format, ...)
+ ATTRIBUTE_FMT_PRINTF(2, 3);
+int virFileReadValueUint(unsigned int *value, const char *format, ...)
+ ATTRIBUTE_FMT_PRINTF(2, 3);
+int virFileReadValueBitmap(virBitmapPtr *value, const char *format, ...)
+ ATTRIBUTE_FMT_PRINTF(2, 3);
+int virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
+ ATTRIBUTE_FMT_PRINTF(2, 3);
+int virFileReadValueString(char **value, const char *format, ...)
+ ATTRIBUTE_FMT_PRINTF(2, 3);
+
+
+int virFileInData(int fd,
+                  int *inData,
+                  long long *length);
+
 #endif /* __VIR_FILE_H */

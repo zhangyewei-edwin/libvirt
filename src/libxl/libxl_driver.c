@@ -61,7 +61,7 @@
 #include "virhostdev.h"
 #include "network/bridge_driver.h"
 #include "locking/domain_lock.h"
-#include "virstats.h"
+#include "virnetdevtap.h"
 #include "cpu/cpu.h"
 
 #define VIR_FROM_THIS VIR_FROM_LIBXL
@@ -406,6 +406,8 @@ libxlReconnectDomain(virDomainObjPtr vm,
     /* Update domid in case it changed (e.g. reboot) while we were gone? */
     vm->def->id = d_info.domid;
 
+    libxlLoggerOpenFile(cfg->logger, vm->def->id, vm->def->name, NULL);
+
     /* Update hostdev state */
     if (virHostdevUpdateActiveDomainDevices(hostdev_mgr, LIBXL_DRIVER_NAME,
                                             vm->def, hostdev_flags) < 0)
@@ -479,7 +481,7 @@ libxlStateCleanup(void)
     virObjectUnref(libxl_driver->migrationPorts);
     virLockManagerPluginUnref(libxl_driver->lockManager);
 
-    virObjectEventStateFree(libxl_driver->domainEventState);
+    virObjectUnref(libxl_driver->domainEventState);
     virSysinfoDefFree(libxl_driver->hostsysinfo);
 
     virMutexDestroy(&libxl_driver->lock);
@@ -574,6 +576,7 @@ libxlAddDom0(libxlDriverPrivatePtr driver)
     virDomainObjPtr vm = NULL;
     virDomainDefPtr oldDef = NULL;
     libxl_dominfo d_info;
+    unsigned long long maxmem;
     int ret = -1;
 
     libxl_dominfo_init(&d_info);
@@ -613,7 +616,9 @@ libxlAddDom0(libxlDriverPrivatePtr driver)
     if (virDomainDefSetVcpus(vm->def, d_info.vcpu_online) < 0)
         goto cleanup;
     vm->def->mem.cur_balloon = d_info.current_memkb;
-    virDomainDefSetMemoryTotal(vm->def, d_info.max_memkb);
+    if (libxlDriverGetDom0MaxmemConf(cfg, &maxmem) < 0)
+        maxmem = d_info.current_memkb;
+    virDomainDefSetMemoryTotal(vm->def, maxmem);
 
     ret = 0;
 
@@ -715,6 +720,13 @@ libxlStateInitialize(bool privileged,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to create dump dir '%s': %s"),
                        cfg->autoDumpDir,
+                       virStrerror(errno, ebuf, sizeof(ebuf)));
+        goto error;
+    }
+    if (virFileMakePath(cfg->channelDir) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("failed to create channel dir '%s': %s"),
+                       cfg->channelDir,
                        virStrerror(errno, ebuf, sizeof(ebuf)));
         goto error;
     }
@@ -1027,7 +1039,7 @@ libxlDomainCreateXML(virConnectPtr conn, const char *xml,
         parse_flags |= VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
 
     if (!(def = virDomainDefParseString(xml, cfg->caps, driver->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
         goto cleanup;
 
     if (virDomainCreateXMLEnsureACL(conn, def) < 0)
@@ -1060,9 +1072,7 @@ libxlDomainCreateXML(virConnectPtr conn, const char *xml,
         goto endjob;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  endjob:
     libxlDomainObjEndJob(driver, vm);
@@ -1090,9 +1100,7 @@ libxlDomainLookupByID(virConnectPtr conn, int id)
     if (virDomainLookupByIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -1116,9 +1124,7 @@ libxlDomainLookupByUUID(virConnectPtr conn, const unsigned char *uuid)
     if (virDomainLookupByUUIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -1142,9 +1148,7 @@ libxlDomainLookupByName(virConnectPtr conn, const char *name)
     if (virDomainLookupByNameEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1631,10 +1635,10 @@ libxlDomainGetInfo(virDomainPtr dom, virDomainInfoPtr info)
     if (virDomainGetInfoEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
+    info->maxMem = virDomainDefGetMemoryTotal(vm->def);
     if (!virDomainObjIsActive(vm)) {
         info->cpuTime = 0;
         info->memory = vm->def->mem.cur_balloon;
-        info->maxMem = virDomainDefGetMemoryTotal(vm->def);
     } else {
         libxl_dominfo_init(&d_info);
 
@@ -1646,7 +1650,6 @@ libxlDomainGetInfo(virDomainPtr dom, virDomainInfoPtr info)
         }
         info->cpuTime = d_info.cpu_time;
         info->memory = d_info.current_memkb;
-        info->maxMem = d_info.max_memkb;
 
         libxl_dominfo_dispose(&d_info);
     }
@@ -2356,6 +2359,13 @@ libxlDomainGetVcpusFlags(virDomainPtr dom, unsigned int flags)
 }
 
 static int
+libxlDomainGetMaxVcpus(virDomainPtr dom)
+{
+    return libxlDomainGetVcpusFlags(dom, (VIR_DOMAIN_AFFECT_LIVE |
+                                          VIR_DOMAIN_VCPU_MAXIMUM));
+}
+
+static int
 libxlDomainPinVcpuFlags(virDomainPtr dom, unsigned int vcpu,
                         unsigned char *cpumap, int maplen,
                         unsigned int flags)
@@ -2655,7 +2665,7 @@ libxlConnectDomainXMLToNative(virConnectPtr conn, const char * nativeFormat,
         goto cleanup;
 
     if (!(def = virDomainDefParseString(domainXml,
-                                        cfg->caps, driver->xmlopt,
+                                        cfg->caps, driver->xmlopt, NULL,
                                         VIR_DOMAIN_DEF_PARSE_INACTIVE)))
         goto cleanup;
 
@@ -2781,7 +2791,10 @@ libxlDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
         parse_flags |= VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
 
     if (!(def = virDomainDefParseString(xml, cfg->caps, driver->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
         goto cleanup;
 
     if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
@@ -2804,9 +2817,7 @@ libxlDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
     event = virDomainEventLifecycleNewFromObj(vm, VIR_DOMAIN_EVENT_DEFINED,
                                      !oldDef ?
@@ -3009,6 +3020,7 @@ libxlDomainAttachDeviceDiskLive(virDomainObjPtr vm, virDomainDeviceDefPtr dev)
                     goto cleanup;
                 }
 
+                libxlUpdateDiskDef(l_disk, &x_disk);
                 virDomainDiskInsertPreAlloced(vm->def, l_disk);
 
             } else {
@@ -3321,7 +3333,7 @@ libxlDomainAttachNetDevice(libxlDriverPrivatePtr driver,
                            virDomainNetDefPtr net)
 {
     libxlDriverConfigPtr cfg = libxlDriverConfigGet(driver);
-    int actualType;
+    virDomainNetType actualType;
     libxl_device_nic nic;
     int ret = -1;
     char mac[VIR_MAC_STRING_BUFLEN];
@@ -3369,7 +3381,7 @@ libxlDomainAttachNetDevice(libxlDriverPrivatePtr driver,
         goto cleanup;
     }
 
-    if (libxlMakeNic(vm->def, net, &nic) < 0)
+    if (libxlMakeNic(vm->def, net, &nic, true) < 0)
         goto cleanup;
 
     if (libxl_device_nic_add(cfg->ctx, vm->def->id, &nic, 0)) {
@@ -4264,6 +4276,7 @@ libxlNodeGetFreeMemory(virConnectPtr conn)
     libxlDriverConfigPtr cfg = libxlDriverConfigGet(driver);
     unsigned long long ret = 0;
 
+    libxl_physinfo_init(&phy_info);
     if (virNodeGetFreeMemoryEnsureACL(conn) < 0)
         goto cleanup;
 
@@ -4276,6 +4289,7 @@ libxlNodeGetFreeMemory(virConnectPtr conn)
     ret = phy_info.free_pages * cfg->verInfo->pagesize;
 
  cleanup:
+    libxl_physinfo_dispose(&phy_info);
     virObjectUnref(cfg);
     return ret;
 }
@@ -4564,7 +4578,7 @@ libxlDomainGetSchedulerParametersFlags(virDomainPtr dom,
         goto cleanup;
 
     if (*nparams > 1) {
-        if (virTypedParameterAssign(&params[0], VIR_DOMAIN_SCHEDULER_CAP,
+        if (virTypedParameterAssign(&params[1], VIR_DOMAIN_SCHEDULER_CAP,
                                     VIR_TYPED_PARAM_UINT, sc_info.cap) < 0)
             goto cleanup;
     }
@@ -4717,7 +4731,7 @@ libxlDomainOpenConsole(virDomainPtr dom,
         goto cleanup;
     }
 
-    if (chr->source.type != VIR_DOMAIN_CHR_TYPE_PTY) {
+    if (chr->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("character device %s is not using a PTY"),
                        dev_name ? dev_name : NULLSTR(chr->info.alias));
@@ -4726,7 +4740,7 @@ libxlDomainOpenConsole(virDomainPtr dom,
 
     /* handle mutually exclusive access to console devices */
     ret = virChrdevOpen(priv->devs,
-                        &chr->source,
+                        chr->source,
                         st,
                         (flags & VIR_DOMAIN_CONSOLE_FORCE) != 0);
 
@@ -4975,7 +4989,7 @@ libxlDomainInterfaceStats(virDomainPtr dom,
     }
 
     if (ret == 0)
-        ret = virNetInterfaceStats(path, stats);
+        ret = virNetDevTapInterfaceStats(path, stats);
     else
         virReportError(VIR_ERR_INVALID_ARG,
                        _("'%s' is not a known interface"), path);
@@ -5153,7 +5167,7 @@ libxlDomainMemoryStats(virDomainPtr dom,
         goto endjob;
     }
     mem = d_info.current_memkb;
-    maxmem = d_info.max_memkb;
+    maxmem = virDomainDefGetMemoryTotal(vm->def);
 
     LIBXL_SET_MEMSTAT(VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON, mem);
     LIBXL_SET_MEMSTAT(VIR_DOMAIN_MEMORY_STAT_AVAILABLE, maxmem);
@@ -5447,8 +5461,7 @@ libxlDomainBlockStatsGatherSingle(virDomainObjPtr vm,
         disk_drv = "qemu";
 
     if (STREQ(disk_drv, "phy")) {
-        if (disk_fmt != VIR_STORAGE_FILE_RAW &&
-            disk_fmt != VIR_STORAGE_FILE_NONE) {
+        if (disk_fmt != VIR_STORAGE_FILE_RAW) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                            _("unsupported format %s"),
                            virStorageFileFormatTypeToString(disk_fmt));
@@ -5639,7 +5652,7 @@ libxlConnectDomainEventDeregisterAny(virConnectPtr conn, int callbackID)
 
     if (virObjectEventStateDeregisterID(conn,
                                         driver->domainEventState,
-                                        callbackID) < 0)
+                                        callbackID, true) < 0)
         return -1;
 
     return 0;
@@ -5911,6 +5924,61 @@ libxlDomainMigrateBegin3Params(virDomainPtr domain,
 }
 
 static int
+libxlDomainMigratePrepareTunnel3Params(virConnectPtr dconn,
+                                       virStreamPtr st,
+                                       virTypedParameterPtr params,
+                                       int nparams,
+                                       const char *cookiein,
+                                       int cookieinlen,
+                                       char **cookieout ATTRIBUTE_UNUSED,
+                                       int *cookieoutlen ATTRIBUTE_UNUSED,
+                                       unsigned int flags)
+{
+    libxlDriverPrivatePtr driver = dconn->privateData;
+    virDomainDefPtr def = NULL;
+    const char *dom_xml = NULL;
+    const char *dname = NULL;
+    const char *uri_in = NULL;
+
+#ifdef LIBXL_HAVE_NO_SUSPEND_RESUME
+    virReportUnsupportedError();
+    return -1;
+#endif
+
+    virCheckFlags(LIBXL_MIGRATION_FLAGS, -1);
+    if (virTypedParamsValidate(params, nparams, LIBXL_MIGRATION_PARAMETERS) < 0)
+        goto error;
+
+    if (virTypedParamsGetString(params, nparams,
+                                VIR_MIGRATE_PARAM_DEST_XML,
+                                &dom_xml) < 0 ||
+        virTypedParamsGetString(params, nparams,
+                                VIR_MIGRATE_PARAM_DEST_NAME,
+                                &dname) < 0 ||
+        virTypedParamsGetString(params, nparams,
+                                VIR_MIGRATE_PARAM_URI,
+                                &uri_in) < 0)
+
+        goto error;
+
+    if (!(def = libxlDomainMigrationPrepareDef(driver, dom_xml, dname)))
+        goto error;
+
+    if (virDomainMigratePrepareTunnel3ParamsEnsureACL(dconn, def) < 0)
+        goto error;
+
+    if (libxlDomainMigrationPrepareTunnel3(dconn, st, &def, cookiein,
+                                           cookieinlen, flags) < 0)
+        goto error;
+
+    return 0;
+
+ error:
+    virDomainDefFree(def);
+    return -1;
+}
+
+static int
 libxlDomainMigratePrepare3Params(virConnectPtr dconn,
                                  virTypedParameterPtr params,
                                  int nparams,
@@ -6010,7 +6078,7 @@ libxlDomainMigratePerform3Params(virDomainPtr dom,
     if (virDomainMigratePerform3ParamsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (flags & VIR_MIGRATE_PEER2PEER) {
+    if ((flags & (VIR_MIGRATE_TUNNELLED | VIR_MIGRATE_PEER2PEER))) {
         if (libxlDomainMigrationPerformP2P(driver, vm, dom->conn, dom_xml,
                                            dconnuri, uri, dname, flags) < 0)
             goto cleanup;
@@ -6436,6 +6504,7 @@ static virHypervisorDriver libxlHypervisorDriver = {
     .domainSetVcpus = libxlDomainSetVcpus, /* 0.9.0 */
     .domainSetVcpusFlags = libxlDomainSetVcpusFlags, /* 0.9.0 */
     .domainGetVcpusFlags = libxlDomainGetVcpusFlags, /* 0.9.0 */
+    .domainGetMaxVcpus = libxlDomainGetMaxVcpus, /* 3.0.0 */
     .domainPinVcpu = libxlDomainPinVcpu, /* 0.9.0 */
     .domainPinVcpuFlags = libxlDomainPinVcpuFlags, /* 1.2.1 */
     .domainGetVcpus = libxlDomainGetVcpus, /* 0.9.0 */
@@ -6494,6 +6563,7 @@ static virHypervisorDriver libxlHypervisorDriver = {
     .nodeDeviceReset = libxlNodeDeviceReset, /* 1.2.3 */
     .domainMigrateBegin3Params = libxlDomainMigrateBegin3Params, /* 1.2.6 */
     .domainMigratePrepare3Params = libxlDomainMigratePrepare3Params, /* 1.2.6 */
+    .domainMigratePrepareTunnel3Params = libxlDomainMigratePrepareTunnel3Params, /* 3.1.0 */
     .domainMigratePerform3Params = libxlDomainMigratePerform3Params, /* 1.2.6 */
     .domainMigrateFinish3Params = libxlDomainMigrateFinish3Params, /* 1.2.6 */
     .domainMigrateConfirm3Params = libxlDomainMigrateConfirm3Params, /* 1.2.6 */

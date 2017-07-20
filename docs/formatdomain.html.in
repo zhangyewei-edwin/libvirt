@@ -99,18 +99,18 @@
     </p>
 
 <pre>
-  ...
-  &lt;os&gt;
-    &lt;type&gt;hvm&lt;/type&gt;
-    &lt;loader readonly='yes' secure='no' type='rom'&gt;/usr/lib/xen/boot/hvmloader&lt;/loader&gt;
-    &lt;nvram template='/usr/share/OVMF/OVMF_VARS.fd'&gt;/var/lib/libvirt/nvram/guest_VARS.fd&lt;/nvram&gt;
-    &lt;boot dev='hd'/&gt;
-    &lt;boot dev='cdrom'/&gt;
-    &lt;bootmenu enable='yes' timeout='3000'/&gt;
-    &lt;smbios mode='sysinfo'/&gt;
-    &lt;bios useserial='yes' rebootTimeout='0'/&gt;
-  &lt;/os&gt;
-  ...</pre>
+...
+&lt;os&gt;
+  &lt;type&gt;hvm&lt;/type&gt;
+  &lt;loader readonly='yes' secure='no' type='rom'&gt;/usr/lib/xen/boot/hvmloader&lt;/loader&gt;
+  &lt;nvram template='/usr/share/OVMF/OVMF_VARS.fd'&gt;/var/lib/libvirt/nvram/guest_VARS.fd&lt;/nvram&gt;
+  &lt;boot dev='hd'/&gt;
+  &lt;boot dev='cdrom'/&gt;
+  &lt;bootmenu enable='yes' timeout='3000'/&gt;
+  &lt;smbios mode='sysinfo'/&gt;
+  &lt;bios useserial='yes' rebootTimeout='0'/&gt;
+&lt;/os&gt;
+...</pre>
 
     <dl>
       <dt><code>type</code></dt>
@@ -242,10 +242,10 @@
     </p>
 
 <pre>
-  ...
-  &lt;bootloader&gt;/usr/bin/pygrub&lt;/bootloader&gt;
-  &lt;bootloader_args&gt;--append single&lt;/bootloader_args&gt;
-  ...</pre>
+...
+&lt;bootloader&gt;/usr/bin/pygrub&lt;/bootloader&gt;
+&lt;bootloader_args&gt;--append single&lt;/bootloader_args&gt;
+...</pre>
 
     <dl>
       <dt><code>bootloader</code></dt>
@@ -272,19 +272,19 @@
     </p>
 
 <pre>
-  ...
-  &lt;os&gt;
-    &lt;type&gt;hvm&lt;/type&gt;
-    &lt;loader&gt;/usr/lib/xen/boot/hvmloader&lt;/loader&gt;
-    &lt;kernel&gt;/root/f8-i386-vmlinuz&lt;/kernel&gt;
-    &lt;initrd&gt;/root/f8-i386-initrd&lt;/initrd&gt;
-    &lt;cmdline&gt;console=ttyS0 ks=http://example.com/f8-i386/os/&lt;/cmdline&gt;
-    &lt;dtb&gt;/root/ppc.dtb&lt;/dtb&gt;
-    &lt;acpi&gt;
-      &lt;table type='slic'&gt;/path/to/slic.dat&lt;/table&gt;
-    &lt;/acpi&gt;
-  &lt;/os&gt;
-  ...</pre>
+...
+&lt;os&gt;
+  &lt;type&gt;hvm&lt;/type&gt;
+  &lt;loader&gt;/usr/lib/xen/boot/hvmloader&lt;/loader&gt;
+  &lt;kernel&gt;/root/f8-i386-vmlinuz&lt;/kernel&gt;
+  &lt;initrd&gt;/root/f8-i386-initrd&lt;/initrd&gt;
+  &lt;cmdline&gt;console=ttyS0 ks=http://example.com/f8-i386/os/&lt;/cmdline&gt;
+  &lt;dtb&gt;/root/ppc.dtb&lt;/dtb&gt;
+  &lt;acpi&gt;
+    &lt;table type='slic'&gt;/path/to/slic.dat&lt;/table&gt;
+  &lt;/acpi&gt;
+&lt;/os&gt;
+...</pre>
 
     <dl>
       <dt><code>type</code></dt>
@@ -326,14 +326,33 @@
       element, if set will be used to provide an equivalent to <code>/proc/cmdline</code>
       but will not affect init argv.
     </p>
+    <p>
+      To set environment variables, use the <code>initenv</code> element, one
+      for each variable.
+    </p>
+    <p>
+      To set a custom work directory for the init, use the <code>initdir</code>
+      element.
+    </p>
+    <p>
+      To run the init command as a given user or group, use the <code>inituser</code>
+      or <code>initgroup</code> elements respectively. Both elements can be provided
+      either a user (resp. group) id or a name. Prefixing the user or group id with
+      a <code>+</code> will force it to be considered like a numeric value. Without
+      this, it will be first tried as a user or group name.
+    </p>
 
     <pre>
-  &lt;os&gt;
-    &lt;type arch='x86_64'&gt;exe&lt;/type&gt;
-    &lt;init&gt;/bin/systemd&lt;/init&gt;
-    &lt;initarg&gt;--unit&lt;/initarg&gt;
-    &lt;initarg&gt;emergency.service&lt;/initarg&gt;
-  &lt;/os&gt;
+&lt;os&gt;
+  &lt;type arch='x86_64'&gt;exe&lt;/type&gt;
+  &lt;init&gt;/bin/systemd&lt;/init&gt;
+  &lt;initarg&gt;--unit&lt;/initarg&gt;
+  &lt;initarg&gt;emergency.service&lt;/initarg&gt;
+  &lt;initenv name='MYENV'&gt;some value&lt;/initenv&gt;
+  &lt;initdir&gt;/my/custom/cwd&lt;/initdir&gt;
+  &lt;inituser&gt;tester&lt;/inituser&gt;
+  &lt;initgroup&gt;1000&lt;/initgroup&gt;
+&lt;/os&gt;
     </pre>
 
 
@@ -353,10 +372,10 @@
     </dl>
 
     <pre>
-  &lt;idmap&gt;
-    &lt;uid start='0' target='1000' count='10'/&gt;
-    &lt;gid start='0' target='1000' count='10'/&gt;
-  &lt;/idmap&gt;
+&lt;idmap&gt;
+  &lt;uid start='0' target='1000' count='10'/&gt;
+  &lt;gid start='0' target='1000' count='10'/&gt;
+&lt;/idmap&gt;
     </pre>
 
 
@@ -372,28 +391,28 @@
     </p>
 
 <pre>
+...
+&lt;os&gt;
+  &lt;smbios mode='sysinfo'/&gt;
   ...
-  &lt;os&gt;
-    &lt;smbios mode='sysinfo'/&gt;
-    ...
-  &lt;/os&gt;
-  &lt;sysinfo type='smbios'&gt;
-    &lt;bios&gt;
-      &lt;entry name='vendor'&gt;LENOVO&lt;/entry&gt;
-    &lt;/bios&gt;
-    &lt;system&gt;
-      &lt;entry name='manufacturer'&gt;Fedora&lt;/entry&gt;
-      &lt;entry name='product'&gt;Virt-Manager&lt;/entry&gt;
-      &lt;entry name='version'&gt;0.9.4&lt;/entry&gt;
-    &lt;/system&gt;
-    &lt;baseBoard&gt;
-      &lt;entry name='manufacturer'&gt;LENOVO&lt;/entry&gt;
-      &lt;entry name='product'&gt;20BE0061MC&lt;/entry&gt;
-      &lt;entry name='version'&gt;0B98401 Pro&lt;/entry&gt;
-      &lt;entry name='serial'&gt;W1KS427111E&lt;/entry&gt;
-    &lt;/baseBoard&gt;
-  &lt;/sysinfo&gt;
-  ...</pre>
+&lt;/os&gt;
+&lt;sysinfo type='smbios'&gt;
+  &lt;bios&gt;
+    &lt;entry name='vendor'&gt;LENOVO&lt;/entry&gt;
+  &lt;/bios&gt;
+  &lt;system&gt;
+    &lt;entry name='manufacturer'&gt;Fedora&lt;/entry&gt;
+    &lt;entry name='product'&gt;Virt-Manager&lt;/entry&gt;
+    &lt;entry name='version'&gt;0.9.4&lt;/entry&gt;
+  &lt;/system&gt;
+  &lt;baseBoard&gt;
+    &lt;entry name='manufacturer'&gt;LENOVO&lt;/entry&gt;
+    &lt;entry name='product'&gt;20BE0061MC&lt;/entry&gt;
+    &lt;entry name='version'&gt;0B98401 Pro&lt;/entry&gt;
+    &lt;entry name='serial'&gt;W1KS427111E&lt;/entry&gt;
+  &lt;/baseBoard&gt;
+&lt;/sysinfo&gt;
+...</pre>
 
     <p>
       The <code>sysinfo</code> element has a mandatory
@@ -566,10 +585,11 @@
 
         <code>order</code> allows to specify the order to add the online vcpus.
         For hypervisors/platforms that require to insert multiple vcpus at once
-        the order may be be duplicated accross all vcpus that need to be
+        the order may be duplicated accross all vcpus that need to be
         enabled at once. Specifying order is not necessary, vcpus are then
         added in an arbitrary order. If order info is used, it must be used for
-        all online vcpus.
+        all online vcpus. Hypervisors may clear or update ordering information
+        during certain operations to assure valid configuration.
 
         Note that hypervisors may create hotpluggable vcpus differently from
         boot vcpus thus special initialization may be necessary.
@@ -902,6 +922,9 @@
     &lt;/hugepages&gt;
     &lt;nosharepages/&gt;
     &lt;locked/&gt;
+    &lt;source type="file|anonymous"/&gt;
+    &lt;access mode="shared|private"/&gt;
+    &lt;allocation mode="immediate|ondemand"/&gt;
   &lt;/memoryBacking&gt;
   ...
 &lt;/domain&gt;
@@ -933,14 +956,27 @@
       <dt><code>locked</code></dt>
       <dd>When set and supported by the hypervisor, memory pages belonging
         to the domain will be locked in host's memory and the host will not
-        be allowed to swap them out. For QEMU/KVM this requires
-        <code>hard_limit</code> <a href="#elementsMemoryTuning">memory tuning</a>
-        element to be used and set to the maximum memory configured for the
-        domain plus any memory consumed by the QEMU process itself. Beware of
-        setting the memory limit too high (and thus allowing the domain to lock
-        most of the host's memory). Doing so may be dangerous to both the
-        domain and the host itself since the host's kernel may run out of
-        memory. <span class="since">Since 1.0.6</span></dd>
+        be allowed to swap them out, which might be required for some
+        workloads such as real-time. For QEMU/KVM guests, the memory used by
+        the QEMU process itself will be locked too: unlike guest memory, this
+        is an amount libvirt has no way of figuring out in advance, so it has
+        to remove the limit on locked memory altogether. Thus, enabling this
+        option opens up to a potential security risk: the host will be unable
+        to reclaim the locked memory back from the guest when it's running out
+        of memory, which means a malicious guest allocating large amounts of
+        locked memory could cause a denial-of-service attach on the host.
+        Because of this, using this option is discouraged unless your workload
+        demands it; even then, it's highly recommended to set an
+        <code>hard_limit</code> (see
+        <a href="#elementsMemoryTuning">memory tuning</a>) on memory allocation
+        suitable for the specific environment at the same time to mitigate
+        the risks described above. <span class="since">Since 1.0.6</span></dd>
+       <dt><code>source</code></dt>
+       <dd>In this attribute you can switch to file memorybacking or keep default anonymous.</dd>
+       <dt><code>access</code></dt>
+       <dd>Specify if memory is shared or private. This can be overridden per numa node by <code>memAccess</code></dd>
+       <dt><code>allocation</code></dt>
+       <dd>Specify when allocate the memory</dd>
     </dl>
 
 
@@ -979,12 +1015,18 @@
       <dt><code>hard_limit</code></dt>
       <dd> The optional <code>hard_limit</code> element is the maximum memory
         the guest can use. The units for this value are kibibytes (i.e. blocks
-        of 1024 bytes). <strong>However, users of QEMU and KVM are strongly
-        advised not to set this limit as domain may get killed by the kernel
-        if the guess is too low. To determine the memory needed for a process
-        to run is an
+        of 1024 bytes). Users of QEMU and KVM are strongly advised not to set
+        this limit as domain may get killed by the kernel if the guess is too
+        low, and determining the memory needed for a process to run is an
         <a href="http://en.wikipedia.org/wiki/Undecidable_problem">
-        undecidable problem</a>.</strong></dd>
+        undecidable problem</a>; that said, if you already set
+        <code>locked</code> in
+        <a href="#elementsMemoryBacking">memory backing</a> because your
+        workload demands it, you'll have to take into account the specifics of
+        your deployment and figure out a value for <code>hard_limit</code> that
+        balances the risk of your guest being killed because the limit was set
+        too low and the risk of your host crashing because it cannot reclaim
+        the memory used by the guest due to <code>locked</code>. Good luck!</dd>
       <dt><code>soft_limit</code></dt>
       <dd> The optional <code>soft_limit</code> element is the memory limit to
         enforce during memory contention. The units for this value are
@@ -1148,11 +1190,11 @@
       by default.
     </p>
 <pre>
-  ...
-  &lt;resource&gt;
-    &lt;partition&gt;/virtualmachines/production&lt;/partition&gt;
-  &lt;/resource&gt;
-  ...
+...
+&lt;resource&gt;
+  &lt;partition&gt;/virtualmachines/production&lt;/partition&gt;
+&lt;/resource&gt;
+...
 </pre>
 
     <p>
@@ -1170,26 +1212,28 @@
     </p>
 
 <pre>
-  ...
-  &lt;cpu match='exact'&gt;
-    &lt;model fallback='allow'&gt;core2duo&lt;/model&gt;
-    &lt;vendor&gt;Intel&lt;/vendor&gt;
-    &lt;topology sockets='1' cores='2' threads='1'/&gt;
-    &lt;feature policy='disable' name='lahf_lm'/&gt;
-  &lt;/cpu&gt;
-  ...</pre>
+...
+&lt;cpu match='exact'&gt;
+  &lt;model fallback='allow'&gt;core2duo&lt;/model&gt;
+  &lt;vendor&gt;Intel&lt;/vendor&gt;
+  &lt;topology sockets='1' cores='2' threads='1'/&gt;
+  &lt;cache level='3' mode='emulate'/&gt;
+  &lt;feature policy='disable' name='lahf_lm'/&gt;
+&lt;/cpu&gt;
+...</pre>
 
 <pre>
-  &lt;cpu mode='host-model'&gt;
-    &lt;model fallback='forbid'/&gt;
-    &lt;topology sockets='1' cores='2' threads='1'/&gt;
-  &lt;/cpu&gt;
-  ...</pre>
+&lt;cpu mode='host-model'&gt;
+  &lt;model fallback='forbid'/&gt;
+  &lt;topology sockets='1' cores='2' threads='1'/&gt;
+&lt;/cpu&gt;
+...</pre>
 
 <pre>
-  &lt;cpu mode='host-passthrough'&gt;
-    &lt;feature policy='disable' name='lahf_lm'/&gt;
-  ...</pre>
+&lt;cpu mode='host-passthrough'&gt;
+  &lt;cache mode='passthrough'/&gt;
+  &lt;feature policy='disable' name='lahf_lm'/&gt;
+...</pre>
 
     <p>
       In case no restrictions need to be put on CPU model and its features, a
@@ -1198,17 +1242,17 @@
     </p>
 
 <pre>
-  ...
-  &lt;cpu&gt;
-    &lt;topology sockets='1' cores='2' threads='1'/&gt;
-  &lt;/cpu&gt;
-  ...</pre>
+...
+&lt;cpu&gt;
+  &lt;topology sockets='1' cores='2' threads='1'/&gt;
+&lt;/cpu&gt;
+...</pre>
 
     <dl>
       <dt><code>cpu</code></dt>
       <dd>The <code>cpu</code> element is the main container for describing
-        guest CPU requirements. Its <code>match</code> attribute specified how
-        strictly has the virtual CPU provided to the guest match these
+        guest CPU requirements. Its <code>match</code> attribute specifies how
+        strictly the virtual CPU provided to the guest matches these
         requirements. <span class="since">Since 0.7.6</span> the
         <code>match</code> attribute can be omitted if <code>topology</code>
         is the only element within <code>cpu</code>. Possible values for the
@@ -1217,17 +1261,55 @@
         <dl>
           <dt><code>minimum</code></dt>
           <dd>The specified CPU model and features describes the minimum
-            requested CPU.</dd>
+            requested CPU. A better CPU will be provided to the guest if it
+            is possible with the requested hypervisor on the current host.
+            This is a constrained <code>host-model</code> mode; the domain
+            will not be created if the provided virtual CPU does not meet
+            the requirements.</dd>
+
           <dt><code>exact</code></dt>
-          <dd>The virtual CPU provided to the guest will exactly match the
-            specification</dd>
+          <dd>The virtual CPU provided to the guest should exactly match the
+            specification. If such CPU is not supported, libvirt will refuse
+            to start the domain.</dd>
+
           <dt><code>strict</code></dt>
-          <dd>The guest will not be created unless the host CPU does exactly
-            match the specification.</dd>
+          <dd>The domain will not be created unless the host CPU exactly
+            matches the specification. This is not very useful in practice
+            and should only be used if there is a real reason.</dd>
         </dl>
 
         <span class="since">Since 0.8.5</span> the <code>match</code>
         attribute can be omitted and will default to <code>exact</code>.
+
+        Sometimes the hypervisor is not able to create a virtual CPU exactly
+        matching the specification passed by libvirt.
+        <span class="since">Since 3.2.0</span>, an optional <code>check</code>
+        attribute can be used to request a specific way of checking whether
+        the virtual CPU matches the specification. It is usually safe to omit
+        this attribute when starting a domain and stick with the default
+        value. Once the domain starts, libvirt will automatically change the
+        <code>check</code> attribute to the best supported value to ensure the
+        virtual CPU does not change when the domain is migrated to another
+        host. The following values can be used:
+
+        <dl>
+          <dt><code>none</code></dt>
+          <dd>Libvirt does no checking and it is up to the hypervisor to
+            refuse to start the domain if it cannot provide the requested CPU.
+            With QEMU this means no checking is done at all since the default
+            behavior of QEMU is to emit warnings, but start the domain anyway.
+          </dd>
+
+          <dt><code>partial</code></dt>
+          <dd>Libvirt will check the guest CPU specification before starting
+            a domain, but the rest is left on the hypervisor. It can still
+            provide a different virtual CPU.</dd>
+
+          <dt><code>full</code></dt>
+          <dd>The virtual CPU created by the hypervisor will be checked
+            against the CPU specification and the domain will not be started
+            unless the two CPUs match.</dd>
+        </dl>
 
         <span class="since">Since 0.9.10</span>, an optional <code>mode</code>
         attribute may be used to make it easier to configure a guest CPU to be
@@ -1262,28 +1344,30 @@
           model even if the destination host contains more capable CPUs for
           the running instance of the guest; but shutting down and restarting
           the guest may present different hardware to the guest according to
-          the capabilities of the new host. <strong>Beware</strong>, due to the
-          way libvirt detects host CPU and due to the fact libvirt does not
-          talk to QEMU/KVM when creating the CPU model, CPU configuration
-          created using <code>host-model</code> may not work as expected. The
-          guest CPU may differ from the configuration and it may also confuse
-          guest OS by using a combination of CPU features and other parameters
-          (such as CPUID level) that don't work. Until these issues are fixed,
-          it's a good idea to avoid using <code>host-model</code> and use
-          <code>custom</code> mode with just the CPU model from host
-          capabilities XML.
-          <span class="since">(Since 1.2.11)</span>. PowerISA allows
-          processors to run VMs in binary compatibility mode supporting an
-          older version of ISA.  Libvirt on PowerPC architecture uses the
+          the capabilities of the new host. Prior to libvirt 3.2.0 and QEMU
+          2.9.0 detection of the host CPU model via QEMU is not supported.
+          Thus the CPU configuration created using <code>host-model</code>
+          may not work as expected.
+          <span class="since">Since 3.2.0 and QEMU 2.9.0</span> this mode
+          works the way it was designed and it is indicated by the
+          <code>fallback</code> attribute set to <code>forbid</code> in the
+          host-model CPU definition advertised in
+          <a href="formatdomaincaps.html#elementsCPU">domain capabilities XML</a>.
+          When <code>fallback</code> attribute is set to <code>allow</code>
+          in the domain capabilities XML, it is recommended to use
+          <code>custom</code> mode with just the CPU model from the host
+          capabilities XML. <span class="since">Since 1.2.11</span> PowerISA
+          allows processors to run VMs in binary compatibility mode supporting
+          an older version of ISA.  Libvirt on PowerPC architecture uses the
           <code>host-model</code> to signify a guest mode CPU running in
           binary compatibility mode. Example:
           When a user needs a power7 VM to run in compatibility mode
           on a Power8 host, this can be described in XML as follows :
 <pre>
-  &lt;cpu mode='host-model'&gt;
-    &lt;model&gt;power7&lt;/model&gt;
-  &lt;/cpu&gt;
-  ...</pre>
+&lt;cpu mode='host-model'&gt;
+  &lt;model&gt;power7&lt;/model&gt;
+&lt;/cpu&gt;
+...</pre>
           </dd>
           <dt><code>host-passthrough</code></dt>
           <dd>With this mode, the CPU visible to the guest should be exactly
@@ -1291,18 +1375,21 @@
           understand. Though the downside of this mode is that the guest
           environment cannot be reproduced on different hardware. Thus, if you
           hit any bugs, you are on your own. Further details of that CPU can
-          be changed using <code>feature</code> elements.</dd>
+          be changed using <code>feature</code> elements. Migration of a guest
+          using host-passthrough is dangerous if the source and destination
+          hosts are not identical in both hardware and configuration. If such
+          a migration is attempted then the guest may hang or crash upon
+          resuming execution on the destination host.</dd>
         </dl>
 
-        In both <code>host-model</code> and <code>host-passthrough</code>
-        mode, the real (approximate in <code>host-passthrough</code> mode) CPU
-        definition which would be used on current host can be determined by
-        specifying <code>VIR_DOMAIN_XML_UPDATE_CPU</code> flag when calling
-        <code>virDomainGetXMLDesc</code> API. When running a guest that might
-        be prone to operating system reactivation when presented with
-        different hardware, and which will be migrated between hosts with
-        different capabilities, you can use this output to rewrite XML to the
-        <code>custom</code> mode for more robust migration.
+        Both <code>host-model</code> and <code>host-passthrough</code> modes
+        make sense when a domain can run directly on the host CPUs (for
+        example, domains with type <code>kvm</code>). The actual host CPU is
+        irrelevant for domains with emulated virtual CPUs (such as domains with
+        type <code>qemu</code>). However, for backward compatibility
+        <code>host-model</code> may be implemented even for domains running on
+        emulated CPUs in which case the best CPU the hypervisor is able to
+        emulate may be used rather then trying to mimic the host CPU model.
       </dd>
 
       <dt><code>model</code></dt>
@@ -1335,7 +1422,10 @@
         virtual CPU provided to the guest. Three non-zero values have to be
         given for <code>sockets</code>, <code>cores</code>, and
         <code>threads</code>: total number of CPU sockets, number of cores per
-        socket, and number of threads per core, respectively.</dd>
+        socket, and number of threads per core, respectively. Hypervisors may
+        require that the maximum number of vCPUs specified by the
+        <code>cpus</code> element equals to the number of vcpus resulting
+        from the topology.</dd>
 
       <dt><code>feature</code></dt>
       <dd>The <code>cpu</code> element can contain zero or more
@@ -1365,6 +1455,39 @@
         <span class="since">Since 0.8.5</span> the <code>policy</code>
         attribute can be omitted and will default to <code>require</code>.
       </dd>
+
+      <dt><code>cache</code></dt>
+      <dd><span class="since">Since 3.3.0</span> the <code>cache</code>
+        element describes the virtual CPU cache. If the element is missing,
+        the hypervisor will use a sensible default.
+
+        <dl>
+          <dt><code>level</code></dt>
+          <dd>This optional attribute specifies which cache level is described
+            by the element. Missing attribute means the element describes all
+            CPU cache levels at once. Mixing <code>cache</code> elements with
+            the <code>level</code> attribute set and those without the
+            attribute is forbidden.</dd>
+
+          <dt><code>mode</code></dt>
+          <dd>
+            The following values are supported:
+            <dl>
+              <dt><code>emulate</code></dt>
+              <dd>The hypervisor will provide a fake CPU cache data.</dd>
+
+              <dt><code>passthrough</code></dt>
+              <dd>The real CPU cache data reported by the host CPU will be
+                passed through to the virtual CPU.</dd>
+
+              <dt><code>disable</code></dt>
+              <dd>The virtual CPU will report no CPU cache of the specified
+                level (or no cache at all if the <code>level</code> attribute
+                is missing).</dd>
+            </dl>
+          </dd>
+        </dl>
+      </dd>
     </dl>
 
     <p>
@@ -1373,16 +1496,16 @@
     </p>
 
 <pre>
+...
+&lt;cpu&gt;
   ...
-  &lt;cpu&gt;
-    ...
-    &lt;numa&gt;
-      &lt;cell id='0' cpus='0-3' memory='512000' unit='KiB'/&gt;
-      &lt;cell id='1' cpus='4-7' memory='512000' unit='KiB' memAccess='shared'/&gt;
-    &lt;/numa&gt;
-    ...
-  &lt;/cpu&gt;
-  ...</pre>
+  &lt;numa&gt;
+    &lt;cell id='0' cpus='0-3' memory='512000' unit='KiB'/&gt;
+    &lt;cell id='1' cpus='4-7' memory='512000' unit='KiB' memAccess='shared'/&gt;
+  &lt;/numa&gt;
+  ...
+&lt;/cpu&gt;
+...</pre>
 
     <p>
       Each <code>cell</code> element specifies a NUMA cell or a NUMA node.
@@ -1402,7 +1525,7 @@
       <span class='since'>Since 1.2.9</span> the optional attribute
       <code>memAccess</code> can control whether the memory is to be
       mapped as "shared" or "private".  This is valid only for
-      hugepages-backed memory.
+      hugepages-backed memory and nvdimm modules.
     </p>
 
     <p>
@@ -1430,12 +1553,12 @@
     </p>
 
 <pre>
-  ...
-  &lt;on_poweroff&gt;destroy&lt;/on_poweroff&gt;
-  &lt;on_reboot&gt;restart&lt;/on_reboot&gt;
-  &lt;on_crash&gt;restart&lt;/on_crash&gt;
-  &lt;on_lockfailure&gt;poweroff&lt;/on_lockfailure&gt;
-  ...</pre>
+...
+&lt;on_poweroff&gt;destroy&lt;/on_poweroff&gt;
+&lt;on_reboot&gt;restart&lt;/on_reboot&gt;
+&lt;on_crash&gt;restart&lt;/on_crash&gt;
+&lt;on_lockfailure&gt;poweroff&lt;/on_lockfailure&gt;
+...</pre>
 
     <p>
       The following collections of elements allow the actions to be
@@ -1529,12 +1652,12 @@
     </p>
 
 <pre>
-  ...
-  &lt;pm&gt;
-    &lt;suspend-to-disk enabled='no'/&gt;
-    &lt;suspend-to-mem enabled='yes'/&gt;
-  &lt;/pm&gt;
-  ...</pre>
+...
+&lt;pm&gt;
+  &lt;suspend-to-disk enabled='no'/&gt;
+  &lt;suspend-to-mem enabled='yes'/&gt;
+&lt;/pm&gt;
+...</pre>
 
     <dl>
       <dt><code>pm</code></dt>
@@ -1552,31 +1675,32 @@
     </p>
 
 <pre>
-  ...
-  &lt;features&gt;
-    &lt;pae/&gt;
-    &lt;acpi/&gt;
-    &lt;apic/&gt;
-    &lt;hap/&gt;
-    &lt;privnet/&gt;
-    &lt;hyperv&gt;
-      &lt;relaxed state='on'/&gt;
-      &lt;vapic state='on'/&gt;
-      &lt;spinlocks state='on' retries='4096'/&gt;
-      &lt;vpindex state='on'/&gt;
-      &lt;runtime state='on'/&gt;
-      &lt;synic state='on'/&gt;
-      &lt;reset state='on'/&gt;
-      &lt;vendor_id state='on' value='KVM Hv'/&gt;
-    &lt;/hyperv&gt;
-    &lt;kvm&gt;
-      &lt;hidden state='on'/&gt;
-    &lt;/kvm&gt;
-    &lt;pvspinlock state='on'/&gt;
-    &lt;gic version='2'/&gt;
+...
+&lt;features&gt;
+  &lt;pae/&gt;
+  &lt;acpi/&gt;
+  &lt;apic/&gt;
+  &lt;hap/&gt;
+  &lt;privnet/&gt;
+  &lt;hyperv&gt;
+    &lt;relaxed state='on'/&gt;
+    &lt;vapic state='on'/&gt;
+    &lt;spinlocks state='on' retries='4096'/&gt;
+    &lt;vpindex state='on'/&gt;
+    &lt;runtime state='on'/&gt;
+    &lt;synic state='on'/&gt;
+    &lt;reset state='on'/&gt;
+    &lt;vendor_id state='on' value='KVM Hv'/&gt;
+  &lt;/hyperv&gt;
+  &lt;kvm&gt;
+    &lt;hidden state='on'/&gt;
+  &lt;/kvm&gt;
+  &lt;pvspinlock state='on'/&gt;
+  &lt;gic version='2'/&gt;
+  &lt;ioapic driver='qemu'/&gt;
 
-  &lt;/features&gt;
-  ...</pre>
+&lt;/features&gt;
+...</pre>
 
     <p>
       All features are listed within the <code>features</code>
@@ -1703,7 +1827,7 @@
           <td>hidden</td>
           <td>Hide the KVM hypervisor from standard MSR based discovery</td>
           <td>on, off</td>
-          <td><span class="since">2.1.0 (QEMU only)</span></td>
+          <td><span class="since">1.2.8 (QEMU 2.1.0)</span></td>
         </tr>
       </table>
       </dd>
@@ -1735,6 +1859,14 @@
           for hypervisor to decide.
           <span class="since">Since 2.1.0</span>
       </dd>
+      <dt><code>ioapic</code></dt>
+      <dd>Tune the I/O APIC. Possible values for the
+          <code>driver</code> attribute are:
+          <code>kvm</code> (default for KVM domains)
+          and <code>qemu</code> which puts I/O APIC in userspace
+          which is also known as a split I/O APIC mode.
+          <span class="since">Since 3.4.0</span> (QEMU/KVM only)
+      </dd>
     </dl>
 
     <h3><a name="elementsTime">Time keeping</a></h3>
@@ -1747,14 +1879,14 @@
     </p>
 
 <pre>
-  ...
-  &lt;clock offset='localtime'&gt;
-    &lt;timer name='rtc' tickpolicy='catchup' track='guest'&gt;
-      &lt;catchup threshold='123' slew='120' limit='10000'/&gt;
-    &lt;/timer&gt;
-    &lt;timer name='pit' tickpolicy='delay'/&gt;
-  &lt;/clock&gt;
-  ...</pre>
+...
+&lt;clock offset='localtime'&gt;
+  &lt;timer name='rtc' tickpolicy='catchup' track='guest'&gt;
+    &lt;catchup threshold='123' slew='120' limit='10000'/&gt;
+  &lt;/timer&gt;
+  &lt;timer name='pit' tickpolicy='delay'/&gt;
+&lt;/clock&gt;
+...</pre>
 
     <dl>
       <dt><code>clock</code></dt>
@@ -1917,17 +2049,32 @@
     </p>
 
 <pre>
-  ...
-  &lt;perf&gt;
-    &lt;event name='cmt' enabled='yes'/&gt;
-    &lt;event name='mbmt' enabled='no'/&gt;
-    &lt;event name='mbml' enabled='yes'/&gt;
-    &lt;event name='cpu_cycles' enabled='no'/&gt;
-    &lt;event name='instructions' enabled='yes'/&gt;
-    &lt;event name='cache_references' enabled='no'/&gt;
-    &lt;event name='cache_misses' enabled='no'/&gt;
-  &lt;/perf&gt;
-  ...
+...
+&lt;perf&gt;
+  &lt;event name='cmt' enabled='yes'/&gt;
+  &lt;event name='mbmt' enabled='no'/&gt;
+  &lt;event name='mbml' enabled='yes'/&gt;
+  &lt;event name='cpu_cycles' enabled='no'/&gt;
+  &lt;event name='instructions' enabled='yes'/&gt;
+  &lt;event name='cache_references' enabled='no'/&gt;
+  &lt;event name='cache_misses' enabled='no'/&gt;
+  &lt;event name='branch_instructions' enabled='no'/&gt;
+  &lt;event name='branch_misses' enabled='no'/&gt;
+  &lt;event name='bus_cycles' enabled='no'/&gt;
+  &lt;event name='stalled_cycles_frontend' enabled='no'/&gt;
+  &lt;event name='stalled_cycles_backend' enabled='no'/&gt;
+  &lt;event name='ref_cpu_cycles' enabled='no'/&gt;
+  &lt;event name='cpu_clock' enabled='no'/&gt;
+  &lt;event name='task_clock' enabled='no'/&gt;
+  &lt;event name='page_faults' enabled='no'/&gt;
+  &lt;event name='context_switches' enabled='no'/&gt;
+  &lt;event name='cpu_migrations' enabled='no'/&gt;
+  &lt;event name='page_faults_min' enabled='no'/&gt;
+  &lt;event name='page_faults_maj' enabled='no'/&gt;
+  &lt;event name='alignment_faults' enabled='no'/&gt;
+  &lt;event name='emulation_faults' enabled='no'/&gt;
+&lt;/perf&gt;
+...
 </pre>
 
   <table class="top_table">
@@ -1953,7 +2100,7 @@
     </tr>
     <tr>
       <td><code>cpu_cycles</code></td>
-      <td>the number of cpu cycles one instruction needs</td>
+      <td>the count of cpu cycles (total/elapsed)</td>
       <td><code>perf.cpu_cycles</code></td>
     </tr>
     <tr>
@@ -1971,6 +2118,104 @@
       <td>the count of cache misses by applications running on the platform</td>
       <td><code>perf.cache_misses</code></td>
     </tr>
+    <tr>
+      <td><code>branch_instructions</code></td>
+      <td>the count of branch instructions by applications running on the platform</td>
+      <td><code>perf.branch_instructions</code></td>
+    </tr>
+    <tr>
+      <td><code>branch_misses</code></td>
+      <td>the count of branch misses by applications running on the platform</td>
+      <td><code>perf.branch_misses</code></td>
+    </tr>
+    <tr>
+      <td><code>bus_cycles</code></td>
+      <td>the count of bus cycles by applications running on the platform</td>
+      <td><code>perf.bus_cycles</code></td>
+    </tr>
+    <tr>
+      <td><code>stalled_cycles_frontend</code></td>
+      <td>the count of stalled cpu cycles in the frontend of the instruction
+          processor pipeline by applications running on the platform</td>
+      <td><code>perf.stalled_cycles_frontend</code></td>
+    </tr>
+    <tr>
+      <td><code>stalled_cycles_backend</code></td>
+      <td>the count of stalled cpu cycles in the backend of the instruction
+          processor pipeline by applications running on the platform</td>
+      <td><code>perf.stalled_cycles_backend</code></td>
+    </tr>
+    <tr>
+      <td><code>ref_cpu_cycles</code></td>
+      <td>the count of total cpu cycles not affected by CPU frequency scaling
+         by applications running on the platform</td>
+      <td><code>perf.ref_cpu_cycles</code></td>
+    </tr>
+    <tr>
+      <td><code>cpu_clock</code></td>
+      <td>the count of cpu clock time, as measured by a monotonic
+          high-resolution per-CPU timer, by applications running on
+          the platform</td>
+      <td><code>perf.cpu_clock</code></td>
+    </tr>
+    <tr>
+      <td><code>task_clock</code></td>
+      <td>the count of task clock time, as measured by a monotonic
+          high-resolution CPU timer, specific to the task that
+          is run by applications running on the platform</td>
+      <td><code>perf.task_clock</code></td>
+    </tr>
+    <tr>
+      <td><code>page_faults</code></td>
+      <td>the count of page faults by applications running on the
+          platform. This includes minor, major, invalid and other
+          types of page faults</td>
+      <td><code>perf.page_faults</code></td>
+    </tr>
+    <tr>
+      <td><code>context_switches</code></td>
+      <td>the count of context switches by applications running on
+          the platform</td>
+      <td><code>perf.context_switches</code></td>
+    </tr>
+    <tr>
+      <td><code>cpu_migrations</code></td>
+      <td>the count of cpu migrations, that is, where the process
+          moved from one logical processor to another, by
+          applications running on the platform</td>
+      <td><code>perf.cpu_migrations</code></td>
+    </tr>
+    <tr>
+      <td><code>page_faults_min</code></td>
+      <td>the count of minor page faults, that is, where the
+          page was present in the page cache, and therefore
+          the fault avoided loading it from storage, by
+          applications running on the platform</td>
+      <td><code>perf.page_faults_min</code></td>
+    </tr>
+    <tr>
+      <td><code>page_faults_maj</code></td>
+      <td>the count of major page faults, that is, where the
+          page was not present in the page cache, and
+          therefore had to be fetched from storage, by
+          applications running on the platform</td>
+      <td><code>perf.page_faults_maj</code></td>
+    </tr>
+    <tr>
+      <td><code>alignment_faults</code></td>
+      <td>the count of alignment faults, that is when
+          the load or store is not aligned properly, by
+          applications running on the platform</td>
+      <td><code>perf.alignment_faults</code></td>
+    </tr>
+    <tr>
+      <td><code>emulation_faults</code></td>
+      <td>the count of emulation faults, that is when
+          the kernel traps on unimplemented instrucions
+          and emulates them for user space, by
+          applications running on the platform</td>
+      <td><code>perf.emulation_faults</code></td>
+    </tr>
   </table>
 
     <h3><a name="elementsDevices">Devices</a></h3>
@@ -1983,11 +2228,11 @@
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;emulator&gt;/usr/lib/xen/bin/qemu-dm&lt;/emulator&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;emulator&gt;/usr/lib/xen/bin/qemu-dm&lt;/emulator&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>emulator</code></dt>
@@ -2009,166 +2254,166 @@
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;disk type='file' snapshot='external'&gt;
-      &lt;driver name="tap" type="aio" cache="default"/&gt;
-      &lt;source file='/var/lib/xen/images/fv0' startupPolicy='optional'&gt;
-        &lt;seclabel relabel='no'/&gt;
-      &lt;/source&gt;
-      &lt;target dev='hda' bus='ide'/&gt;
-      &lt;iotune&gt;
-        &lt;total_bytes_sec&gt;10000000&lt;/total_bytes_sec&gt;
-        &lt;read_iops_sec&gt;400000&lt;/read_iops_sec&gt;
-        &lt;write_iops_sec&gt;100000&lt;/write_iops_sec&gt;
-      &lt;/iotune&gt;
-      &lt;boot order='2'/&gt;
-      &lt;encryption type='...'&gt;
-        ...
-      &lt;/encryption&gt;
-      &lt;shareable/&gt;
-      &lt;serial&gt;
-        ...
-      &lt;/serial&gt;
-    &lt;/disk&gt;
+...
+&lt;devices&gt;
+  &lt;disk type='file' snapshot='external'&gt;
+    &lt;driver name="tap" type="aio" cache="default"/&gt;
+    &lt;source file='/var/lib/xen/images/fv0' startupPolicy='optional'&gt;
+      &lt;seclabel relabel='no'/&gt;
+    &lt;/source&gt;
+    &lt;target dev='hda' bus='ide'/&gt;
+    &lt;iotune&gt;
+      &lt;total_bytes_sec&gt;10000000&lt;/total_bytes_sec&gt;
+      &lt;read_iops_sec&gt;400000&lt;/read_iops_sec&gt;
+      &lt;write_iops_sec&gt;100000&lt;/write_iops_sec&gt;
+    &lt;/iotune&gt;
+    &lt;boot order='2'/&gt;
+    &lt;encryption type='...'&gt;
       ...
-    &lt;disk type='network'&gt;
-      &lt;driver name="qemu" type="raw" io="threads" ioeventfd="on" event_idx="off"/&gt;
-      &lt;source protocol="sheepdog" name="image_name"&gt;
-        &lt;host name="hostname" port="7000"/&gt;
-      &lt;/source&gt;
-      &lt;target dev="hdb" bus="ide"/&gt;
-      &lt;boot order='1'/&gt;
-      &lt;transient/&gt;
-      &lt;address type='drive' controller='0' bus='1' unit='0'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network'&gt;
-      &lt;driver name="qemu" type="raw"/&gt;
-      &lt;source protocol="rbd" name="image_name2"&gt;
-        &lt;host name="hostname" port="7000"/&gt;
-        &lt;snapshot name="snapname"/&gt;
-        &lt;config file="/path/to/file"/&gt;
-      &lt;/source&gt;
-      &lt;target dev="hdc" bus="ide"/&gt;
-      &lt;auth username='myuser'&gt;
-        &lt;secret type='ceph' usage='mypassid'/&gt;
-      &lt;/auth&gt;
-    &lt;/disk&gt;
-    &lt;disk type='block' device='cdrom'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;target dev='hdd' bus='ide' tray='open'/&gt;
-      &lt;readonly/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='cdrom'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol="http" name="url_path"&gt;
-        &lt;host name="hostname" port="80"/&gt;
-      &lt;/source&gt;
-      &lt;target dev='hde' bus='ide' tray='open'/&gt;
-      &lt;readonly/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='cdrom'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol="https" name="url_path"&gt;
-        &lt;host name="hostname" port="443"/&gt;
-      &lt;/source&gt;
-      &lt;target dev='hdf' bus='ide' tray='open'/&gt;
-      &lt;readonly/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='cdrom'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol="ftp" name="url_path"&gt;
-        &lt;host name="hostname" port="21"/&gt;
-      &lt;/source&gt;
-      &lt;target dev='hdg' bus='ide' tray='open'/&gt;
-      &lt;readonly/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='cdrom'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol="ftps" name="url_path"&gt;
-        &lt;host name="hostname" port="990"/&gt;
-      &lt;/source&gt;
-      &lt;target dev='hdh' bus='ide' tray='open'/&gt;
-      &lt;readonly/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='cdrom'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol="tftp" name="url_path"&gt;
-        &lt;host name="hostname" port="69"/&gt;
-      &lt;/source&gt;
-      &lt;target dev='hdi' bus='ide' tray='open'/&gt;
-      &lt;readonly/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='block' device='lun'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source dev='/dev/sda'/&gt;
-      &lt;target dev='sda' bus='scsi'/&gt;
-      &lt;address type='drive' controller='0' bus='0' target='3' unit='0'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='block' device='disk'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source dev='/dev/sda'/&gt;
-      &lt;geometry cyls='16383' heads='16' secs='63' trans='lba'/&gt;
-      &lt;blockio logical_block_size='512' physical_block_size='4096'/&gt;
-      &lt;target dev='hdj' bus='ide'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='volume' device='disk'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source pool='blk-pool0' volume='blk-pool0-vol0'/&gt;
-      &lt;target dev='hdk' bus='ide'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='disk'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol='iscsi' name='iqn.2013-07.com.example:iscsi-nopool/2'&gt;
-        &lt;host name='example.com' port='3260'/&gt;
-      &lt;/source&gt;
-      &lt;auth username='myuser'&gt;
-        &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
-      &lt;/auth&gt;
-      &lt;target dev='vda' bus='virtio'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='network' device='lun'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source protocol='iscsi' name='iqn.2013-07.com.example:iscsi-nopool/1'&gt;
-        &lt;host name='example.com' port='3260'/&gt;
-      &lt;/source&gt;
-      &lt;auth username='myuser'&gt;
-        &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
-      &lt;/auth&gt;
-      &lt;target dev='sdb' bus='scsi'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='volume' device='disk'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source pool='iscsi-pool' volume='unit:0:0:1' mode='host'/&gt;
-      &lt;auth username='myuser'&gt;
-        &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
-      &lt;/auth&gt;
-      &lt;target dev='vdb' bus='virtio'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='volume' device='disk'&gt;
-      &lt;driver name='qemu' type='raw'/&gt;
-      &lt;source pool='iscsi-pool' volume='unit:0:0:2' mode='direct'/&gt;
-      &lt;auth username='myuser'&gt;
-        &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
-      &lt;/auth&gt;
-      &lt;target dev='vdc' bus='virtio'/&gt;
-    &lt;/disk&gt;
-    &lt;disk type='file' device='disk'&gt;
-      &lt;driver name='qemu' type='qcow2'/&gt;
-      &lt;source file='/var/lib/libvirt/images/domain.qcow'/&gt;
-      &lt;backingStore type='file'&gt;
-        &lt;format type='qcow2'/&gt;
-        &lt;source file='/var/lib/libvirt/images/snapshot.qcow'/&gt;
-        &lt;backingStore type='block'&gt;
-          &lt;format type='raw'/&gt;
-          &lt;source dev='/dev/mapper/base'/&gt;
-          &lt;backingStore/&gt;
-        &lt;/backingStore&gt;
+    &lt;/encryption&gt;
+    &lt;shareable/&gt;
+    &lt;serial&gt;
+      ...
+    &lt;/serial&gt;
+  &lt;/disk&gt;
+    ...
+  &lt;disk type='network'&gt;
+    &lt;driver name="qemu" type="raw" io="threads" ioeventfd="on" event_idx="off"/&gt;
+    &lt;source protocol="sheepdog" name="image_name"&gt;
+      &lt;host name="hostname" port="7000"/&gt;
+    &lt;/source&gt;
+    &lt;target dev="hdb" bus="ide"/&gt;
+    &lt;boot order='1'/&gt;
+    &lt;transient/&gt;
+    &lt;address type='drive' controller='0' bus='1' unit='0'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network'&gt;
+    &lt;driver name="qemu" type="raw"/&gt;
+    &lt;source protocol="rbd" name="image_name2"&gt;
+      &lt;host name="hostname" port="7000"/&gt;
+      &lt;snapshot name="snapname"/&gt;
+      &lt;config file="/path/to/file"/&gt;
+    &lt;/source&gt;
+    &lt;target dev="hdc" bus="ide"/&gt;
+    &lt;auth username='myuser'&gt;
+      &lt;secret type='ceph' usage='mypassid'/&gt;
+    &lt;/auth&gt;
+  &lt;/disk&gt;
+  &lt;disk type='block' device='cdrom'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;target dev='hdd' bus='ide' tray='open'/&gt;
+    &lt;readonly/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='cdrom'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol="http" name="url_path"&gt;
+      &lt;host name="hostname" port="80"/&gt;
+    &lt;/source&gt;
+    &lt;target dev='hde' bus='ide' tray='open'/&gt;
+    &lt;readonly/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='cdrom'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol="https" name="url_path"&gt;
+      &lt;host name="hostname" port="443"/&gt;
+    &lt;/source&gt;
+    &lt;target dev='hdf' bus='ide' tray='open'/&gt;
+    &lt;readonly/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='cdrom'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol="ftp" name="url_path"&gt;
+      &lt;host name="hostname" port="21"/&gt;
+    &lt;/source&gt;
+    &lt;target dev='hdg' bus='ide' tray='open'/&gt;
+    &lt;readonly/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='cdrom'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol="ftps" name="url_path"&gt;
+      &lt;host name="hostname" port="990"/&gt;
+    &lt;/source&gt;
+    &lt;target dev='hdh' bus='ide' tray='open'/&gt;
+    &lt;readonly/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='cdrom'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol="tftp" name="url_path"&gt;
+      &lt;host name="hostname" port="69"/&gt;
+    &lt;/source&gt;
+    &lt;target dev='hdi' bus='ide' tray='open'/&gt;
+    &lt;readonly/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='block' device='lun'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source dev='/dev/sda'/&gt;
+    &lt;target dev='sda' bus='scsi'/&gt;
+    &lt;address type='drive' controller='0' bus='0' target='3' unit='0'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='block' device='disk'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source dev='/dev/sda'/&gt;
+    &lt;geometry cyls='16383' heads='16' secs='63' trans='lba'/&gt;
+    &lt;blockio logical_block_size='512' physical_block_size='4096'/&gt;
+    &lt;target dev='hdj' bus='ide'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='volume' device='disk'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source pool='blk-pool0' volume='blk-pool0-vol0'/&gt;
+    &lt;target dev='hdk' bus='ide'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='disk'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol='iscsi' name='iqn.2013-07.com.example:iscsi-nopool/2'&gt;
+      &lt;host name='example.com' port='3260'/&gt;
+    &lt;/source&gt;
+    &lt;auth username='myuser'&gt;
+      &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
+    &lt;/auth&gt;
+    &lt;target dev='vda' bus='virtio'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='network' device='lun'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source protocol='iscsi' name='iqn.2013-07.com.example:iscsi-nopool/1'&gt;
+      &lt;host name='example.com' port='3260'/&gt;
+    &lt;/source&gt;
+    &lt;auth username='myuser'&gt;
+      &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
+    &lt;/auth&gt;
+    &lt;target dev='sdb' bus='scsi'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='volume' device='disk'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source pool='iscsi-pool' volume='unit:0:0:1' mode='host'/&gt;
+    &lt;auth username='myuser'&gt;
+      &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
+    &lt;/auth&gt;
+    &lt;target dev='vdb' bus='virtio'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='volume' device='disk'&gt;
+    &lt;driver name='qemu' type='raw'/&gt;
+    &lt;source pool='iscsi-pool' volume='unit:0:0:2' mode='direct'/&gt;
+    &lt;auth username='myuser'&gt;
+      &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
+    &lt;/auth&gt;
+    &lt;target dev='vdc' bus='virtio'/&gt;
+  &lt;/disk&gt;
+  &lt;disk type='file' device='disk'&gt;
+    &lt;driver name='qemu' type='qcow2'/&gt;
+    &lt;source file='/var/lib/libvirt/images/domain.qcow'/&gt;
+    &lt;backingStore type='file'&gt;
+      &lt;format type='qcow2'/&gt;
+      &lt;source file='/var/lib/libvirt/images/snapshot.qcow'/&gt;
+      &lt;backingStore type='block'&gt;
+        &lt;format type='raw'/&gt;
+        &lt;source dev='/dev/mapper/base'/&gt;
+        &lt;backingStore/&gt;
       &lt;/backingStore&gt;
-      &lt;target dev='vdd' bus='virtio'/&gt;
-    &lt;/disk&gt;
-  &lt;/devices&gt;
-  ...</pre>
+    &lt;/backingStore&gt;
+    &lt;target dev='vdd' bus='virtio'/&gt;
+  &lt;/disk&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>disk</code></dt>
@@ -2616,7 +2861,56 @@
             maximum write I/O operations per second.</dd>
           <dt><code>size_iops_sec</code></dt>
           <dd>The optional <code>size_iops_sec</code> element is the
-            size of I/O operations per second.</dd>
+            size of I/O operations per second.
+          <p>
+            <span class="since">Throughput limits since 1.2.11 and QEMU 1.7</span>
+          </p>
+          </dd>
+          <dt><code>group_name</code></dt>
+          <dd>The optional <code>group_name</code> provides the cability
+            to share I/O throttling quota between multiple drives. This
+            prevents end-users from circumventing a hosting provider's
+            throttling policy by splitting 1 large drive in N small drives
+            and getting N times the normal throttling quota. Any name may
+            be used.
+          <p>
+            <span class="since">group_name since 3.0.0 and QEMU 2.4</span>
+          </p>
+          </dd>
+          <dt><code>total_bytes_sec_max_length</code></dt>
+          <dd>The optional <code>total_bytes_sec_max_length</code>
+            element is the maximum duration in seconds for the
+            <code>total_bytes_sec_max</code> burst period. Only valid
+            when the <code>total_bytes_sec_max</code> is set.</dd>
+          <dt><code>read_bytes_sec_max_length</code></dt>
+          <dd>The optional <code>read_bytes_sec_max_length</code>
+            element is the maximum duration in seconds for the
+            <code>read_bytes_sec_max</code> burst period. Only valid
+            when the <code>read_bytes_sec_max</code> is set.</dd>
+          <dt><code>write_bytes_sec_max</code></dt>
+          <dd>The optional <code>write_bytes_sec_max_length</code>
+            element is the maximum duration in seconds for the
+            <code>write_bytes_sec_max</code> burst period. Only valid
+            when the <code>write_bytes_sec_max</code> is set.</dd>
+          <dt><code>total_iops_sec_max_length</code></dt>
+          <dd>The optional <code>total_iops_sec_max_length</code>
+            element is the maximum duration in seconds for the
+            <code>total_iops_sec_max</code> burst period. Only valid
+            when the <code>total_iops_sec_max</code> is set.</dd>
+          <dt><code>read_iops_sec_max_length</code></dt>
+          <dd>The optional <code>read_iops_sec_max_length</code>
+            element is the maximum duration in seconds for the
+            <code>read_iops_sec_max</code> burst period. Only valid
+            when the <code>read_iops_sec_max</code> is set.</dd>
+          <dt><code>write_iops_sec_max</code></dt>
+          <dd>The optional <code>write_iops_sec_max_length</code>
+            element is the maximum duration in seconds for the
+            <code>write_iops_sec_max</code> burst period. Only valid
+            when the <code>write_iops_sec_max</code> is set.
+          <p>
+            <span class="since">Throughput length since 2.4.0 and QEMU 2.6</span>
+          </p>
+          </dd>
         </dl>
       </dd>
       <dt><code>driver</code></dt>
@@ -2653,8 +2947,8 @@
             how the hypervisor will behave on a disk read or write
             error, possible values are "stop", "report", "ignore", and
             "enospace".<span class="since">Since 0.8.0, "report" since
-            0.9.7</span> The default setting of error_policy is "report".
-            There is also an
+            0.9.7</span> The default is left to the discretion of the
+            hypervisor. There is also an
             optional <code>rerror_policy</code> that controls behavior
             for read errors only. <span class="since">Since
             0.9.7</span>. If no rerror_policy is given, error_policy
@@ -2663,8 +2957,7 @@
             read errors. Also note that "enospace" is not a valid
             policy for read errors, so if <code>error_policy</code> is
             set to "enospace" and no <code>rerror_policy</code> is
-            given, the read error policy will be left at its default,
-            which is "report".
+            given, the read error policy will be left at its default.
           </li>
           <li>
             The optional <code>io</code> attribute controls specific
@@ -2709,7 +3002,7 @@
           </li>
           <li>
             The optional <code>discard</code> attribute controls whether
-            to discard (also known as "trim" or "unmap") requests are
+            discard requests (also known as "trim" or "unmap") are
             ignored or passed to the filesystem. The value can be either
             "unmap" (allow the discard request to be passed) or "ignore"
             (ignore the discard request).
@@ -2737,6 +3030,11 @@
             <code>bus</code> and "pci" or "ccw" <code>address</code> types.
             <span class='since'>Since 1.2.8 (QEMU 2.1)</span>
           </li>
+          <li>
+          For virtio disks,
+          <a href="#elementsVirtio">Virtio-specific options</a> can also be
+          set. (<span class="since">Since 3.5.0</span>)
+          </li>
         </ul>
       </dd>
       <dt><code>backenddomain</code></dt>
@@ -2748,8 +3046,13 @@
       <dt><code>boot</code></dt>
       <dd>Specifies that the disk is bootable. The <code>order</code>
         attribute determines the order in which devices will be tried during
-        boot sequence. The per-device <code>boot</code> elements cannot be
-        used together with general boot elements in
+        boot sequence. On the S390 architecture only the first boot device is
+        used. The optional <code>loadparm</code> attribute is an 8 character
+        string which can be queried by guests on S390 via sclp or diag 308.
+        Linux guests on S390 can use <code>loadparm</code> to select a boot
+        entry. <span class="since">Since 3.5.0</span>
+        The per-device <code>boot</code> elements cannot be used together
+        with general boot elements in
         <a href="#elementsOSBIOS">BIOS bootloader</a> section.
         <span class="since">Since 0.8.8</span>
       </dd>
@@ -2890,28 +3193,28 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;filesystem type='template'&gt;
+    &lt;source name='my-vm-template'/&gt;
+    &lt;target dir='/'/&gt;
+  &lt;/filesystem&gt;
+  &lt;filesystem type='mount' accessmode='passthrough'&gt;
+    &lt;driver type='path' wrpolicy='immediate'/&gt;
+    &lt;source dir='/export/to/guest'/&gt;
+    &lt;target dir='/import/from/host'/&gt;
+    &lt;readonly/&gt;
+  &lt;/filesystem&gt;
+  &lt;filesystem type='file' accessmode='passthrough'&gt;
+    &lt;driver name='loop' type='raw'/&gt;
+    &lt;driver type='path' wrpolicy='immediate'/&gt;
+    &lt;source file='/export/to/guest.img'/&gt;
+    &lt;target dir='/import/from/host'/&gt;
+    &lt;readonly/&gt;
+  &lt;/filesystem&gt;
   ...
-  &lt;devices&gt;
-    &lt;filesystem type='template'&gt;
-      &lt;source name='my-vm-template'/&gt;
-      &lt;target dir='/'/&gt;
-    &lt;/filesystem&gt;
-    &lt;filesystem type='mount' accessmode='passthrough'&gt;
-      &lt;driver type='path' wrpolicy='immediate'/&gt;
-      &lt;source dir='/export/to/guest'/&gt;
-      &lt;target dir='/import/from/host'/&gt;
-      &lt;readonly/&gt;
-    &lt;/filesystem&gt;
-    &lt;filesystem type='file' accessmode='passthrough'&gt;
-      &lt;driver name='loop' type='raw'/&gt;
-      &lt;driver type='path' wrpolicy='immediate'/&gt;
-      &lt;source file='/export/to/guest.img'/&gt;
-      &lt;target dir='/import/from/host'/&gt;
-      &lt;readonly/&gt;
-    &lt;/filesystem&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>filesystem</code></dt>
@@ -3016,6 +3319,11 @@
             "nbd" with any format. QEMU supports a type of "path"
             or "handle", but no formats. Virtuozzo driver supports
             a type of "ploop" with a format of "ploop".
+          </li>
+          <li>
+          For virtio-backed devices,
+          <a href="#elementsVirtio">Virtio-specific options</a> can also be
+          set. (<span class="since">Since 3.5.0</span>)
           </li>
         </ul>
       </dd>
@@ -3162,7 +3470,13 @@
         currently only available for some <code>armv7l</code> and
         <code>aarch64</code> virtual machines. virtio-mmio addresses
         do not have any additional attributes.
-        <span class="since">Since 1.1.3</span>
+        <span class="since">Since 1.1.3</span><br/>
+        If the guest architecture is <code>aarch64</code> and the machine
+        type is <code>virt</code>, libvirt will automatically assign PCI
+        addresses to devices; however, the presence of a single device
+        with virtio-mmio address in the guest configuration will cause
+        libvirt to assign virtio-mmio addresses to all further devices.
+        <span class="since">Since 3.0.0</span>
       </dd>
       <dt><code>isa</code></dt>
       <dd>ISA addresses have the following additional
@@ -3170,6 +3484,19 @@
         <span class="since">Since 1.2.1</span>
       </dd>
     </dl>
+
+    <h4><a name="elementsVirtio">Virtio-related options</a></h4>
+
+    <p>
+      QEMU's virtio devices have some attributes related to the virtio transport under
+      the <code>driver</code> element:
+      The <code>iommu</code> attribute enables the use of emulated IOMMU
+      by the device. The attribute <code>ats</code> controls the Address
+      Translation Service support for PCIe devices. This is needed to make use
+      of IOTLB support (see <a href="#elementsIommu">IOMMU device</a>).
+      Possible values are <code>on</code> or <code>off</code>.
+      <span class="since">Since 3.5.0</span>
+    </p>
 
     <h4><a name="elementsControllers">Controllers</a></h4>
 
@@ -3182,20 +3509,20 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;controller type='ide' index='0'/&gt;
+  &lt;controller type='virtio-serial' index='0' ports='16' vectors='4'/&gt;
+  &lt;controller type='virtio-serial' index='1'&gt;
+    &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x0a' function='0x0'/&gt;
+  &lt;/controller&gt;
+  &lt;controller type='scsi' index='0' model='virtio-scsi'&gt;
+    &lt;driver iothread='4'/&gt;
+    &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x0b' function='0x0'/&gt;
+  &lt;/controller&gt;
   ...
-  &lt;devices&gt;
-    &lt;controller type='ide' index='0'/&gt;
-    &lt;controller type='virtio-serial' index='0' ports='16' vectors='4'/&gt;
-    &lt;controller type='virtio-serial' index='1'&gt;
-      &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x0a' function='0x0'/&gt;
-    &lt;/controller&gt;
-    &lt;controller type='scsi' index='0' model='virtio-scsi'&gt;
-      &lt;driver iothread='4'/&gt;
-      &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x0b' function='0x0'/&gt;
-    &lt;/controller&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+&lt;/devices&gt;
+...</pre>
 
     <p>
       Each controller has a mandatory attribute <code>type</code>,
@@ -3227,8 +3554,8 @@
         <code>model</code>, which is one of "piix3-uhci", "piix4-uhci",
         "ehci", "ich9-ehci1", "ich9-uhci1", "ich9-uhci2", "ich9-uhci3",
         "vt82c686b-uhci", "pci-ohci", "nec-xhci", "qusb1" (xen pvusb
-        with qemu backend, version 1.1) or "qusb2" (xen pvusb with qemu
-        backend, version 2.0). Additionally,
+        with qemu backend, version 1.1), "qusb2" (xen pvusb with qemu
+        backend, version 2.0) or "qemu-xhci". Additionally,
          <span class="since">since 0.10.0</span>, if the USB bus needs to
          be explicitly disabled for the guest, <code>model='none'</code>
          may be used.  <span class="since">Since 1.0.5</span>, no default
@@ -3302,6 +3629,12 @@
         <code>iothread</code> value. The <code>iothread</code> value
         must be within the range 1 to the domain iothreads value.
       </dd>
+      <dt>virtio options</dt>
+      <dd>
+        For virtio controllers,
+        <a href="#elementsVirtio">Virtio-specific options</a> can also be
+        set. (<span class="since">Since 3.5.0</span>)
+      </dd>
     </dl>
     <p>
       USB companion controllers have an optional
@@ -3317,18 +3650,18 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;controller type='usb' index='0' model='ich9-ehci1'&gt;
+    &lt;address type='pci' domain='0' bus='0' slot='4' function='7'/&gt;
+  &lt;/controller&gt;
+  &lt;controller type='usb' index='0' model='ich9-uhci1'&gt;
+    &lt;master startport='0'/&gt;
+    &lt;address type='pci' domain='0' bus='0' slot='4' function='0' multifunction='on'/&gt;
+  &lt;/controller&gt;
   ...
-  &lt;devices&gt;
-    &lt;controller type='usb' index='0' model='ich9-ehci1'&gt;
-      &lt;address type='pci' domain='0' bus='0' slot='4' function='7'/&gt;
-    &lt;/controller&gt;
-    &lt;controller type='usb' index='0' model='ich9-uhci1'&gt;
-      &lt;master startport='0'/&gt;
-      &lt;address type='pci' domain='0' bus='0' slot='4' function='0' multifunction='on'/&gt;
-    &lt;/controller&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+&lt;/devices&gt;
+...</pre>
 
     <p>
       PCI controllers have an optional <code>model</code> attribute with
@@ -3454,6 +3787,12 @@
         libvirt API to attach host devices to the correct
         pci-expander-bus when assigning them to the domain).
       </dd>
+      <dt><code>index</code></dt>
+      <dd>
+        pci-root controllers for pSeries guests use this attribute to
+        record the order they will show up in the guest.
+        <span class="since">Since 3.6.0</span>
+      </dd>
     </dl>
     <p>
       For machine types which provide an implicit PCI bus, the pci-root
@@ -3468,14 +3807,14 @@
       configuration.
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;controller type='pci' index='0' model='pci-root'/&gt;
-    &lt;controller type='pci' index='1' model='pci-bridge'&gt;
-      &lt;address type='pci' domain='0' bus='0' slot='5' function='0' multifunction='off'/&gt;
-    &lt;/controller&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;controller type='pci' index='0' model='pci-root'/&gt;
+  &lt;controller type='pci' index='1' model='pci-bridge'&gt;
+    &lt;address type='pci' domain='0' bus='0' slot='5' function='0' multifunction='off'/&gt;
+  &lt;/controller&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       For machine types which provide an implicit PCI Express (PCIe)
@@ -3530,17 +3869,17 @@
       1.2.19</span>)
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;controller type='pci' index='0' model='pcie-root'/&gt;
-    &lt;controller type='pci' index='1' model='dmi-to-pci-bridge'&gt;
-      &lt;address type='pci' domain='0' bus='0' slot='0xe' function='0'/&gt;
-    &lt;/controller&gt;
-    &lt;controller type='pci' index='2' model='pci-bridge'&gt;
-      &lt;address type='pci' domain='0' bus='1' slot='1' function='0'/&gt;
-    &lt;/controller&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;controller type='pci' index='0' model='pcie-root'/&gt;
+  &lt;controller type='pci' index='1' model='dmi-to-pci-bridge'&gt;
+    &lt;address type='pci' domain='0' bus='0' slot='0xe' function='0'/&gt;
+  &lt;/controller&gt;
+  &lt;controller type='pci' index='2' model='pci-bridge'&gt;
+    &lt;address type='pci' domain='0' bus='1' slot='1' function='0'/&gt;
+  &lt;/controller&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h4><a name="elementsLease">Device leases</a></h4>
 
@@ -3551,17 +3890,17 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;lease&gt;
-      &lt;lockspace&gt;somearea&lt;/lockspace&gt;
-      &lt;key&gt;somekey&lt;/key&gt;
-      &lt;target path='/some/lease/path' offset='1024'/&gt;
-    &lt;/lease&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;lease&gt;
+    &lt;lockspace&gt;somearea&lt;/lockspace&gt;
+    &lt;key&gt;somekey&lt;/key&gt;
+    &lt;target path='/some/lease/path' offset='1024'/&gt;
+  &lt;/lease&gt;
+  ...
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>lockspace</code></dt>
@@ -3594,14 +3933,74 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;hostdev mode='subsystem' type='usb'&gt;
+    &lt;source startupPolicy='optional'&gt;
+      &lt;vendor id='0x1234'/&gt;
+      &lt;product id='0xbeef'/&gt;
+    &lt;/source&gt;
+    &lt;boot order='2'/&gt;
+  &lt;/hostdev&gt;
+&lt;/devices&gt;
+...</pre>
+
+    <p>or:</p>
+
+<pre>
+...
+&lt;devices&gt;
+  &lt;hostdev mode='subsystem' type='pci' managed='yes'&gt;
+    &lt;source&gt;
+      &lt;address domain='0x0000' bus='0x06' slot='0x02' function='0x0'/&gt;
+    &lt;/source&gt;
+    &lt;boot order='1'/&gt;
+    &lt;rom bar='on' file='/etc/fake/boot.bin'/&gt;
+  &lt;/hostdev&gt;
+&lt;/devices&gt;
+...</pre>
+
+    <p>or:</p>
+
+<pre>
+...
+&lt;devices&gt;
+  &lt;hostdev mode='subsystem' type='scsi' sgio='filtered' rawio='yes'&gt;
+    &lt;source&gt;
+      &lt;adapter name='scsi_host0'/&gt;
+      &lt;address bus='0' target='0' unit='0'/&gt;
+    &lt;/source&gt;
+    &lt;readonly/&gt;
+    &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;
+  &lt;/hostdev&gt;
+&lt;/devices&gt;
+...</pre>
+
+
+    <p>or:</p>
+
+<pre>
+...
+&lt;devices&gt;
+  &lt;hostdev mode='subsystem' type='scsi'&gt;
+    &lt;source protocol='iscsi' name='iqn.2014-08.com.example:iscsi-nopool/1'&gt;
+      &lt;host name='example.com' port='3260'/&gt;
+      &lt;auth username='myuser'&gt;
+        &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
+      &lt;/auth&gt;
+    &lt;/source&gt;
+    &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;
+  &lt;/hostdev&gt;
+&lt;/devices&gt;
+...</pre>
+
+    <p>or:</p>
+
+<pre>
   ...
   &lt;devices&gt;
-    &lt;hostdev mode='subsystem' type='usb'&gt;
-      &lt;source startupPolicy='optional'&gt;
-        &lt;vendor id='0x1234'/&gt;
-        &lt;product id='0xbeef'/&gt;
-      &lt;/source&gt;
-      &lt;boot order='2'/&gt;
+    &lt;hostdev mode='subsystem' type='scsi_host'&gt;
+      &lt;source protocol='vhost' wwpn='naa.50014057667280d8'/&gt;
     &lt;/hostdev&gt;
   &lt;/devices&gt;
   ...</pre>
@@ -3611,46 +4010,10 @@
 <pre>
   ...
   &lt;devices&gt;
-    &lt;hostdev mode='subsystem' type='pci' managed='yes'&gt;
-      &lt;source&gt;
-        &lt;address domain='0x0000' bus='0x06' slot='0x02' function='0x0'/&gt;
-      &lt;/source&gt;
-      &lt;boot order='1'/&gt;
-      &lt;rom bar='on' file='/etc/fake/boot.bin'/&gt;
-    &lt;/hostdev&gt;
-  &lt;/devices&gt;
-  ...</pre>
-
-    <p>or:</p>
-
-<pre>
-  ...
-  &lt;devices&gt;
-    &lt;hostdev mode='subsystem' type='scsi' sgio='filtered' rawio='yes'&gt;
-      &lt;source&gt;
-        &lt;adapter name='scsi_host0'/&gt;
-        &lt;address bus='0' target='0' unit='0'/&gt;
-      &lt;/source&gt;
-      &lt;readonly/&gt;
-      &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;
-    &lt;/hostdev&gt;
-  &lt;/devices&gt;
-  ...</pre>
-
-
-    <p>or:</p>
-
-<pre>
-  ...
-  &lt;devices&gt;
-    &lt;hostdev mode='subsystem' type='scsi'&gt;
-      &lt;source protocol='iscsi' name='iqn.2014-08.com.example:iscsi-nopool/1'&gt;
-        &lt;host name='example.com' port='3260'/&gt;
-        &lt;auth username='myuser'&gt;
-          &lt;secret type='iscsi' usage='libvirtiscsi'/&gt;
-        &lt;/auth&gt;
-      &lt;/source&gt;
-      &lt;address type='drive' controller='0' bus='0' target='0' unit='0'/&gt;
+    &lt;hostdev mode='subsystem' type='mdev' model='vfio-pci'&gt;
+    &lt;source&gt;
+      &lt;address uuid='c2177883-f1bb-47f0-914d-32a22e3a8804'&gt;
+    &lt;/source&gt;
     &lt;/hostdev&gt;
   &lt;/devices&gt;
   ...</pre>
@@ -3693,12 +4056,28 @@
             If a disk lun in the domain already has the rawio capability,
             then this setting not required.
           </dd>
+          <dt><code>scsi_host</code></dt>
+          <dd><span class="since">since 2.5.0</span>For SCSI devices, user
+            is responsible to make sure the device is not used by host. This
+            <code>type</code> passes all LUNs presented by a single HBA to
+            the guest.
+          </dd>
+          <dt><code>mdev</code></dt>
+          <dd>For mediated devices (<span class="since">Since 3.2.0</span>)
+          the <code>model</code> attribute specifies the device API which
+          determines how the host's vfio driver will expose the device to the
+          guest. Currently, only <code>model='vfio-pci'</code> is supported.
+          There are also some implications on the usage of guest's address type
+          depending on the <code>model</code> attribute, see the
+          <code>address</code> element below.</dd>
         </dl>
         <p>
-          Note: The <code>managed</code> attribute is only used with PCI devices
-          and is ignored by all the other device types, thus setting
-          <code>managed</code> explicitly with other than PCI device has the same
-          effect as omitting it.
+          Note: The <code>managed</code> attribute is only used with
+          <code>type='pci'</code> and is ignored by all the other device types,
+          thus setting <code>managed</code> explicitly with other than a PCI
+          device has the same effect as omitting it. Similarly,
+          <code>model</code> attribute is only supported by mediated devices and
+          ignored by all other device types.
         </p>
       </dd>
       <dt><code>source</code></dt>
@@ -3756,6 +4135,19 @@
             credentials to the iSCSI server.
             </p>
           </dd>
+          <dt><code>scsi_host</code></dt>
+          <dd><span class="since">Since 2.5.0</span>, multiple LUNs behind a
+            single SCSI HBA are described by a <code>protocol</code>
+            attribute set to "vhost" and a <code>wwpn</code> attribute that
+            is the vhost_scsi wwpn (16 hexadecimal digits with a prefix of
+            "naa.") established in the host configfs.
+          </dd>
+          <dt><code>mdev</code></dt>
+          <dd>Mediated devices (<span class="since">Since 3.2.0</span>) are
+            described by the <code>address</code> element. The
+            <code>address</code> element contains a single mandatory attribute
+            <code>uuid</code>.
+          </dd>
         </dl>
       </dd>
       <dt><code>vendor</code>, <code>product</code></dt>
@@ -3799,8 +4191,13 @@
       For PCI devices the element carries 4 attributes allowing to designate
       the device as can be found with the <code>lspci</code> or
       with <code>virsh nodedev-list</code>. For SCSI devices a 'drive'
-      address type must be used. <a href="#elementsAddress">See above</a> for
-      more details on the address element.</dd>
+      address type must be used. For mediated devices, which are software-only
+      devices defining an allocation of resources on the physical parent device,
+      the address type used must conform to the <code>model</code> attribute
+      of element <code>hostdev</code>, e.g. any address type other than PCI for
+      <code>vfio-pci</code> device API will result in an error.
+      <a href="#elementsAddress">See above</a> for more details on the address
+      element.</dd>
       <dt><code>driver</code></dt>
       <dd>
         PCI devices can have an optional <code>driver</code>
@@ -3903,18 +4300,18 @@
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;redirdev bus='usb' type='tcp'&gt;
-      &lt;source mode='connect' host='localhost' service='4000'/&gt;
-      &lt;boot order='1'/&gt;
-    &lt;/redirdev&gt;
-    &lt;redirfilter&gt;
-      &lt;usbdev class='0x08' vendor='0x1234' product='0xbeef' version='2.56' allow='yes'/&gt;
-      &lt;usbdev allow='no'/&gt;
-    &lt;/redirfilter&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;redirdev bus='usb' type='tcp'&gt;
+    &lt;source mode='connect' host='localhost' service='4000'/&gt;
+    &lt;boot order='1'/&gt;
+  &lt;/redirdev&gt;
+  &lt;redirfilter&gt;
+    &lt;usbdev class='0x08' vendor='0x1234' product='0xbeef' version='2.56' allow='yes'/&gt;
+    &lt;usbdev allow='no'/&gt;
+  &lt;/redirfilter&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>redirdev</code></dt>
@@ -3977,23 +4374,23 @@
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;smartcard mode='host'/&gt;
-    &lt;smartcard mode='host-certificates'&gt;
-      &lt;certificate&gt;cert1&lt;/certificate&gt;
-      &lt;certificate&gt;cert2&lt;/certificate&gt;
-      &lt;certificate&gt;cert3&lt;/certificate&gt;
-      &lt;database&gt;/etc/pki/nssdb/&lt;/database&gt;
-    &lt;/smartcard&gt;
-    &lt;smartcard mode='passthrough' type='tcp'&gt;
-      &lt;source mode='bind' host='127.0.0.1' service='2001'/&gt;
-      &lt;protocol type='raw'/&gt;
-      &lt;address type='ccid' controller='0' slot='0'/&gt;
-    &lt;/smartcard&gt;
-    &lt;smartcard mode='passthrough' type='spicevmc'/&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;smartcard mode='host'/&gt;
+  &lt;smartcard mode='host-certificates'&gt;
+    &lt;certificate&gt;cert1&lt;/certificate&gt;
+    &lt;certificate&gt;cert2&lt;/certificate&gt;
+    &lt;certificate&gt;cert3&lt;/certificate&gt;
+    &lt;database&gt;/etc/pki/nssdb/&lt;/database&gt;
+  &lt;/smartcard&gt;
+  &lt;smartcard mode='passthrough' type='tcp'&gt;
+    &lt;source mode='bind' host='127.0.0.1' service='2001'/&gt;
+    &lt;protocol type='raw'/&gt;
+    &lt;address type='ccid' controller='0' slot='0'/&gt;
+  &lt;/smartcard&gt;
+  &lt;smartcard mode='passthrough' type='spicevmc'/&gt;
+&lt;/devices&gt;
+...
 </pre>
 
     <p>
@@ -4057,16 +4454,16 @@
     <h4><a name="elementsNICS">Network interfaces</a></h4>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='direct' trustGuestRxFilters='yes'&gt;
-      &lt;source dev='eth0'/&gt;
-      &lt;mac address='52:54:00:5d:c7:9e'/&gt;
-      &lt;boot order='1'/&gt;
-      &lt;rom bar='off'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='direct' trustGuestRxFilters='yes'&gt;
+    &lt;source dev='eth0'/&gt;
+    &lt;mac address='52:54:00:5d:c7:9e'/&gt;
+    &lt;boot order='1'/&gt;
+    &lt;rom bar='off'/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       There are several possibilities for specifying a network
@@ -4182,23 +4579,23 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+  &lt;/interface&gt;
   ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-    &lt;/interface&gt;
-    ...
-    &lt;interface type='network'&gt;
-      &lt;source network='default' portgroup='engineering'/&gt;
-      &lt;target dev='vnet7'/&gt;
-      &lt;mac address="00:11:22:33:44:55"/&gt;
-      &lt;virtualport&gt;
-        &lt;parameters instanceid='09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f'/&gt;
-      &lt;/virtualport&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default' portgroup='engineering'/&gt;
+    &lt;target dev='vnet7'/&gt;
+    &lt;mac address="00:11:22:33:44:55"/&gt;
+    &lt;virtualport&gt;
+      &lt;parameters instanceid='09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f'/&gt;
+    &lt;/virtualport&gt;
 
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSBridge">Bridge to LAN</a></h5>
 
@@ -4236,26 +4633,26 @@
       the interfaces "port-profile".
     </p>
 <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='br0'/&gt;
-    &lt;/interface&gt;
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='br1'/&gt;
-      &lt;target dev='vnet7'/&gt;
-      &lt;mac address="00:11:22:33:44:55"/&gt;
-    &lt;/interface&gt;
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='ovsbr'/&gt;
-      &lt;virtualport type='openvswitch'&gt;
-        &lt;parameters profileid='menial' interfaceid='09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f'/&gt;
-      &lt;/virtualport&gt;
-    &lt;/interface&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='br0'/&gt;
+  &lt;/interface&gt;
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='br1'/&gt;
+    &lt;target dev='vnet7'/&gt;
+    &lt;mac address="00:11:22:33:44:55"/&gt;
+  &lt;/interface&gt;
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='ovsbr'/&gt;
+    &lt;virtualport type='openvswitch'&gt;
+      &lt;parameters profileid='menial' interfaceid='09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f'/&gt;
+    &lt;/virtualport&gt;
+  &lt;/interface&gt;
+  ...
+&lt;/devices&gt;
+...</pre>
 
     <p>
       On hosts that support Open vSwitch on the kernel side and have the
@@ -4270,26 +4667,26 @@
       to the interface.
     </p>
 <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='br0'/&gt;
-    &lt;/interface&gt;
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='br1'/&gt;
-      &lt;target dev='vnet7'/&gt;
-      &lt;mac address="00:11:22:33:44:55"/&gt;
-    &lt;/interface&gt;
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='midonet'/&gt;
-      &lt;virtualport type='midonet'&gt;
-        &lt;parameters interfaceid='0b2d64da-3d0e-431e-afdd-804415d6ebbb'/&gt;
-      &lt;/virtualport&gt;
-    &lt;/interface&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='br0'/&gt;
+  &lt;/interface&gt;
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='br1'/&gt;
+    &lt;target dev='vnet7'/&gt;
+    &lt;mac address="00:11:22:33:44:55"/&gt;
+  &lt;/interface&gt;
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='midonet'/&gt;
+    &lt;virtualport type='midonet'&gt;
+      &lt;parameters interfaceid='0b2d64da-3d0e-431e-afdd-804415d6ebbb'/&gt;
+    &lt;/virtualport&gt;
+  &lt;/interface&gt;
+  ...
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSSlirp">Userspace SLIRP stack</a></h5>
 
@@ -4303,15 +4700,15 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;interface type='user'/&gt;
   ...
-  &lt;devices&gt;
-    &lt;interface type='user'/&gt;
-    ...
-    &lt;interface type='user'&gt;
-      &lt;mac address="00:11:22:33:44:55"/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='user'&gt;
+    &lt;mac address="00:11:22:33:44:55"/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
 
     <h5><a name="elementsNICSEthernet">Generic ethernet connection</a></h5>
@@ -4327,16 +4724,16 @@
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;interface type='ethernet'/&gt;
   ...
-  &lt;devices&gt;
-    &lt;interface type='ethernet'/&gt;
-    ...
-    &lt;interface type='ethernet'&gt;
-      &lt;target dev='vnet7'/&gt;
-      &lt;script path='/etc/qemu-ifup-mynet'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='ethernet'&gt;
+    &lt;target dev='vnet7'/&gt;
+    &lt;script path='/etc/qemu-ifup-mynet'/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSDirect">Direct attachment to physical interface</a></h5>
 
@@ -4394,14 +4791,14 @@
     </dl>
 
 <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;interface type='direct' trustGuestRxFilters='no'&gt;
-      &lt;source dev='eth0' mode='vepa'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='direct' trustGuestRxFilters='no'&gt;
+    &lt;source dev='eth0' mode='vepa'/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       The network access of direct attached virtual machines can be
@@ -4442,17 +4839,17 @@
       </dd>
     </dl>
 <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;interface type='direct'&gt;
-      &lt;source dev='eth0.2' mode='vepa'/&gt;
-      &lt;virtualport type="802.1Qbg"&gt;
-        &lt;parameters managerid="11" typeid="1193047" typeidversion="2" instanceid="09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f"/&gt;
-      &lt;/virtualport&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='direct'&gt;
+    &lt;source dev='eth0.2' mode='vepa'/&gt;
+    &lt;virtualport type="802.1Qbg"&gt;
+      &lt;parameters managerid="11" typeid="1193047" typeidversion="2" instanceid="09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f"/&gt;
+    &lt;/virtualport&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       The interface can have additional parameters as shown below
@@ -4469,18 +4866,18 @@
       </dd>
     </dl>
   <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;interface type='direct'&gt;
-      &lt;source dev='eth0' mode='private'/&gt;
-      &lt;virtualport type='802.1Qbh'&gt;
-        &lt;parameters profileid='finance'/&gt;
-      &lt;/virtualport&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...
-  </pre>
+  &lt;interface type='direct'&gt;
+    &lt;source dev='eth0' mode='private'/&gt;
+    &lt;virtualport type='802.1Qbh'&gt;
+      &lt;parameters profileid='finance'/&gt;
+    &lt;/virtualport&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...
+</pre>
 
 
     <h5><a name="elementsNICSHostdev">PCI Passthrough</a></h5>
@@ -4540,20 +4937,20 @@
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='hostdev' managed='yes'&gt;
-      &lt;driver name='vfio'/&gt;
-      &lt;source&gt;
-        &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/&gt;
-      &lt;/source&gt;
-      &lt;mac address='52:54:00:6d:90:02'/&gt;
-      &lt;virtualport type='802.1Qbh'&gt;
-        &lt;parameters profileid='finance'/&gt;
-      &lt;/virtualport&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='hostdev' managed='yes'&gt;
+    &lt;driver name='vfio'/&gt;
+    &lt;source&gt;
+      &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/&gt;
+    &lt;/source&gt;
+    &lt;mac address='52:54:00:6d:90:02'/&gt;
+    &lt;virtualport type='802.1Qbh'&gt;
+      &lt;parameters profileid='finance'/&gt;
+    &lt;/virtualport&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
 
     <h5><a name="elementsNICSMulticast">Multicast tunnel</a></h5>
@@ -4571,14 +4968,14 @@
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='mcast'&gt;
-      &lt;mac address='52:54:00:6d:90:01'/&gt;
-      &lt;source address='230.0.0.1' port='5558'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='mcast'&gt;
+    &lt;mac address='52:54:00:6d:90:01'/&gt;
+    &lt;source address='230.0.0.1' port='5558'/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSTCP">TCP tunnel</a></h5>
 
@@ -4592,19 +4989,19 @@
       to one of the first 4 network types and do the appropriate routing.</p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;interface type='server'&gt;
+    &lt;mac address='52:54:00:22:c9:42'/&gt;
+    &lt;source address='192.168.0.1' port='5558'/&gt;
+  &lt;/interface&gt;
   ...
-  &lt;devices&gt;
-    &lt;interface type='server'&gt;
-      &lt;mac address='52:54:00:22:c9:42'/&gt;
-      &lt;source address='192.168.0.1' port='5558'/&gt;
-    &lt;/interface&gt;
-    ...
-    &lt;interface type='client'&gt;
-      &lt;mac address='52:54:00:8b:c9:51'/&gt;
-      &lt;source address='192.168.0.1' port='5558'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='client'&gt;
+    &lt;mac address='52:54:00:8b:c9:51'/&gt;
+    &lt;source address='192.168.0.1' port='5558'/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSUDP">UDP unicast tunnel</a></h5>
 
@@ -4619,29 +5016,29 @@
     <span class="since">Since 1.2.20</span></p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='udp'&gt;
-      &lt;mac address='52:54:00:22:c9:42'/&gt;
-      &lt;source address='127.0.0.1' port='11115'&gt;
-        &lt;local address='127.0.0.1' port='11116'/&gt;
-      &lt;/source&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='udp'&gt;
+    &lt;mac address='52:54:00:22:c9:42'/&gt;
+    &lt;source address='127.0.0.1' port='11115'&gt;
+      &lt;local address='127.0.0.1' port='11116'/&gt;
+    &lt;/source&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSModel">Setting the NIC model</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet1'/&gt;
-      <b>&lt;model type='ne2k_pci'/&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet1'/&gt;
+    <b>&lt;model type='ne2k_pci'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       For hypervisors which support this, you can set the model of
@@ -4668,20 +5065,20 @@ qemu-kvm -net nic,model=? /dev/null
     <h5><a name="elementsDriverBackendOptions">Setting NIC driver-specific options</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet1'/&gt;
-      &lt;model type='virtio'/&gt;
-      <b>&lt;driver name='vhost' txmode='iothread' ioeventfd='on' event_idx='off' queues='5' rx_queue_size='256'&gt;
-        &lt;host csum='off' gso='off' tso4='off' tso6='off' ecn='off' ufo='off' mrg_rxbuf='off'/&gt;
-        &lt;guest csum='off' tso4='off' tso6='off' ecn='off' ufo='off'/&gt;
-      &lt;/driver&gt;
-      </b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet1'/&gt;
+    &lt;model type='virtio'/&gt;
+    <b>&lt;driver name='vhost' txmode='iothread' ioeventfd='on' event_idx='off' queues='5' rx_queue_size='256'&gt;
+      &lt;host csum='off' gso='off' tso4='off' tso6='off' ecn='off' ufo='off' mrg_rxbuf='off'/&gt;
+      &lt;guest csum='off' tso4='off' tso6='off' ecn='off' ufo='off'/&gt;
+    &lt;/driver&gt;
+    </b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       Some NICs may have tunable driver-specific options. These are
@@ -4804,6 +5201,12 @@ qemu-kvm -net nic,model=? /dev/null
         <b>In general you should leave this option alone, unless you
         are very certain you know what you are doing.</b>
       </dd>
+      <dt>virtio options</dt>
+      <dd>
+        For virtio interfaces,
+        <a href="#elementsVirtio">Virtio-specific options</a> can also be
+        set. (<span class="since">Since 3.5.0</span>)
+      </dd>
     </dl>
     <p>
       Offloading options for the host and guest can be configured using
@@ -4837,17 +5240,20 @@ qemu-kvm -net nic,model=? /dev/null
     <h5><a name="elementsBackendOptions">Setting network backend-specific options</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet1'/&gt;
-      &lt;model type='virtio'/&gt;
-      <b>&lt;backend tap='/dev/net/tun' vhost='/dev/vhost-net'/&gt;</b>
-      &lt;driver name='vhost' txmode='iothread' ioeventfd='on' event_idx='off' queues='5'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet1'/&gt;
+    &lt;model type='virtio'/&gt;
+    <b>&lt;backend tap='/dev/net/tun' vhost='/dev/vhost-net'/&gt;</b>
+    &lt;driver name='vhost' txmode='iothread' ioeventfd='on' event_idx='off' queues='5'/&gt;
+    <b>&lt;tune&gt;
+      &lt;sndbuf&gt;1600&lt;/sndbuf&gt;
+    &lt;/tune&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       For tuning the backend of the network, the <code>backend</code> element
@@ -4855,27 +5261,32 @@ qemu-kvm -net nic,model=? /dev/null
       device path (<code>/dev/vhost-net</code>) for devices with <code>virtio</code> model.
       The <code>tap</code> attribute overrides the tun/tap device path (default:
       <code>/dev/net/tun</code>) for network and bridge interfaces. This does not work
-      in session mode.
+      in session mode. <span class="since">Since 1.2.9</span>
+    </p>
+    <p>
+      For tap devices there is also <code>sndbuf</code> element which can
+      adjust the size of send buffer in the host. <span class="since">Since
+      0.8.8</span>
     </p>
     <h5><a name="elementsNICSTargetOverride">Overriding the target element</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      <b>&lt;target dev='vnet1'/&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    <b>&lt;target dev='vnet1'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       If no target is specified, certain hypervisors will
       automatically generate a name for the created tun device. This
       name can be manually specified, however the name <i>should not
-      start with either 'vnet' or 'vif'</i>, which are prefixes
-      reserved by libvirt and certain hypervisors. Manually specified
-      targets using these prefixes may be ignored.
+      start with either 'vnet', 'vif', 'macvtap', or 'macvlan'</i>,
+      which are prefixes reserved by libvirt and certain hypervisors.
+      Manually specified targets using these prefixes may be ignored.
     </p>
 
     <p>
@@ -4886,27 +5297,27 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      <b>&lt;guest dev='myeth'/&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    <b>&lt;guest dev='myeth'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h5><a name="elementsNICSBoot">Specifying boot order</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet1'/&gt;
-      <b>&lt;boot order='1'/&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet1'/&gt;
+    <b>&lt;boot order='1'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       For hypervisors which support this, you can set a specific NIC to
@@ -4921,15 +5332,15 @@ qemu-kvm -net nic,model=? /dev/null
     <h5><a name="elementsNICSROM">Interface ROM BIOS configuration</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet1'/&gt;
-      <b>&lt;rom bar='on' file='/etc/fake/boot.bin'/&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet1'/&gt;
+    <b>&lt;rom bar='on' file='/etc/fake/boot.bin'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       For hypervisors which support this, you can change how a PCI Network
@@ -4949,16 +5360,16 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
     <h5><a name="elementDomain">Setting up a network backend in a driver domain</a></h5>
 <pre>
+...
+&lt;devices&gt;
   ...
-  &lt;devices&gt;
-    ...
-    &lt;interface type='bridge'&gt;
-      &lt;source bridge='br0'/&gt;
-      <b>&lt;backenddomain name='netvm'/&gt;</b>
-    &lt;/interface&gt;
-    ...
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;interface type='bridge'&gt;
+    &lt;source bridge='br0'/&gt;
+    <b>&lt;backenddomain name='netvm'/&gt;</b>
+  &lt;/interface&gt;
+  ...
+&lt;/devices&gt;
+...</pre>
 
     <p>
       The optional <code>backenddomain</code> element allows specifying a
@@ -4974,18 +5385,18 @@ qemu-kvm -net nic,model=? /dev/null
     <h5><a name="elementQoS">Quality of service</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet0'/&gt;
-      <b>&lt;bandwidth&gt;
-        &lt;inbound average='1000' peak='5000' floor='200' burst='1024'/&gt;
-        &lt;outbound average='128' peak='256' burst='256'/&gt;
-      &lt;/bandwidth&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet0'/&gt;
+    <b>&lt;bandwidth&gt;
+      &lt;inbound average='1000' peak='5000' floor='200' burst='1024'/&gt;
+      &lt;outbound average='128' peak='256' burst='256'/&gt;
+    &lt;/bandwidth&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       This part of interface XML provides setting quality of service. Incoming
@@ -4998,26 +5409,26 @@ qemu-kvm -net nic,model=? /dev/null
     <h5><a name="elementVlanTag">Setting VLAN tag (on supported network types only)</a></h5>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='bridge'&gt;
-      <b>&lt;vlan&gt;</b>
-        <b>&lt;tag id='42'/&gt;</b>
-      <b>&lt;/vlan&gt;</b>
-      &lt;source bridge='ovsbr0'/&gt;
-      &lt;virtualport type='openvswitch'&gt;
-        &lt;parameters interfaceid='09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f'/&gt;
-      &lt;/virtualport&gt;
-    &lt;/interface&gt;
-    &lt;interface type='bridge'&gt;
-      <b>&lt;vlan trunk='yes'&gt;</b>
-        <b>&lt;tag id='42'/&gt;</b>
-        <b>&lt;tag id='123' nativeMode='untagged'/&gt;</b>
-      <b>&lt;/vlan&gt;</b>
-      ...
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='bridge'&gt;
+    <b>&lt;vlan&gt;</b>
+      <b>&lt;tag id='42'/&gt;</b>
+    <b>&lt;/vlan&gt;</b>
+    &lt;source bridge='ovsbr0'/&gt;
+    &lt;virtualport type='openvswitch'&gt;
+      &lt;parameters interfaceid='09b11c53-8b5c-4eeb-8f00-d84eaa0aaa4f'/&gt;
+    &lt;/virtualport&gt;
+  &lt;/interface&gt;
+  &lt;interface type='bridge'&gt;
+    <b>&lt;vlan trunk='yes'&gt;</b>
+      <b>&lt;tag id='42'/&gt;</b>
+      <b>&lt;tag id='123' nativeMode='untagged'/&gt;</b>
+    <b>&lt;/vlan&gt;</b>
+    ...
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       If (and only if) the network connection used by the guest
@@ -5065,15 +5476,15 @@ qemu-kvm -net nic,model=? /dev/null
 
     <h5><a name="elementLink">Modifying virtual link state</a></h5>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet0'/&gt;
-      <b>&lt;link state='down'/&gt;</b>
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet0'/&gt;
+    <b>&lt;link state='down'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       This element provides means of setting state of the virtual network link.
@@ -5084,30 +5495,76 @@ qemu-kvm -net nic,model=? /dev/null
       <span class="since">Since 0.9.5</span>
     </p>
 
+    <h5><a name="mtu">MTU configuration</a></h5>
+<pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet0'/&gt;
+    <b>&lt;mtu size='1500'/&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
+
+    <p>
+      This element provides means of setting MTU of the virtual network link.
+      Currently there is just one attribute <code>size</code> which accepts a
+      non-negative integer which specifies the MTU size for the interface.
+      <span class="since">Since 3.1.0</span>
+    </p>
+
+    <h5><a name="coalesce">Coalesce settings</a></h5>
+<pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet0'/&gt;
+    <b>&lt;coalesce&gt;
+      &lt;rx&gt;
+        &lt;frames max='7'/&gt;
+      &lt;/rx&gt;
+    &lt;/coalesce&gt;</b>
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
+
+    <p>
+      This element provides means of setting coalesce settings for
+      some interface devices (currently only type <code>network</code>
+      and <code>bridge</code>.  Currently there is just one attribute,
+      <code>max</code>, to tweak, in element <code>frames</code> for
+      the <code>rx</code> group, which accepts a non-negative integer
+      that specifies the maximum number of packets that will be
+      received before an interrupt.
+      <span class="since">Since 3.3.0</span>
+    </p>
+
     <h5><a name="ipconfig">IP configuration</a></h5>
 <pre>
+...
+&lt;devices&gt;
+  &lt;interface type='network'&gt;
+    &lt;source network='default'/&gt;
+    &lt;target dev='vnet0'/&gt;
+    <b>&lt;ip address='192.168.122.5' prefix='24'/&gt;</b>
+    <b>&lt;ip address='192.168.122.5' prefix='24' peer='10.0.0.10'/&gt;</b>
+    <b>&lt;route family='ipv4' address='192.168.122.0' prefix='24' gateway='192.168.122.1'/&gt;</b>
+    <b>&lt;route family='ipv4' address='192.168.122.8' gateway='192.168.122.1'/&gt;</b>
+  &lt;/interface&gt;
   ...
-  &lt;devices&gt;
-    &lt;interface type='network'&gt;
-      &lt;source network='default'/&gt;
-      &lt;target dev='vnet0'/&gt;
-      <b>&lt;ip address='192.168.122.5' prefix='24'/&gt;</b>
-      <b>&lt;ip address='192.168.122.5' prefix='24' peer='10.0.0.10'/&gt;</b>
-      <b>&lt;route family='ipv4' address='192.168.122.0' prefix='24' gateway='192.168.122.1'/&gt;</b>
-      <b>&lt;route family='ipv4' address='192.168.122.8' gateway='192.168.122.1'/&gt;</b>
-    &lt;/interface&gt;
-    ...
-    &lt;hostdev mode='capabilities' type='net'&gt;
-      &lt;source&gt;
-        &lt;interface&gt;eth0&lt;/interface&gt;
-      &lt;/source&gt;
-      <b>&lt;ip address='192.168.122.6' prefix='24'/&gt;</b>
-      <b>&lt;route family='ipv4' address='192.168.122.0' prefix='24' gateway='192.168.122.1'/&gt;</b>
-      <b>&lt;route family='ipv4' address='192.168.122.8' gateway='192.168.122.1'/&gt;</b>
-    &lt;/hostdev&gt;
+  &lt;hostdev mode='capabilities' type='net'&gt;
+    &lt;source&gt;
+      &lt;interface&gt;eth0&lt;/interface&gt;
+    &lt;/source&gt;
+    <b>&lt;ip address='192.168.122.6' prefix='24'/&gt;</b>
+    <b>&lt;route family='ipv4' address='192.168.122.0' prefix='24' gateway='192.168.122.1'/&gt;</b>
+    <b>&lt;route family='ipv4' address='192.168.122.8' gateway='192.168.122.1'/&gt;</b>
+  &lt;/hostdev&gt;
 
-  &lt;/devices&gt;
-  ...
+&lt;/devices&gt;
+...
 </pre>
 
     <p>
@@ -5138,19 +5595,19 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='ethernet'&gt;
-      <b>&lt;source/&gt;</b>
-        <b>&lt;ip address='192.168.123.1' prefix='24'/&gt;</b>
-        <b>&lt;ip address='10.0.0.10' prefix='24' peer='192.168.122.5'/&gt;</b>
-        <b>&lt;route family='ipv4' address='192.168.42.0' prefix='24' gateway='192.168.123.4'/&gt;</b>
-      <b>&lt;source/&gt;</b>
-      ...
-    &lt;/interface&gt;
+...
+&lt;devices&gt;
+  &lt;interface type='ethernet'&gt;
+    <b>&lt;source/&gt;</b>
+      <b>&lt;ip address='192.168.123.1' prefix='24'/&gt;</b>
+      <b>&lt;ip address='10.0.0.10' prefix='24' peer='192.168.122.5'/&gt;</b>
+      <b>&lt;route family='ipv4' address='192.168.42.0' prefix='24' gateway='192.168.123.4'/&gt;</b>
+    <b>&lt;source/&gt;</b>
     ...
-  &lt;/devices&gt;
+  &lt;/interface&gt;
   ...
+&lt;/devices&gt;
+...
 </pre>
 
     <p>
@@ -5173,21 +5630,21 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface type='vhostuser'&gt;
-      &lt;mac address='52:54:00:3b:83:1a'/&gt;
-      &lt;source type='unix' path='/tmp/vhost1.sock' mode='server'/&gt;
-      &lt;model type='virtio'/&gt;
-    &lt;/interface&gt;
-    &lt;interface type='vhostuser'&gt;
-      &lt;mac address='52:54:00:3b:83:1b'/&gt;
-      &lt;source type='unix' path='/tmp/vhost2.sock' mode='client'/&gt;
-      &lt;model type='virtio'/&gt;
-      &lt;driver queues='5'/&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;interface type='vhostuser'&gt;
+    &lt;mac address='52:54:00:3b:83:1a'/&gt;
+    &lt;source type='unix' path='/tmp/vhost1.sock' mode='server'/&gt;
+    &lt;model type='virtio'/&gt;
+  &lt;/interface&gt;
+  &lt;interface type='vhostuser'&gt;
+    &lt;mac address='52:54:00:3b:83:1b'/&gt;
+    &lt;source type='unix' path='/tmp/vhost2.sock' mode='client'/&gt;
+    &lt;model type='virtio'/&gt;
+    &lt;driver queues='5'/&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       The <code>&lt;source&gt;</code> element has to be specified
@@ -5212,23 +5669,23 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;interface ...&gt;
+...
+&lt;devices&gt;
+  &lt;interface ...&gt;
+    ...
+    &lt;filterref filter='clean-traffic'/&gt;
+  &lt;/interface&gt;
+  &lt;interface ...&gt;
+    ...
+    &lt;filterref filter='myfilter'&gt;
+      &lt;parameter name='IP' value='104.207.129.11'/&gt;
+      &lt;parameter name='IP6_ADDR' value='2001:19f0:300:2102::'/&gt;
+      &lt;parameter name='IP6_MASK' value='64'/&gt;
       ...
-      &lt;filterref filter='clean-traffic'/&gt;
-    &lt;/interface&gt;
-    &lt;interface ...&gt;
-      ...
-      &lt;filterref filter='myfilter'&gt;
-        &lt;parameter name='IP' value='104.207.129.11'/&gt;
-        &lt;parameter name='IP6_ADDR' value='2001:19f0:300:2102::'/&gt;
-        &lt;parameter name='IP6_MASK' value='64'/&gt;
-        ...
-      &lt;/filterref&gt;
-    &lt;/interface&gt;
-  &lt;/devices&gt;
-  ...</pre>
+    &lt;/filterref&gt;
+  &lt;/interface&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       The <code>filter</code> attribute specifies the name of the nwfilter
@@ -5251,18 +5708,18 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;input type='mouse' bus='usb'/&gt;
-    &lt;input type='keyboard' bus='usb'/&gt;
-    &lt;input type='mouse' bus='virtio'/&gt;
-    &lt;input type='keyboard' bus='virtio'/&gt;
-    &lt;input type='tablet' bus='virtio'/&gt;
-    &lt;input type='passthrough' bus='virtio'&gt;
-      &lt;source evdev='/dev/input/event1/&gt;
-    &lt;/input&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;input type='mouse' bus='usb'/&gt;
+  &lt;input type='keyboard' bus='usb'/&gt;
+  &lt;input type='mouse' bus='virtio'/&gt;
+  &lt;input type='keyboard' bus='virtio'/&gt;
+  &lt;input type='tablet' bus='virtio'/&gt;
+  &lt;input type='passthrough' bus='virtio'&gt;
+    &lt;source evdev='/dev/input/event1/&gt;
+  &lt;/input&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>input</code></dt>
@@ -5288,6 +5745,13 @@ qemu-kvm -net nic,model=? /dev/null
       event device passed through to guests. (KVM only)
     </p>
 
+    <p>
+        The subelement <code>driver</code> can be used to tune the virtio
+        options of the device:
+        <a href="#elementsVirtio">Virtio-specific options</a> can also be
+        set. (<span class="since">Since 3.5.0</span>)
+    </p>
+
     <h4><a name="elementsHub">Hub devices</a></h4>
 
     <p>
@@ -5297,11 +5761,11 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;hub type='usb'/&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;hub type='usb'/&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>hub</code></dt>
@@ -5327,19 +5791,19 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;graphics type='sdl' display=':0.0'/&gt;
-    &lt;graphics type='vnc' port='5904' sharePolicy='allow-exclusive'&gt;
-      &lt;listen type='address' address='1.2.3.4'/&gt;
-    &lt;/graphics&gt;
-    &lt;graphics type='rdp' autoport='yes' multiUser='yes' /&gt;
-    &lt;graphics type='desktop' fullscreen='yes'/&gt;
-    &lt;graphics type='spice'&gt;
-      &lt;listen type='network' network='rednet'/&gt;
-    &lt;/graphics&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;graphics type='sdl' display=':0.0'/&gt;
+  &lt;graphics type='vnc' port='5904' sharePolicy='allow-exclusive'&gt;
+    &lt;listen type='address' address='1.2.3.4'/&gt;
+  &lt;/graphics&gt;
+  &lt;graphics type='rdp' autoport='yes' multiUser='yes' /&gt;
+  &lt;graphics type='desktop' fullscreen='yes'/&gt;
+  &lt;graphics type='spice'&gt;
+    &lt;listen type='network' network='rednet'/&gt;
+  &lt;/graphics&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>graphics</code></dt>
@@ -5368,12 +5832,13 @@ qemu-kvm -net nic,model=? /dev/null
               should be auto-allocated). The <code>autoport</code> attribute is
               the new preferred syntax for indicating auto-allocation of the TCP
               port to use. The <code>passwd</code> attribute provides a VNC
-              password in clear text. The <code>keymap</code> attribute specifies
-              the keymap to use. It is possible to set a limit on the validity of
-              the password by giving an timestamp
-              <code>passwdValidTo='2010-04-09T15:51:00'</code> assumed to be
-              in UTC. The <code>connected</code> attribute allows control of
-              connected client during password changes. VNC accepts
+              password in clear text. If the <code>passwd</code> attribute is
+              set to an empty string, then VNC access is disabled. The
+              <code>keymap</code> attribute specifies the keymap to use. It is
+              possible to set a limit on the validity of the password by giving
+              an timestamp <code>passwdValidTo='2010-04-09T15:51:00'</code>
+              assumed to be in UTC. The <code>connected</code> attribute allows
+              control of connected client during password changes. VNC accepts
               <code>keep</code> value only <span class="since">since 0.9.3</span>.
               NB, this may not be supported by all hypervisors.
             </p>
@@ -5409,11 +5874,13 @@ qemu-kvm -net nic,model=? /dev/null
               an alternative secure port number. The <code>autoport</code>
               attribute is the new preferred syntax for indicating
               auto-allocation of needed port numbers. The <code>passwd</code>
-              attribute provides a SPICE password in clear text. The
-              <code>keymap</code> attribute specifies the keymap to use. It is
-              possible to set a limit on the validity of the password by giving
-              an timestamp <code>passwdValidTo='2010-04-09T15:51:00'</code>
-              assumed to be in UTC.
+              attribute provides a SPICE password in clear text. If the
+              <code>passwd</code> attribute is set to an empty string, then
+              SPICE access is disabled. The <code>keymap</code> attribute
+              specifies the keymap to use. It is possible to set a limit on
+              the validity of the password by giving an timestamp
+              <code>passwdValidTo='2010-04-09T15:51:00'</code> assumed to be
+              in UTC.
             </p>
             <p>
               The <code>connected</code> attribute allows control of connected
@@ -5449,16 +5916,16 @@ qemu-kvm -net nic,model=? /dev/null
               and <code>usbredir</code> (<span class="since">since 0.9.12</span>).
             </p>
             <pre>
-  &lt;graphics type='spice' port='-1' tlsPort='-1' autoport='yes'&gt;
-    &lt;channel name='main' mode='secure'/&gt;
-    &lt;channel name='record' mode='insecure'/&gt;
-    &lt;image compression='auto_glz'/&gt;
-    &lt;streaming mode='filter'/&gt;
-    &lt;clipboard copypaste='no'/&gt;
-    &lt;mouse mode='client'/&gt;
-    &lt;filetransfer enable='no'/&gt;
-    &lt;gl enable='yes'/&gt;
-  &lt;/graphics&gt;</pre>
+&lt;graphics type='spice' port='-1' tlsPort='-1' autoport='yes'&gt;
+  &lt;channel name='main' mode='secure'/&gt;
+  &lt;channel name='record' mode='insecure'/&gt;
+  &lt;image compression='auto_glz'/&gt;
+  &lt;streaming mode='filter'/&gt;
+  &lt;clipboard copypaste='no'/&gt;
+  &lt;mouse mode='client'/&gt;
+  &lt;filetransfer enable='no'/&gt;
+  &lt;gl enable='yes' rendernode='/dev/dri/by-path/pci-0000:00:02.0-render'/&gt;
+&lt;/graphics&gt;</pre>
             <p>
               Spice supports variable compression settings for audio, images and
               streaming. These settings are accessible via the <code>compression
@@ -5502,6 +5969,11 @@ qemu-kvm -net nic,model=? /dev/null
               You can enable or disable OpenGL support explicitly with
               the <code>gl</code> element, by setting the <code>enable</code>
               property. (QEMU only, <span class="since">since 1.3.3</span>).
+            </p>
+            <p>
+              By default, QEMU will pick the first available GPU DRM render node.
+              You may specify a DRM render node path to use instead. (QEMU only,
+              <span class="since">since 3.1.0</span>).
             </p>
           </dd>
           <dt><code>rdp</code></dt>
@@ -5613,15 +6085,15 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;video&gt;
-      &lt;model type='vga' vram='16384' heads='1'&gt;
-        &lt;acceleration accel3d='yes' accel2d='yes'/&gt;
-      &lt;/model&gt;
-    &lt;/video&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;video&gt;
+    &lt;model type='vga' vram='16384' heads='1'&gt;
+      &lt;acceleration accel3d='yes' accel2d='yes'/&gt;
+    &lt;/model&gt;
+  &lt;/video&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>video</code></dt>
@@ -5640,7 +6112,8 @@ qemu-kvm -net nic,model=? /dev/null
           video device in domain xml is the primary one, but the optional
           attribute <code>primary</code> (<span class="since">since 1.0.2</span>)
           with value 'yes' can be used to mark the primary in cases of multiple
-          video device. The non-primary must be type of "qxl".
+          video device. The non-primary must be type of "qxl" or
+          (<span class="since">since 2.4.0</span>) "virtio".
         </p>
       </dd>
 
@@ -5649,8 +6122,9 @@ qemu-kvm -net nic,model=? /dev/null
         <p>
           The <code>model</code> element has a mandatory <code>type</code>
           attribute which takes the value "vga", "cirrus", "vmvga", "xen",
-          "vbox", "qxl" (<span class="since">since 0.8.6</span>) or
+          "vbox", "qxl" (<span class="since">since 0.8.6</span>),
           "virtio" (<span class="since">since 1.3.0</span>)
+          or "gop" (<span class="since">since 3.2.0</span>)
           depending on the hypervisor features available.
         </p>
         <p>
@@ -5699,6 +6173,25 @@ qemu-kvm -net nic,model=? /dev/null
         The optional <code>address</code> sub-element can be used to
         tie the video device to a particular PCI slot.
       </dd>
+
+      <dt><code>driver</code></dt>
+      <dd>
+        The subelement <code>driver</code> can be used to tune the device:
+        <dl>
+          <dt>virtio options</dt>
+          <dd>
+          <a href="#elementsVirtio">Virtio-specific options</a> can also be
+          set (<span class="since">Since 3.5.0</span>)
+          </dd>
+          <dt>VGA configuration</dt>
+          <dd>
+          Control how the video devices exposed to the guest using the
+          <code>vgaconf</code> attribute which takes the value "io", "on" or "off".
+          At present, it's only applicable to the bhyve's "gop" video model type
+          (<span class="since">Since 3.5.0</span>)
+          </dd>
+        </dl>
+      </dd>
     </dl>
 
     <h4><a name="elementsConsole">Consoles, serial, parallel &amp; channel devices</a></h4>
@@ -5710,32 +6203,32 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;parallel type='pty'&gt;
-      &lt;source path='/dev/pts/2'/&gt;
-      &lt;target port='0'/&gt;
-    &lt;/parallel&gt;
-    &lt;serial type='pty'&gt;
-      &lt;source path='/dev/pts/3'/&gt;
-      &lt;target port='0'/&gt;
-    &lt;/serial&gt;
-    &lt;serial type='file'&gt;
-      &lt;source path='/tmp/file' append='on'&gt;
-        &lt;seclabel model='dac' relabel='no'/&gt;
-      &lt;/source&gt;
-      &lt;target port='0'/&gt;
-    &lt;/serial&gt;
-    &lt;console type='pty'&gt;
-      &lt;source path='/dev/pts/4'/&gt;
-      &lt;target port='0'/&gt;
-    &lt;/console&gt;
-    &lt;channel type='unix'&gt;
-      &lt;source mode='bind' path='/tmp/guestfwd'/&gt;
-      &lt;target type='guestfwd' address='10.0.2.1' port='4600'/&gt;
-    &lt;/channel&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;parallel type='pty'&gt;
+    &lt;source path='/dev/pts/2'/&gt;
+    &lt;target port='0'/&gt;
+  &lt;/parallel&gt;
+  &lt;serial type='pty'&gt;
+    &lt;source path='/dev/pts/3'/&gt;
+    &lt;target port='0'/&gt;
+  &lt;/serial&gt;
+  &lt;serial type='file'&gt;
+    &lt;source path='/tmp/file' append='on'&gt;
+      &lt;seclabel model='dac' relabel='no'/&gt;
+    &lt;/source&gt;
+    &lt;target port='0'/&gt;
+  &lt;/serial&gt;
+  &lt;console type='pty'&gt;
+    &lt;source path='/dev/pts/4'/&gt;
+    &lt;target port='0'/&gt;
+  &lt;/console&gt;
+  &lt;channel type='unix'&gt;
+    &lt;source mode='bind' path='/tmp/guestfwd'/&gt;
+    &lt;target type='guestfwd' address='10.0.2.1' port='4600'/&gt;
+  &lt;/channel&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       In each of these directives, the top-level element name (parallel, serial,
@@ -5775,9 +6268,9 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
     <pre>
-  ...
-  &lt;log file="/var/log/libvirt/qemu/guestname-serial0.log" append="off"/&gt;
-  ...</pre>
+...
+&lt;log file="/var/log/libvirt/qemu/guestname-serial0.log" append="off"/&gt;
+...</pre>
 
     <p>
       Each character device element has an optional
@@ -5797,14 +6290,14 @@ qemu-kvm -net nic,model=? /dev/null
     <h6><a name="elementCharParallel">Parallel port</a></h6>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;parallel type='pty'&gt;
-      &lt;source path='/dev/pts/2'/&gt;
-      &lt;target port='0'/&gt;
-    &lt;/parallel&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;parallel type='pty'&gt;
+    &lt;source path='/dev/pts/2'/&gt;
+    &lt;target port='0'/&gt;
+  &lt;/parallel&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       <code>target</code> can have a <code>port</code> attribute, which
@@ -5815,14 +6308,14 @@ qemu-kvm -net nic,model=? /dev/null
     <h6><a name="elementCharSerial">Serial port</a></h6>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type='pty'&gt;
-      &lt;source path='/dev/pts/3'/&gt;
-      &lt;target port='0'/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type='pty'&gt;
+    &lt;source path='/dev/pts/3'/&gt;
+    &lt;target port='0'/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       <code>target</code> can have a <code>port</code> attribute, which
@@ -5881,31 +6374,31 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;console type='pty'&gt;
-      &lt;source path='/dev/pts/4'/&gt;
-      &lt;target port='0'/&gt;
-    &lt;/console&gt;
+...
+&lt;devices&gt;
+  &lt;console type='pty'&gt;
+    &lt;source path='/dev/pts/4'/&gt;
+    &lt;target port='0'/&gt;
+  &lt;/console&gt;
 
-    &lt;!-- KVM virtio console --&gt;
-    &lt;console type='pty'&gt;
-      &lt;source path='/dev/pts/5'/&gt;
-      &lt;target type='virtio' port='0'/&gt;
-    &lt;/console&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;!-- KVM virtio console --&gt;
+  &lt;console type='pty'&gt;
+    &lt;source path='/dev/pts/5'/&gt;
+    &lt;target type='virtio' port='0'/&gt;
+  &lt;/console&gt;
+&lt;/devices&gt;
+...</pre>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;!-- KVM S390 sclp console --&gt;
-    &lt;console type='pty'&gt;
-      &lt;source path='/dev/pts/1'/&gt;
-      &lt;target type='sclp' port='0'/&gt;
-    &lt;/console&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;!-- KVM S390 sclp console --&gt;
+  &lt;console type='pty'&gt;
+    &lt;source path='/dev/pts/1'/&gt;
+    &lt;target type='sclp' port='0'/&gt;
+  &lt;/console&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       If the console is presented as a serial port, the <code>target</code>
@@ -5921,26 +6414,26 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;channel type='unix'&gt;
-      &lt;source mode='bind' path='/tmp/guestfwd'/&gt;
-      &lt;target type='guestfwd' address='10.0.2.1' port='4600'/&gt;
-    &lt;/channel&gt;
+...
+&lt;devices&gt;
+  &lt;channel type='unix'&gt;
+    &lt;source mode='bind' path='/tmp/guestfwd'/&gt;
+    &lt;target type='guestfwd' address='10.0.2.1' port='4600'/&gt;
+  &lt;/channel&gt;
 
-    &lt;!-- KVM virtio channel --&gt;
-    &lt;channel type='pty'&gt;
-      &lt;target type='virtio' name='arbitrary.virtio.serial.port.name'/&gt;
-    &lt;/channel&gt;
-    &lt;channel type='unix'&gt;
-      &lt;source mode='bind' path='/var/lib/libvirt/qemu/f16x86_64.agent'/&gt;
-      &lt;target type='virtio' name='org.qemu.guest_agent.0' state='connected'/&gt;
-    &lt;/channel&gt;
-    &lt;channel type='spicevmc'&gt;
-      &lt;target type='virtio' name='com.redhat.spice.0'/&gt;
-    &lt;/channel&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;!-- KVM virtio channel --&gt;
+  &lt;channel type='pty'&gt;
+    &lt;target type='virtio' name='arbitrary.virtio.serial.port.name'/&gt;
+  &lt;/channel&gt;
+  &lt;channel type='unix'&gt;
+    &lt;source mode='bind' path='/var/lib/libvirt/qemu/f16x86_64.agent'/&gt;
+    &lt;target type='virtio' name='org.qemu.guest_agent.0' state='connected'/&gt;
+  &lt;/channel&gt;
+  &lt;channel type='spicevmc'&gt;
+    &lt;target type='virtio' name='com.redhat.spice.0'/&gt;
+  &lt;/channel&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       This can be implemented in a variety of ways. The specific type of
@@ -5980,6 +6473,16 @@ qemu-kvm -net nic,model=? /dev/null
         Possible values for the <code>state</code> attribute are
         <code>connected</code> and <code>disconnected</code>.
       </dd>
+      <dt><code>xen</code></dt>
+      <dd> Paravirtualized Xen channel. Channel is exposed in the guest as a
+        Xen console but identified with a name. Setup and consumption of a Xen
+        channel depends on software and configuration in the guest
+        (for more info, please see <a href="http://xenbits.xen.org/docs/unstable/misc/channel.txt">http://xenbits.xen.org/docs/unstable/misc/channel.txt</a>).
+        Channel source path semantics are the same as the virtio target type.
+        The <code>state</code> attribute is not supported since Xen channels
+        lack the necessary probing mechanism.
+        <span class="since">Since 2.3.0</span>
+      </dd>
       <dt><code>spicevmc</code></dt>
       <dd>Paravirtualized SPICE channel. The domain must also have a
         SPICE server as a <a href="#elementsGraphics">graphics
@@ -6010,13 +6513,13 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;console type='stdio'&gt;
-      &lt;target port='1'/&gt;
-    &lt;/console&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;console type='stdio'&gt;
+    &lt;target port='1'/&gt;
+  &lt;/console&gt;
+&lt;/devices&gt;
+...</pre>
 
 
     <h6><a name="elementsCharFle">Device logfile</a></h6>
@@ -6027,14 +6530,14 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="file"&gt;
-      &lt;source path="/var/log/vm/vm-serial.log"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="file"&gt;
+    &lt;source path="/var/log/vm/vm-serial.log"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharVC">Virtual console</a></h6>
 
@@ -6045,13 +6548,13 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type='vc'&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type='vc'&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharNull">Null device</a></h6>
 
@@ -6061,13 +6564,13 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type='null'&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type='null'&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharPTY">Pseudo TTY</a></h6>
 
@@ -6078,14 +6581,14 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="pty"&gt;
-      &lt;source path="/dev/pts/3"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="pty"&gt;
+    &lt;source path="/dev/pts/3"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       NB special case if &lt;console type='pty'&gt;, then the TTY
@@ -6105,14 +6608,14 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="dev"&gt;
-      &lt;source path="/dev/ttyS0"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="dev"&gt;
+    &lt;source path="/dev/ttyS0"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharPipe">Named pipe</a></h6>
 
@@ -6122,14 +6625,14 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="pipe"&gt;
-      &lt;source path="/tmp/mypipe"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="pipe"&gt;
+    &lt;source path="/tmp/mypipe"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharTCP">TCP client/server</a></h6>
 
@@ -6139,30 +6642,30 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="tcp"&gt;
-      &lt;source mode="connect" host="0.0.0.0" service="2445"/&gt;
-      &lt;protocol type="raw"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-   ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="tcp"&gt;
+    &lt;source mode="connect" host="0.0.0.0" service="2445"/&gt;
+    &lt;protocol type="raw"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+ ...</pre>
 
     <p>
       Or as a TCP server waiting for a client connection.
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="tcp"&gt;
-      &lt;source mode="bind" host="127.0.0.1" service="2445"/&gt;
-      &lt;protocol type="raw"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="tcp"&gt;
+    &lt;source mode="bind" host="127.0.0.1" service="2445"/&gt;
+    &lt;protocol type="raw"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       Alternatively you can use <code>telnet</code> instead
@@ -6176,21 +6679,49 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
+...
+&lt;devices&gt;
+  &lt;serial type="tcp"&gt;
+    &lt;source mode="connect" host="0.0.0.0" service="2445"/&gt;
+    &lt;protocol type="telnet"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
   ...
-  &lt;devices&gt;
-    &lt;serial type="tcp"&gt;
-      &lt;source mode="connect" host="0.0.0.0" service="2445"/&gt;
-      &lt;protocol type="telnet"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-    ...
-    &lt;serial type="tcp"&gt;
-      &lt;source mode="bind" host="127.0.0.1" service="2445"/&gt;
-      &lt;protocol type="telnet"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+  &lt;serial type="tcp"&gt;
+    &lt;source mode="bind" host="127.0.0.1" service="2445"/&gt;
+    &lt;protocol type="telnet"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
+
+    <p>
+      <span class="since">Since 2.4.0,</span> the optional attribute
+      <code>tls</code> can be used to control whether a chardev
+      TCP communication channel would utilize a hypervisor configured
+      TLS X.509 certificate environment in order to encrypt the data
+      channel. For the QEMU hypervisor, usage of a TLS environment can
+      be controlled on the host by the <code>chardev_tls</code> and
+      <code>chardev_tls_x509_cert_dir</code> or
+      <code>default_tls_x509_cert_dir</code> settings in the file
+      /etc/libvirt/qemu.conf. If <code>chardev_tls</code> is enabled,
+      then unless the <code>tls</code> attribute is set to "no", libvirt
+      will use the host configured TLS environment.
+      If <code>chardev_tls</code> is disabled, but the <code>tls</code>
+      attribute is set to "yes", then libvirt will attempt to use the
+      host TLS environment if either the <code>chardev_tls_x509_cert_dir</code>
+      or <code>default_tls_x509_cert_dir</code> TLS directory structure exists.
+    </p>
+<pre>
+...
+&lt;devices&gt;
+  &lt;serial type="tcp"&gt;
+    &lt;source mode='connect' host="127.0.0.1" service="5555" tls="yes"/&gt;
+    &lt;protocol type="raw"/&gt;
+    &lt;target port="0"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharUDP">UDP network console</a></h6>
 
@@ -6200,15 +6731,15 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="udp"&gt;
-      &lt;source mode="bind" host="0.0.0.0" service="2445"/&gt;
-      &lt;source mode="connect" host="0.0.0.0" service="2445"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="udp"&gt;
+    &lt;source mode="bind" host="0.0.0.0" service="2445"/&gt;
+    &lt;source mode="connect" host="0.0.0.0" service="2445"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharUNIX">UNIX domain socket client/server</a></h6>
 
@@ -6218,14 +6749,14 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="unix"&gt;
-      &lt;source mode="bind" path="/tmp/foo"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="unix"&gt;
+    &lt;source mode="bind" path="/tmp/foo"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsCharSpiceport">Spice channel</a></h6>
 
@@ -6241,14 +6772,14 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="spiceport"&gt;
-      &lt;source channel="org.qemu.console.serial.0"/&gt;
-      &lt;target port="1"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="spiceport"&gt;
+    &lt;source channel="org.qemu.console.serial.0"/&gt;
+    &lt;target port="1"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <h6><a name="elementsNmdm">Nmdm device</a></h6>
 
@@ -6259,13 +6790,13 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;serial type="nmdm"&gt;
-      &lt;source master="/dev/nmdm0A" slave="/dev/nmdm0B"/&gt;
-    &lt;/serial&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;serial type="nmdm"&gt;
+    &lt;source master="/dev/nmdm0A" slave="/dev/nmdm0B"/&gt;
+  &lt;/serial&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       The <code>source</code> element has these attributes:
@@ -6289,11 +6820,11 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;sound model='es1370'/&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;sound model='es1370'/&gt;
+&lt;/devices&gt;
+...</pre>
 
     <dl>
       <dt><code>sound</code></dt>
@@ -6319,13 +6850,13 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;sound model='ich6'&gt;
-      &lt;codec type='micro'/&gt;
-    &lt;/sound&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;sound model='ich6'&gt;
+    &lt;codec type='micro'/&gt;
+  &lt;/sound&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       Each <code>sound</code> element has an optional
@@ -6355,11 +6886,11 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;watchdog model='i6300esb'/&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;watchdog model='i6300esb'/&gt;
+&lt;/devices&gt;
+...</pre>
 
 <pre>
   ...
@@ -6442,11 +6973,11 @@ qemu-kvm -net nic,model=? /dev/null
       Example: automatically added device with KVM
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;memballoon model='virtio'/&gt;
-  &lt;/devices&gt;
-  ...</pre>
+...
+&lt;devices&gt;
+  &lt;memballoon model='virtio'/&gt;
+&lt;/devices&gt;
+...</pre>
 
     <p>
       Example: manually added device with static PCI slot 2 requested
@@ -6457,6 +6988,7 @@ qemu-kvm -net nic,model=? /dev/null
     &lt;memballoon model='virtio'&gt;
       &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/&gt;
       &lt;stats period='10'/&gt;
+      &lt;driver iommu='on' ats='on'/&gt;
     &lt;/memballoon&gt;
   &lt;/devices&gt;
 &lt;/domain&gt;</pre>
@@ -6501,6 +7033,12 @@ qemu-kvm -net nic,model=? /dev/null
           <span class='since'>Since 1.1.1, requires QEMU 1.5</span>
         </p>
       </dd>
+      <dt><code>driver</code></dt>
+      <dd>
+        For model <code>virtio</code> memballoon,
+        <a href="#elementsVirtio">Virtio-specific options</a> can also be
+        set. (<span class="since">Since 3.5.0</span>)
+      </dd>
     </dl>
     <h4><a name="elementsRng">Random number generator device</a></h4>
 
@@ -6514,19 +7052,19 @@ qemu-kvm -net nic,model=? /dev/null
       Example: usage of the RNG device:
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;rng model='virtio'&gt;
-      &lt;rate period="2000" bytes="1234"/&gt;
-      &lt;backend model='random'&gt;/dev/random&lt;/backend&gt;
-      &lt;!-- OR --&gt;
-      &lt;backend model='egd' type='udp'&gt;
-        &lt;source mode='bind' service='1234'/&gt;
-        &lt;source mode='connect' host='1.2.3.4' service='1234'/&gt;
-      &lt;/backend&gt;
-    &lt;/rng&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;rng model='virtio'&gt;
+    &lt;rate period="2000" bytes="1234"/&gt;
+    &lt;backend model='random'&gt;/dev/random&lt;/backend&gt;
+    &lt;!-- OR --&gt;
+    &lt;backend model='egd' type='udp'&gt;
+      &lt;source mode='bind' service='1234'/&gt;
+      &lt;source mode='connect' host='1.2.3.4' service='1234'/&gt;
+    &lt;/backend&gt;
+  &lt;/rng&gt;
+&lt;/devices&gt;
+...
 </pre>
     <dl>
       <dt><code>model</code></dt>
@@ -6582,6 +7120,17 @@ qemu-kvm -net nic,model=? /dev/null
           </dd>
         </dl>
       </dd>
+      <dt><code>driver</code></dt>
+      <dd>
+        The subelement <code>driver</code> can be used to tune the device:
+        <dl>
+          <dt>virtio options</dt>
+          <dd>
+          <a href="#elementsVirtio">Virtio-specific options</a> can also be
+          set. (<span class="since">Since 3.5.0</span>)
+          </dd>
+        </dl>
+      </dd>
 
     </dl>
 
@@ -6602,15 +7151,15 @@ qemu-kvm -net nic,model=? /dev/null
      Example: usage of the TPM passthrough device
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;tpm model='tpm-tis'&gt;
-      &lt;backend type='passthrough'&gt;
-        &lt;device path='/dev/tpm0'/&gt;
-      &lt;/backend&gt;
-    &lt;/tpm&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;tpm model='tpm-tis'&gt;
+    &lt;backend type='passthrough'&gt;
+      &lt;device path='/dev/tpm0'/&gt;
+    &lt;/backend&gt;
+  &lt;/tpm&gt;
+&lt;/devices&gt;
+...
 </pre>
     <dl>
       <dt><code>model</code></dt>
@@ -6656,13 +7205,13 @@ qemu-kvm -net nic,model=? /dev/null
       Example: usage of NVRAM configuration
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;nvram&gt;
-      &lt;address type='spapr-vio' reg='0x3000'/&gt;
-    &lt;/nvram&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;nvram&gt;
+    &lt;address type='spapr-vio' reg='0x3000'/&gt;
+  &lt;/nvram&gt;
+&lt;/devices&gt;
+...
 </pre>
   <dl>
     <dt><code>spapr-vio</code></dt>
@@ -6700,14 +7249,14 @@ qemu-kvm -net nic,model=? /dev/null
       Example: usage of panic configuration
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;panic model='hyperv'/&gt;
-    &lt;panic model='isa'&gt;
-      &lt;address type='isa' iobase='0x505'/&gt;
-    &lt;/panic&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;panic model='hyperv'/&gt;
+  &lt;panic model='isa'&gt;
+    &lt;address type='isa' iobase='0x505'/&gt;
+  &lt;/panic&gt;
+&lt;/devices&gt;
+...
 </pre>
   <dl>
     <dt><code>model</code></dt>
@@ -6745,18 +7294,20 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;shmem name='my_shmem0'&gt;
-      &lt;size unit='M'&gt;4&lt;/size&gt;
-    &lt;/shmem&gt;
-    &lt;shmem name='shmem_server'&gt;
-      &lt;size unit='M'&gt;2&lt;/size&gt;
-      &lt;server path='/tmp/socket-shmem'/&gt;
-      &lt;msi vectors='32' ioeventfd='on'/&gt;
-    &lt;/shmem&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;shmem name='my_shmem0'&gt;
+    &lt;model type='ivshmem-plain'/&gt;
+    &lt;size unit='M'&gt;4&lt;/size&gt;
+  &lt;/shmem&gt;
+  &lt;shmem name='shmem_server'&gt;
+    &lt;model type='ivshmem-doorbell'/&gt;
+    &lt;size unit='M'&gt;2&lt;/size&gt;
+    &lt;server path='/tmp/socket-shmem'/&gt;
+    &lt;msi vectors='32' ioeventfd='on'/&gt;
+  &lt;/shmem&gt;
+&lt;/devices&gt;
+...
 </pre>
 
   <dl>
@@ -6764,6 +7315,16 @@ qemu-kvm -net nic,model=? /dev/null
     <dd>
       The <code>shmem</code> element has one mandatory attribute,
       <code>name</code> to identify the shared memory.
+    </dd>
+    <dt><code>model</code></dt>
+    <dd>
+      Attribute <code>type</code> of the optional element <code>model</code>
+      specifies the model of the underlying device providing the
+      <code>shmem</code> device.  The models currently supported are
+      <code>ivshmem</code> (supports both server and server-less shmem, but is
+      deprecated by newer QEMU in favour of the -plain and -doorbell variants),
+      <code>ivshmem-plain</code> (only for server-less shmem) and
+      <code>ivshmem-doorbell</code> (only for shmem with the server).
     </dd>
     <dt><code>size</code></dt>
     <dd>
@@ -6799,60 +7360,103 @@ qemu-kvm -net nic,model=? /dev/null
         guests' memory resource needs.
 
         Some hypervisors may require NUMA configured for the guest.
-      <span class="since">Since 1.2.14</span>
     </p>
 
     <p>
       Example: usage of the memory devices
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;memory model='dimm'&gt;
-      &lt;target&gt;
-        &lt;size unit='KiB'&gt;524287&lt;/size&gt;
-        &lt;node&gt;0&lt;/node&gt;
-      &lt;/target&gt;
-    &lt;/memory&gt;
-    &lt;memory model='dimm'&gt;
-      &lt;source&gt;
-        &lt;pagesize unit='KiB'&gt;4096&lt;/pagesize&gt;
-        &lt;nodemask&gt;1-3&lt;/nodemask&gt;
-      &lt;/source&gt;
-      &lt;target&gt;
-        &lt;size unit='KiB'&gt;524287&lt;/size&gt;
-        &lt;node&gt;1&lt;/node&gt;
-      &lt;/target&gt;
-    &lt;/memory&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;memory model='dimm' access='private'&gt;
+    &lt;target&gt;
+      &lt;size unit='KiB'&gt;524287&lt;/size&gt;
+      &lt;node&gt;0&lt;/node&gt;
+    &lt;/target&gt;
+  &lt;/memory&gt;
+  &lt;memory model='dimm'&gt;
+    &lt;source&gt;
+      &lt;pagesize unit='KiB'&gt;4096&lt;/pagesize&gt;
+      &lt;nodemask&gt;1-3&lt;/nodemask&gt;
+    &lt;/source&gt;
+    &lt;target&gt;
+      &lt;size unit='KiB'&gt;524287&lt;/size&gt;
+      &lt;node&gt;1&lt;/node&gt;
+    &lt;/target&gt;
+  &lt;/memory&gt;
+  &lt;memory model='nvdimm'&gt;
+    &lt;source&gt;
+      &lt;path&gt;/tmp/nvdimm&lt;/path&gt;
+    &lt;/source&gt;
+    &lt;target&gt;
+      &lt;size unit='KiB'&gt;524288&lt;/size&gt;
+      &lt;node&gt;1&lt;/node&gt;
+      &lt;label&gt;
+        &lt;size unit='KiB'&gt;128&lt;/size&gt;
+      &lt;/label&gt;
+    &lt;/target&gt;
+  &lt;/memory&gt;
+&lt;/devices&gt;
+...
 </pre>
     <dl>
       <dt><code>model</code></dt>
       <dd>
         <p>
-          Currently only the <code>dimm</code> model is supported in order to
-          add a virtual DIMM module to the guest.
+          Provide <code>dimm</code> to add a virtual DIMM module to the guest.
+          <span class="since">Since 1.2.14</span>
+          Provide <code>nvdimm</code> model adds a Non-Volatile DIMM
+          module. <span class="since">Since 3.2.0</span>
+        </p>
+      </dd>
+
+      <dt><code>access</code></dt>
+      <dd>
+        <p>
+          An optional attribute <code>access</code>
+          (<span class="since">since 3.2.0</span>) that provides
+          capability to fine tune mapping of the memory on per
+          module basis. Values are the same as
+          <a href="#elementsMemoryBacking">Memory Backing</a>:
+          <code>shared</code> and <code>private</code>.
         </p>
       </dd>
 
       <dt><code>source</code></dt>
       <dd>
         <p>
-          The optional source element allows to fine tune the source of the
-          memory used for the given memory device. If the element is not
-          provided defaults configured via <code>numatune</code> are used.
+          For model <code>dimm</code> this element is optional and allows to
+          fine tune the source of the memory used for the given memory device.
+          If the element is not provided defaults configured via
+          <code>numatune</code> are used. If <code>dimm</code> is provided,
+          then the following optional elements can be provided as well:
         </p>
-        <p>
-          <code>pagesize</code> can optionally be used to override the default
-          host page size used for backing the memory device.
 
-          The configured value must correspond to a page size supported by the
-          host.
-        </p>
+        <dl>
+          <dt><code>pagesize</code></dt>
+          <dd>
+            <p>
+              This element can be used to override the default
+              host page size used for backing the memory device.
+              The configured value must correspond to a page size
+              supported by the host.
+            </p>
+          </dd>
+
+          <dt><code>nodemask</code></dt>
+          <dd>
+            <p>
+              This element can be used to override the default
+              set of NUMA nodes where the memory would be
+              allocated.
+            </p>
+          </dd>
+        </dl>
+
         <p>
-          <code>nodemask</code> can optionally be used to override the default
-          set of NUMA nodes where the memory would be allocated.
+          For model <code>nvdimm</code> this element is mandatory and has a
+          single child element <code>path</code> that represents a path
+          in the host that backs the nvdimm module in the guest.
         </p>
       </dd>
 
@@ -6871,6 +7475,20 @@ qemu-kvm -net nic,model=? /dev/null
           attach the memory to. The element shall be used only if the guest has
           NUMA nodes configured.
         </p>
+        <p>
+          For NVDIMM type devices one can optionally use
+          <code>label</code> and its subelement <code>size</code>
+          to configure the size of namespaces label storage
+          within the NVDIMM module. The <code>size</code> element
+          has usual meaning described
+          <a href="#elementsMemoryAllocation">here</a>.
+          For QEMU domains the following restrictions apply:
+        </p>
+        <ol>
+          <li>the minimum label size is 128KiB,</li>
+          <li>the remaining size (total-size - label-size) has to be aligned to
+            4KiB</li>
+        </ol>
       </dd>
     </dl>
 
@@ -6885,11 +7503,13 @@ qemu-kvm -net nic,model=? /dev/null
       Example:
     </p>
 <pre>
-  ...
-  &lt;devices&gt;
-    &lt;iommu model='intel'/&gt;
-  &lt;/devices&gt;
-  ...
+...
+&lt;devices&gt;
+  &lt;iommu model='intel'&gt;
+    &lt;driver intremap='on'/&gt;
+  &lt;/iommu&gt;
+&lt;/devices&gt;
+...
 </pre>
     <dl>
       <dt><code>model</code></dt>
@@ -6897,6 +7517,58 @@ qemu-kvm -net nic,model=? /dev/null
         <p>
           Currently only the <code>intel</code> model is supported.
         </p>
+      </dd>
+      <dt><code>driver</code></dt>
+      <dd>
+        <p>
+          The <code>driver</code> subelement can be used to configure
+          additional options:
+        </p>
+        <dl>
+          <dt><code>intremap</code></dt>
+          <dd>
+            <p>
+              The <code>intremap</code> attribute with possible values
+              <code>on</code> and <code>off</code> can be used to
+              turn on interrupt remapping, a part of the VT-d functionality.
+              Currently this requires split I/O APIC
+              (<code>&lt;ioapic driver='qemu'/&gt;</code>).
+              <span class="since">Since 3.4.0</span> (QEMU/KVM only)
+            </p>
+          </dd>
+          <dt><code>caching_mode</code></dt>
+          <dd>
+            <p>
+              The <code>caching_mode</code> attribute with possible values
+              <code>on</code> and <code>off</code> can be used to
+              turn on the VT-d caching mode (useful for assigned devices).
+              <span class="since">Since 3.4.0</span> (QEMU/KVM only)
+            </p>
+          </dd>
+          <dt><code>eim</code></dt>
+          <dd>
+            <p>
+              The <code>eim</code> attribute (with possible values
+              <code>on</code> and <code>off</code>) can be used to
+              configure Extended Interrupt Mode. A q35 domain with
+              split I/O APIC (as described in
+              <a href="#elementsFeatures">hypervisor features</a>),
+              and both interrupt remapping and EIM turned on for
+              the IOMMU, will be able to use more than 255 vCPUs.
+              <span class="since">Since 3.4.0</span> (QEMU/KVM only)
+            </p>
+          </dd>
+          <dt><code>iotlb</code></dt>
+          <dd>
+            <p>
+              The <code>iotlb</code> attribute with possible values
+              <code>on</code> and <code>off</code> can be used to
+              turn on the IOTLB used to cache address translation
+              requests from devices.
+              <span class="since">Since 3.5.0</span> (QEMU/KVM only)
+            </p>
+          </dd>
+        </dl>
       </dd>
     </dl>
 
@@ -6931,21 +7603,21 @@ qemu-kvm -net nic,model=? /dev/null
     </p>
 
     <pre>
-  &lt;seclabel type='dynamic' model='selinux'/&gt;
+&lt;seclabel type='dynamic' model='selinux'/&gt;
 
-  &lt;seclabel type='dynamic' model='selinux'&gt;
-    &lt;baselabel&gt;system_u:system_r:my_svirt_t:s0&lt;/baselabel&gt;
-  &lt;/seclabel&gt;
+&lt;seclabel type='dynamic' model='selinux'&gt;
+  &lt;baselabel&gt;system_u:system_r:my_svirt_t:s0&lt;/baselabel&gt;
+&lt;/seclabel&gt;
 
-  &lt;seclabel type='static' model='selinux' relabel='no'&gt;
-    &lt;label&gt;system_u:system_r:svirt_t:s0:c392,c662&lt;/label&gt;
-  &lt;/seclabel&gt;
+&lt;seclabel type='static' model='selinux' relabel='no'&gt;
+  &lt;label&gt;system_u:system_r:svirt_t:s0:c392,c662&lt;/label&gt;
+&lt;/seclabel&gt;
 
-  &lt;seclabel type='static' model='selinux' relabel='yes'&gt;
-    &lt;label&gt;system_u:system_r:svirt_t:s0:c392,c662&lt;/label&gt;
-  &lt;/seclabel&gt;
+&lt;seclabel type='static' model='selinux' relabel='yes'&gt;
+  &lt;label&gt;system_u:system_r:svirt_t:s0:c392,c662&lt;/label&gt;
+&lt;/seclabel&gt;
 
-  &lt;seclabel type='none'/&gt;
+&lt;seclabel type='none'/&gt;
     </pre>
 
     <p>

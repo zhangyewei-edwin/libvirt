@@ -46,7 +46,7 @@ static vboxUniformedAPI gVBoxAPI;
 
 static int vboxConnectNumOfNetworks(virConnectPtr conn)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     vboxArray networkInterfaces = VBOX_ARRAY_INITIALIZER;
     IHost *host = NULL;
     size_t i = 0;
@@ -91,7 +91,7 @@ static int vboxConnectNumOfNetworks(virConnectPtr conn)
 
 static int vboxConnectListNetworks(virConnectPtr conn, char **const names, int nnames)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     vboxArray networkInterfaces = VBOX_ARRAY_INITIALIZER;
     IHost *host = NULL;
     size_t i = 0;
@@ -148,7 +148,7 @@ static int vboxConnectListNetworks(virConnectPtr conn, char **const names, int n
 
 static int vboxConnectNumOfDefinedNetworks(virConnectPtr conn)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     vboxArray networkInterfaces = VBOX_ARRAY_INITIALIZER;
     IHost *host = NULL;
     size_t i = 0;
@@ -193,7 +193,7 @@ static int vboxConnectNumOfDefinedNetworks(virConnectPtr conn)
 
 static int vboxConnectListDefinedNetworks(virConnectPtr conn, char **const names, int nnames)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     vboxArray networkInterfaces = VBOX_ARRAY_INITIALIZER;
     IHost *host = NULL;
     size_t i = 0;
@@ -250,12 +250,12 @@ static int vboxConnectListDefinedNetworks(virConnectPtr conn, char **const names
 
 static virNetworkPtr vboxNetworkLookupByUUID(virConnectPtr conn, const unsigned char *uuid)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     PRUint32 interfaceType = 0;
     char *nameUtf8 = NULL;
     PRUnichar *nameUtf16 = NULL;
     IHostNetworkInterface *networkInterface = NULL;
-    vboxIIDUnion iid;
+    vboxIID iid;
     IHost *host = NULL;
     virNetworkPtr ret = NULL;
 
@@ -302,12 +302,12 @@ static virNetworkPtr vboxNetworkLookupByUUID(virConnectPtr conn, const unsigned 
 
 static virNetworkPtr vboxNetworkLookupByName(virConnectPtr conn, const char *name)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     PRUnichar *nameUtf16 = NULL;
     IHostNetworkInterface *networkInterface = NULL;
     PRUint32 interfaceType = 0;
     unsigned char uuid[VIR_UUID_BUFLEN];
-    vboxIIDUnion iid;
+    vboxIID iid;
     IHost *host = NULL;
     virNetworkPtr ret = NULL;
     nsresult rc;
@@ -350,7 +350,7 @@ static virNetworkPtr vboxNetworkLookupByName(virConnectPtr conn, const char *nam
 }
 
 static PRUnichar *
-vboxSocketFormatAddrUtf16(vboxGlobalData *data, virSocketAddrPtr addr)
+vboxSocketFormatAddrUtf16(vboxDriverPtr data, virSocketAddrPtr addr)
 {
     char *utf8 = NULL;
     PRUnichar *utf16 = NULL;
@@ -369,7 +369,7 @@ vboxSocketFormatAddrUtf16(vboxGlobalData *data, virSocketAddrPtr addr)
 static virNetworkPtr
 vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
 {
-    vboxGlobalData *data = conn->privateData;
+    vboxDriverPtr data = conn->privateData;
     PRUnichar *networkInterfaceNameUtf16 = NULL;
     char *networkInterfaceNameUtf8 = NULL;
     PRUnichar *networkNameUtf16 = NULL;
@@ -378,7 +378,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
     virNetworkDefPtr def = virNetworkDefParseString(xml);
     virNetworkIPDefPtr ipdef = NULL;
     unsigned char uuid[VIR_UUID_BUFLEN];
-    vboxIIDUnion vboxnetiid;
+    vboxIID vboxnetiid;
     virSocketAddr netmask;
     IHost *host = NULL;
     virNetworkPtr ret = NULL;
@@ -563,7 +563,7 @@ static virNetworkPtr vboxNetworkDefineXML(virConnectPtr conn, const char *xml)
 static int
 vboxNetworkUndefineDestroy(virNetworkPtr network, bool removeinterface)
 {
-    vboxGlobalData *data = network->conn->privateData;
+    vboxDriverPtr data = network->conn->privateData;
     char *networkNameUtf8 = NULL;
     PRUnichar *networkInterfaceNameUtf16 = NULL;
     IHostNetworkInterface *networkInterface = NULL;
@@ -603,8 +603,8 @@ vboxNetworkUndefineDestroy(virNetworkPtr network, bool removeinterface)
     if (interfaceType != HostNetworkInterfaceType_HostOnly)
         goto cleanup;
 
-    if (gVBoxAPI.networkRemoveInterface && removeinterface) {
-        vboxIIDUnion iid;
+    if (removeinterface) {
+        vboxIID iid;
         IProgress *progress = NULL;
         nsresult rc;
         resultCodeUnion resultCode;
@@ -668,7 +668,7 @@ static int vboxNetworkDestroy(virNetworkPtr network)
 
 static int vboxNetworkCreate(virNetworkPtr network)
 {
-    vboxGlobalData *data = network->conn->privateData;
+    vboxDriverPtr data = network->conn->privateData;
     char *networkNameUtf8 = NULL;
     PRUnichar *networkInterfaceNameUtf16 = NULL;
     IHostNetworkInterface *networkInterface = NULL;
@@ -739,7 +739,7 @@ static int vboxNetworkCreate(virNetworkPtr network)
 }
 
 static int
-vboxSocketParseAddrUtf16(vboxGlobalData *data, const PRUnichar *utf16,
+vboxSocketParseAddrUtf16(vboxDriverPtr data, const PRUnichar *utf16,
                          virSocketAddrPtr addr)
 {
     int result = -1;
@@ -760,7 +760,7 @@ vboxSocketParseAddrUtf16(vboxGlobalData *data, const PRUnichar *utf16,
 
 static char *vboxNetworkGetXMLDesc(virNetworkPtr network, unsigned int flags)
 {
-    vboxGlobalData *data = network->conn->privateData;
+    vboxDriverPtr data = network->conn->privateData;
     virNetworkDefPtr def = NULL;
     virNetworkIPDefPtr ipdef = NULL;
     char *networkNameUtf8 = NULL;
@@ -769,7 +769,7 @@ static char *vboxNetworkGetXMLDesc(virNetworkPtr network, unsigned int flags)
     PRUint32 interfaceType = 0;
     PRUnichar *networkNameUtf16 = NULL;
     IDHCPServer *dhcpServer = NULL;
-    vboxIIDUnion vboxnet0IID;
+    vboxIID vboxnet0IID;
     IHost *host = NULL;
     char *ret = NULL;
     nsresult rc;

@@ -55,7 +55,8 @@
 #include "virstring.h"
 #include "virgettext.h"
 
-#include "storage/storage_driver.h"
+#include "storage/storage_source.h"
+#include "storage/storage_backend.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -512,7 +513,10 @@ valid_path(const char *path, const bool readonly)
         "/vmlinuz",
         "/initrd",
         "/initrd.img",
-        "/usr/share/ovmf/"               /* for OVMF images */
+        "/usr/share/OVMF/",              /* for OVMF images */
+        "/usr/share/ovmf/",              /* for OVMF images */
+        "/usr/share/AAVMF/",             /* for AAVMF images */
+        "/usr/share/qemu-efi/"           /* for AAVMF images */
     };
     /* override the above with these */
     const char * const override[] = {
@@ -667,7 +671,7 @@ get_definition(vahControl * ctl, const char *xmlStr)
         goto exit;
     }
 
-    if (!(ctl->xmlopt = virDomainXMLOptionNew(NULL, NULL, NULL))) {
+    if (!(ctl->xmlopt = virDomainXMLOptionNew(NULL, NULL, NULL, NULL, NULL))) {
         vah_error(ctl, 0, _("Failed to create XML config object"));
         goto exit;
     }
@@ -704,7 +708,8 @@ get_definition(vahControl * ctl, const char *xmlStr)
     }
 
     ctl->def = virDomainDefParseString(xmlStr,
-                                       ctl->caps, ctl->xmlopt,
+                                       ctl->caps, ctl->xmlopt, NULL,
+                                       VIR_DOMAIN_DEF_PARSE_SKIP_SECLABEL |
                                        VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE);
 
     if (ctl->def == NULL) {
@@ -922,6 +927,11 @@ get_files(vahControl * ctl)
         goto cleanup;
     }
 
+    if (virStorageBackendDriversRegister(false) < 0) {
+        vah_error(ctl, 0, _("failed to register storage driver backend"));
+        goto cleanup;
+    }
+
     for (i = 0; i < ctl->def->ndisks; i++) {
         virDomainDiskDefPtr disk = ctl->def->disks[i];
 
@@ -946,60 +956,60 @@ get_files(vahControl * ctl)
 
     for (i = 0; i < ctl->def->nserials; i++)
         if (ctl->def->serials[i] &&
-            (ctl->def->serials[i]->source.type == VIR_DOMAIN_CHR_TYPE_PTY ||
-             ctl->def->serials[i]->source.type == VIR_DOMAIN_CHR_TYPE_DEV ||
-             ctl->def->serials[i]->source.type == VIR_DOMAIN_CHR_TYPE_FILE ||
-             ctl->def->serials[i]->source.type == VIR_DOMAIN_CHR_TYPE_UNIX ||
-             ctl->def->serials[i]->source.type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
-            ctl->def->serials[i]->source.data.file.path &&
-            ctl->def->serials[i]->source.data.file.path[0] != '\0')
+            (ctl->def->serials[i]->source->type == VIR_DOMAIN_CHR_TYPE_PTY ||
+             ctl->def->serials[i]->source->type == VIR_DOMAIN_CHR_TYPE_DEV ||
+             ctl->def->serials[i]->source->type == VIR_DOMAIN_CHR_TYPE_FILE ||
+             ctl->def->serials[i]->source->type == VIR_DOMAIN_CHR_TYPE_UNIX ||
+             ctl->def->serials[i]->source->type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
+            ctl->def->serials[i]->source->data.file.path &&
+            ctl->def->serials[i]->source->data.file.path[0] != '\0')
             if (vah_add_file_chardev(&buf,
-                                     ctl->def->serials[i]->source.data.file.path,
+                                     ctl->def->serials[i]->source->data.file.path,
                                      "rw",
-                                     ctl->def->serials[i]->source.type) != 0)
+                                     ctl->def->serials[i]->source->type) != 0)
                 goto cleanup;
 
     for (i = 0; i < ctl->def->nconsoles; i++)
         if (ctl->def->consoles[i] &&
-            (ctl->def->consoles[i]->source.type == VIR_DOMAIN_CHR_TYPE_PTY ||
-             ctl->def->consoles[i]->source.type == VIR_DOMAIN_CHR_TYPE_DEV ||
-             ctl->def->consoles[i]->source.type == VIR_DOMAIN_CHR_TYPE_FILE ||
-             ctl->def->consoles[i]->source.type == VIR_DOMAIN_CHR_TYPE_UNIX ||
-             ctl->def->consoles[i]->source.type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
-            ctl->def->consoles[i]->source.data.file.path &&
-            ctl->def->consoles[i]->source.data.file.path[0] != '\0')
+            (ctl->def->consoles[i]->source->type == VIR_DOMAIN_CHR_TYPE_PTY ||
+             ctl->def->consoles[i]->source->type == VIR_DOMAIN_CHR_TYPE_DEV ||
+             ctl->def->consoles[i]->source->type == VIR_DOMAIN_CHR_TYPE_FILE ||
+             ctl->def->consoles[i]->source->type == VIR_DOMAIN_CHR_TYPE_UNIX ||
+             ctl->def->consoles[i]->source->type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
+            ctl->def->consoles[i]->source->data.file.path &&
+            ctl->def->consoles[i]->source->data.file.path[0] != '\0')
             if (vah_add_file(&buf,
-                             ctl->def->consoles[i]->source.data.file.path, "rw") != 0)
+                             ctl->def->consoles[i]->source->data.file.path, "rw") != 0)
                 goto cleanup;
 
     for (i = 0; i < ctl->def->nparallels; i++)
         if (ctl->def->parallels[i] &&
-            (ctl->def->parallels[i]->source.type == VIR_DOMAIN_CHR_TYPE_PTY ||
-             ctl->def->parallels[i]->source.type == VIR_DOMAIN_CHR_TYPE_DEV ||
-             ctl->def->parallels[i]->source.type == VIR_DOMAIN_CHR_TYPE_FILE ||
-             ctl->def->parallels[i]->source.type == VIR_DOMAIN_CHR_TYPE_UNIX ||
-             ctl->def->parallels[i]->source.type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
-            ctl->def->parallels[i]->source.data.file.path &&
-            ctl->def->parallels[i]->source.data.file.path[0] != '\0')
+            (ctl->def->parallels[i]->source->type == VIR_DOMAIN_CHR_TYPE_PTY ||
+             ctl->def->parallels[i]->source->type == VIR_DOMAIN_CHR_TYPE_DEV ||
+             ctl->def->parallels[i]->source->type == VIR_DOMAIN_CHR_TYPE_FILE ||
+             ctl->def->parallels[i]->source->type == VIR_DOMAIN_CHR_TYPE_UNIX ||
+             ctl->def->parallels[i]->source->type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
+            ctl->def->parallels[i]->source->data.file.path &&
+            ctl->def->parallels[i]->source->data.file.path[0] != '\0')
             if (vah_add_file_chardev(&buf,
-                                     ctl->def->parallels[i]->source.data.file.path,
+                                     ctl->def->parallels[i]->source->data.file.path,
                                      "rw",
-                                     ctl->def->parallels[i]->source.type) != 0)
+                                     ctl->def->parallels[i]->source->type) != 0)
                 goto cleanup;
 
     for (i = 0; i < ctl->def->nchannels; i++)
         if (ctl->def->channels[i] &&
-            (ctl->def->channels[i]->source.type == VIR_DOMAIN_CHR_TYPE_PTY ||
-             ctl->def->channels[i]->source.type == VIR_DOMAIN_CHR_TYPE_DEV ||
-             ctl->def->channels[i]->source.type == VIR_DOMAIN_CHR_TYPE_FILE ||
-             ctl->def->channels[i]->source.type == VIR_DOMAIN_CHR_TYPE_UNIX ||
-             ctl->def->channels[i]->source.type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
-            ctl->def->channels[i]->source.data.file.path &&
-            ctl->def->channels[i]->source.data.file.path[0] != '\0')
+            (ctl->def->channels[i]->source->type == VIR_DOMAIN_CHR_TYPE_PTY ||
+             ctl->def->channels[i]->source->type == VIR_DOMAIN_CHR_TYPE_DEV ||
+             ctl->def->channels[i]->source->type == VIR_DOMAIN_CHR_TYPE_FILE ||
+             ctl->def->channels[i]->source->type == VIR_DOMAIN_CHR_TYPE_UNIX ||
+             ctl->def->channels[i]->source->type == VIR_DOMAIN_CHR_TYPE_PIPE) &&
+            ctl->def->channels[i]->source->data.file.path &&
+            ctl->def->channels[i]->source->data.file.path[0] != '\0')
             if (vah_add_file_chardev(&buf,
-                                     ctl->def->channels[i]->source.data.file.path,
+                                     ctl->def->channels[i]->source->data.file.path,
                                      "rw",
-                                     ctl->def->channels[i]->source.type) != 0)
+                                     ctl->def->channels[i]->source->type) != 0)
                 goto cleanup;
 
     if (ctl->def->os.kernel)
@@ -1278,6 +1288,8 @@ main(int argc, char **argv)
         fprintf(stderr, _("%s: initialization failed\n"), argv[0]);
         exit(EXIT_FAILURE);
     }
+
+    virFileActivateDirOverride(argv[0]);
 
     /* Initialize the log system */
     virLogSetFromEnv();

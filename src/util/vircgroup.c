@@ -60,6 +60,7 @@
 #include "virsystemd.h"
 #include "virtypedparam.h"
 #include "virhostcpu.h"
+#include "virthread.h"
 
 VIR_LOG_INIT("util.cgroup");
 
@@ -381,6 +382,8 @@ virCgroupDetectMountsFromFile(virCgroupPtr group,
     FILE *mounts = NULL;
     struct mntent entry;
     char buf[CGROUP_MAX_VAL];
+    char *linksrc = NULL;
+    int ret = -1;
 
     mounts = fopen(path, "r");
     if (mounts == NULL) {
@@ -396,6 +399,7 @@ virCgroupDetectMountsFromFile(virCgroupPtr group,
             const char *typestr = virCgroupControllerTypeToString(i);
             int typelen = strlen(typestr);
             char *tmp = entry.mnt_opts;
+            struct virCgroupController *controller = &group->controllers[i];
             while (tmp) {
                 char *next = strchr(tmp, ',');
                 int len;
@@ -405,54 +409,58 @@ virCgroupDetectMountsFromFile(virCgroupPtr group,
                 } else {
                     len = strlen(tmp);
                 }
-                /* NB, the same controller can appear >1 time in mount list
-                 * due to bind mounts from one location to another. Pick the
-                 * first entry only
-                 */
-                if (typelen == len && STREQLEN(typestr, tmp, len) &&
-                    !group->controllers[i].mountPoint) {
-                    char *linksrc;
+
+                if (typelen == len && STREQLEN(typestr, tmp, len)) {
                     struct stat sb;
                     char *tmp2;
 
-                    if (VIR_STRDUP(group->controllers[i].mountPoint,
-                                   entry.mnt_dir) < 0)
-                        goto error;
+                    /* Note that the lines in /proc/mounts have the same
+                     * order than the mount operations, and that there may
+                     * be duplicates due to bind mounts. This means
+                     * that the same mount point may be processed more than
+                     * once. We need to save the results of the last one,
+                     * and we need to be careful to release the memory used
+                     * by previous processing. */
+                    VIR_FREE(controller->mountPoint);
+                    VIR_FREE(controller->linkPoint);
+                    if (VIR_STRDUP(controller->mountPoint, entry.mnt_dir) < 0)
+                        goto cleanup;
 
                     tmp2 = strrchr(entry.mnt_dir, '/');
                     if (!tmp2) {
                         virReportError(VIR_ERR_INTERNAL_ERROR,
                                        _("Missing '/' separator in cgroup mount '%s'"),
                                        entry.mnt_dir);
-                        goto error;
+                        goto cleanup;
                     }
 
                     /* If it is a co-mount it has a filename like "cpu,cpuacct"
                      * and we must identify the symlink path */
                     if (checkLinks && strchr(tmp2 + 1, ',')) {
                         *tmp2 = '\0';
+                        VIR_FREE(linksrc);
                         if (virAsprintf(&linksrc, "%s/%s",
                                         entry.mnt_dir, typestr) < 0)
-                            goto error;
+                            goto cleanup;
                         *tmp2 = '/';
 
                         if (lstat(linksrc, &sb) < 0) {
                             if (errno == ENOENT) {
                                 VIR_WARN("Controller %s co-mounted at %s is missing symlink at %s",
                                          typestr, entry.mnt_dir, linksrc);
-                                VIR_FREE(linksrc);
                             } else {
                                 virReportSystemError(errno,
                                                      _("Cannot stat %s"),
                                                      linksrc);
-                                goto error;
+                                goto cleanup;
                             }
                         } else {
                             if (!S_ISLNK(sb.st_mode)) {
                                 VIR_WARN("Expecting a symlink at %s for controller %s",
                                          linksrc, typestr);
                             } else {
-                                group->controllers[i].linkPoint = linksrc;
+                                controller->linkPoint = linksrc;
+                                linksrc = NULL;
                             }
                         }
                     }
@@ -462,13 +470,11 @@ virCgroupDetectMountsFromFile(virCgroupPtr group,
         }
     }
 
+    ret = 0;
+ cleanup:
+    VIR_FREE(linksrc);
     VIR_FORCE_FCLOSE(mounts);
-
-    return 0;
-
- error:
-    VIR_FORCE_FCLOSE(mounts);
-    return -1;
+    return ret;
 }
 
 static int
@@ -548,13 +554,13 @@ virCgroupDetectPlacement(virCgroupPtr group,
     char *procfile;
 
     VIR_DEBUG("Detecting placement for pid %lld path %s",
-              (unsigned long long)pid, path);
+              (long long) pid, path);
     if (pid == -1) {
         if (VIR_STRDUP(procfile, "/proc/self/cgroup") < 0)
             goto cleanup;
     } else {
-        if (virAsprintf(&procfile, "/proc/%llu/cgroup",
-                        (unsigned long long)pid) < 0)
+        if (virAsprintf(&procfile, "/proc/%lld/cgroup",
+                        (long long) pid) < 0)
             goto cleanup;
     }
 
@@ -655,11 +661,8 @@ virCgroupDetect(virCgroupPtr group,
 
     if (controllers >= 0) {
         VIR_DEBUG("Filtering controllers %d", controllers);
+        /* First mark requested but non-existing controllers to be ignored */
         for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
-            VIR_DEBUG("Controller '%s' wanted=%s, mount='%s'",
-                      virCgroupControllerTypeToString(i),
-                      (1 << i) & controllers ? "yes" : "no",
-                      NULLSTR(group->controllers[i].mountPoint));
             if (((1 << i) & controllers)) {
                 /* Remove non-existent controllers  */
                 if (!group->controllers[i].mountPoint) {
@@ -667,7 +670,15 @@ virCgroupDetect(virCgroupPtr group,
                               virCgroupControllerTypeToString(i));
                     controllers &= ~(1 << i);
                 }
-            } else {
+            }
+        }
+        for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
+            VIR_DEBUG("Controller '%s' wanted=%s, mount='%s'",
+                      virCgroupControllerTypeToString(i),
+                      (1 << i) & controllers ? "yes" : "no",
+                      NULLSTR(group->controllers[i].mountPoint));
+            if (!((1 << i) & controllers) &&
+                group->controllers[i].mountPoint) {
                 /* Check whether a request to disable a controller
                  * clashes with co-mounting of controllers */
                 for (j = 0; j < VIR_CGROUP_CONTROLLER_LAST; j++) {
@@ -732,11 +743,12 @@ virCgroupDetect(virCgroupPtr group,
             return -1;
         }
 
-        VIR_DEBUG("Detected mount/mapping %zu:%s at %s in %s for pid %llu", i,
+        VIR_DEBUG("Detected mount/mapping %zu:%s at %s in %s for pid %lld",
+                  i,
                   virCgroupControllerTypeToString(i),
                   group->controllers[i].mountPoint,
                   group->controllers[i].placement,
-                  (unsigned long long)pid);
+                  (long long) pid);
     }
 
     return 0;
@@ -862,14 +874,14 @@ virCgroupGetValueForBlkDev(virCgroupPtr group,
     if (!(lines = virStringSplit(str, "\n", -1)))
         goto error;
 
-    if (VIR_STRDUP(*value, virStringGetFirstWithPrefix(lines, prefix)) < 0)
+    if (VIR_STRDUP(*value, virStringListGetFirstWithPrefix(lines, prefix)) < 0)
         goto error;
 
     ret = 0;
  error:
     VIR_FREE(str);
     VIR_FREE(prefix);
-    virStringFreeList(lines);
+    virStringListFree(lines);
     return ret;
 }
 
@@ -1177,16 +1189,8 @@ virCgroupNew(pid_t pid,
 }
 
 
-/**
- * virCgroupAddTask:
- *
- * @group: The cgroup to add a task to
- * @pid: The pid of the task to add
- *
- * Returns: 0 on success, -1 on error
- */
-int
-virCgroupAddTask(virCgroupPtr group, pid_t pid)
+static int
+virCgroupAddTaskInternal(virCgroupPtr group, pid_t pid, bool withSystemd)
 {
     int ret = -1;
     size_t i;
@@ -1196,8 +1200,10 @@ virCgroupAddTask(virCgroupPtr group, pid_t pid)
         if (!group->controllers[i].mountPoint)
             continue;
 
-        /* We must never add tasks in systemd's hierarchy */
-        if (i == VIR_CGROUP_CONTROLLER_SYSTEMD)
+        /* We must never add tasks in systemd's hierarchy
+         * unless we're intentionally trying to move a
+         * task into a systemd machine scope */
+        if (i == VIR_CGROUP_CONTROLLER_SYSTEMD && !withSystemd)
             continue;
 
         if (virCgroupAddTaskController(group, pid, i) < 0)
@@ -1207,6 +1213,40 @@ virCgroupAddTask(virCgroupPtr group, pid_t pid)
     ret = 0;
  cleanup:
     return ret;
+}
+
+/**
+ * virCgroupAddTask:
+ *
+ * @group: The cgroup to add a task to
+ * @pid: The pid of the task to add
+ *
+ * Will add the task to all controllers, except the
+ * systemd unit controller.
+ *
+ * Returns: 0 on success, -1 on error
+ */
+int
+virCgroupAddTask(virCgroupPtr group, pid_t pid)
+{
+    return virCgroupAddTaskInternal(group, pid, false);
+}
+
+/**
+ * virCgroupAddMachineTask:
+ *
+ * @group: The cgroup to add a task to
+ * @pid: The pid of the task to add
+ *
+ * Will add the task to all controllers, including the
+ * systemd unit controller.
+ *
+ * Returns: 0 on success, -1 on error
+ */
+int
+virCgroupAddMachineTask(virCgroupPtr group, pid_t pid)
+{
+    return virCgroupAddTaskInternal(group, pid, true);
 }
 
 
@@ -1235,8 +1275,7 @@ virCgroupAddTaskController(virCgroupPtr group, pid_t pid, int controller)
         return -1;
     }
 
-    return virCgroupSetValueU64(group, controller, "tasks",
-                                (unsigned long long)pid);
+    return virCgroupSetValueI64(group, controller, "tasks", pid);
 }
 
 
@@ -1275,13 +1314,13 @@ virCgroupSetPartitionSuffix(const char *path, char **res)
             goto cleanup;
     }
 
-    if (!(*res = virStringJoin((const char **)tokens, "/")))
+    if (!(*res = virStringListJoin((const char **)tokens, "/")))
         goto cleanup;
 
     ret = 0;
 
  cleanup:
-    virStringFreeList(tokens);
+    virStringListFree(tokens);
     return ret;
 }
 
@@ -2452,6 +2491,51 @@ virCgroupGetBlkioDeviceWeight(virCgroupPtr group,
 }
 
 
+/*
+ * Retrieve the "memory.limit_in_bytes" value from the memory controller
+ * root dir. This value cannot be modified by userspace and therefore
+ * is the maximum limit value supported by cgroups on the local system.
+ * Returns this value scaled to KB or falls back to the original
+ * VIR_DOMAIN_MEMORY_PARAM_UNLIMITED. Either way, remember the return
+ * value to avoid unnecessary cgroup filesystem access.
+ */
+static unsigned long long int virCgroupMemoryUnlimitedKB;
+static virOnceControl virCgroupMemoryOnce = VIR_ONCE_CONTROL_INITIALIZER;
+
+static void
+virCgroupMemoryOnceInit(void)
+{
+    virCgroupPtr group;
+    unsigned long long int mem_unlimited = 0ULL;
+
+    if (virCgroupNew(-1, "/", NULL, -1, &group) < 0)
+        goto cleanup;
+
+    if (!virCgroupHasController(group, VIR_CGROUP_CONTROLLER_MEMORY))
+        goto cleanup;
+
+    ignore_value(virCgroupGetValueU64(group,
+                                      VIR_CGROUP_CONTROLLER_MEMORY,
+                                      "memory.limit_in_bytes",
+                                      &mem_unlimited));
+ cleanup:
+    virCgroupFree(&group);
+    virCgroupMemoryUnlimitedKB = mem_unlimited >> 10;
+}
+
+static unsigned long long int
+virCgroupGetMemoryUnlimitedKB(void)
+{
+    if (virOnce(&virCgroupMemoryOnce, virCgroupMemoryOnceInit) < 0)
+        VIR_DEBUG("Init failed, will fall back to defaults.");
+
+    if (virCgroupMemoryUnlimitedKB)
+        return virCgroupMemoryUnlimitedKB;
+    else
+        return VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
+}
+
+
 /**
  * virCgroupSetMemory:
  *
@@ -2534,20 +2618,17 @@ int
 virCgroupGetMemoryHardLimit(virCgroupPtr group, unsigned long long *kb)
 {
     long long unsigned int limit_in_bytes;
-    int ret = -1;
 
     if (virCgroupGetValueU64(group,
                              VIR_CGROUP_CONTROLLER_MEMORY,
                              "memory.limit_in_bytes", &limit_in_bytes) < 0)
-        goto cleanup;
+        return -1;
 
     *kb = limit_in_bytes >> 10;
-    if (*kb > VIR_DOMAIN_MEMORY_PARAM_UNLIMITED)
+    if (*kb >= virCgroupGetMemoryUnlimitedKB())
         *kb = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
 
-    ret = 0;
- cleanup:
-    return ret;
+    return 0;
 }
 
 
@@ -2596,20 +2677,17 @@ int
 virCgroupGetMemorySoftLimit(virCgroupPtr group, unsigned long long *kb)
 {
     long long unsigned int limit_in_bytes;
-    int ret = -1;
 
     if (virCgroupGetValueU64(group,
                              VIR_CGROUP_CONTROLLER_MEMORY,
                              "memory.soft_limit_in_bytes", &limit_in_bytes) < 0)
-        goto cleanup;
+        return -1;
 
     *kb = limit_in_bytes >> 10;
-    if (*kb > VIR_DOMAIN_MEMORY_PARAM_UNLIMITED)
+    if (*kb >= virCgroupGetMemoryUnlimitedKB())
         *kb = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
 
-    ret = 0;
- cleanup:
-    return ret;
+    return 0;
 }
 
 
@@ -2658,20 +2736,17 @@ int
 virCgroupGetMemSwapHardLimit(virCgroupPtr group, unsigned long long *kb)
 {
     long long unsigned int limit_in_bytes;
-    int ret = -1;
 
     if (virCgroupGetValueU64(group,
                              VIR_CGROUP_CONTROLLER_MEMORY,
                              "memory.memsw.limit_in_bytes", &limit_in_bytes) < 0)
-        goto cleanup;
+        return -1;
 
     *kb = limit_in_bytes >> 10;
-    if (*kb > VIR_DOMAIN_MEMORY_PARAM_UNLIMITED)
+    if (*kb >= virCgroupGetMemoryUnlimitedKB())
         *kb = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
 
-    ret = 0;
- cleanup:
-    return ret;
+    return 0;
 }
 
 
@@ -2778,7 +2853,7 @@ virCgroupGetCpusetMemoryMigrate(virCgroupPtr group, bool *migrate)
  * @group: The cgroup to set cpuset.cpus for
  * @cpus: the cpus to set
  *
- * Retuens: 0 on success
+ * Returns: 0 on success
  */
 int
 virCgroupSetCpusetCpus(virCgroupPtr group, const char *cpus)
@@ -2796,7 +2871,7 @@ virCgroupSetCpusetCpus(virCgroupPtr group, const char *cpus)
  * @group: The cgroup to get cpuset.cpus for
  * @cpus: the cpus to get
  *
- * Retuens: 0 on success
+ * Returns: 0 on success
  */
 int
 virCgroupGetCpusetCpus(virCgroupPtr group, char **cpus)
@@ -3506,8 +3581,8 @@ virCgroupKillInternal(virCgroupPtr group, int signum, virHashTablePtr pids)
             goto cleanup;
         } else {
             while (!feof(fp)) {
-                unsigned long pid_value;
-                if (fscanf(fp, "%lu", &pid_value) != 1) {
+                long pid_value;
+                if (fscanf(fp, "%ld", &pid_value) != 1) {
                     if (feof(fp))
                         break;
                     virReportSystemError(errno,
@@ -3518,12 +3593,12 @@ virCgroupKillInternal(virCgroupPtr group, int signum, virHashTablePtr pids)
                 if (virHashLookup(pids, (void*)pid_value))
                     continue;
 
-                VIR_DEBUG("pid=%lu", pid_value);
+                VIR_DEBUG("pid=%ld", pid_value);
                 /* Cgroups is a Linux concept, so this cast is safe.  */
                 if (kill((pid_t)pid_value, signum) < 0) {
                     if (errno != ESRCH) {
                         virReportSystemError(errno,
-                                             _("Failed to kill process %lu"),
+                                             _("Failed to kill process %ld"),
                                              pid_value);
                         goto cleanup;
                     }
@@ -3553,7 +3628,7 @@ virCgroupKillInternal(virCgroupPtr group, int signum, virHashTablePtr pids)
 static uint32_t
 virCgroupPidCode(const void *name, uint32_t seed)
 {
-    unsigned long pid_value = (unsigned long)(intptr_t)name;
+    long pid_value = (long)(intptr_t)name;
     return virHashCodeGen(&pid_value, sizeof(pid_value), seed);
 }
 
@@ -4211,6 +4286,16 @@ virCgroupPathOfController(virCgroupPtr group ATTRIBUTE_UNUSED,
 int
 virCgroupAddTask(virCgroupPtr group ATTRIBUTE_UNUSED,
                  pid_t pid ATTRIBUTE_UNUSED)
+{
+    virReportSystemError(ENXIO, "%s",
+                         _("Control groups not supported on this platform"));
+    return -1;
+}
+
+
+int
+virCgroupAddMachineTask(virCgroupPtr group ATTRIBUTE_UNUSED,
+                        pid_t pid ATTRIBUTE_UNUSED)
 {
     virReportSystemError(ENXIO, "%s",
                          _("Control groups not supported on this platform"));

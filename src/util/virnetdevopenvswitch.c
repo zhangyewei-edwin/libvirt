@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2013 Red Hat, Inc.
  * Copyright (C) 2012 Nicira, Inc.
+ * Copyright (C) 2017 IBM Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,9 +21,12 @@
  *     Dan Wendlandt <dan@nicira.com>
  *     Kyle Mestery <kmestery@cisco.com>
  *     Ansis Atteka <aatteka@nicira.com>
+ *     Boris Fiuczynski <fiuczy@linux.vnet.ibm.com>
  */
 
 #include <config.h>
+
+#include <stdio.h>
 
 #include "virnetdevopenvswitch.h"
 #include "vircommand.h"
@@ -35,6 +39,29 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 VIR_LOG_INIT("util.netdevopenvswitch");
+
+/*
+ * Set openvswitch default timout
+ */
+static unsigned int virNetDevOpenvswitchTimeout = VIR_NETDEV_OVS_DEFAULT_TIMEOUT;
+
+/**
+ * virNetDevOpenvswitchSetTimeout:
+ * @timeout: the timeout in seconds
+ *
+ * Set the openvswitch timeout
+ */
+void
+virNetDevOpenvswitchSetTimeout(unsigned int timeout)
+{
+    virNetDevOpenvswitchTimeout = timeout;
+}
+
+static void
+virNetDevOpenvswitchAddTimeout(virCommandPtr cmd)
+{
+    virCommandAddArgFormat(cmd, "--timeout=%u", virNetDevOpenvswitchTimeout);
+}
 
 /**
  * virNetDevOpenvswitchAddPort:
@@ -86,8 +113,8 @@ int virNetDevOpenvswitchAddPort(const char *brname, const char *ifname,
     }
 
     cmd = virCommandNew(OVSVSCTL);
-
-    virCommandAddArgList(cmd, "--timeout=5", "--", "--if-exists", "del-port",
+    virNetDevOpenvswitchAddTimeout(cmd);
+    virCommandAddArgList(cmd, "--", "--if-exists", "del-port",
                          ifname, "--", "add-port", brname, ifname, NULL);
 
     if (virtVlan && virtVlan->nTags > 0) {
@@ -181,7 +208,8 @@ int virNetDevOpenvswitchRemovePort(const char *brname ATTRIBUTE_UNUSED, const ch
     virCommandPtr cmd = NULL;
 
     cmd = virCommandNew(OVSVSCTL);
-    virCommandAddArgList(cmd, "--timeout=5", "--", "--if-exists", "del-port", ifname, NULL);
+    virNetDevOpenvswitchAddTimeout(cmd);
+    virCommandAddArgList(cmd, "--", "--if-exists", "del-port", ifname, NULL);
 
     if (virCommandRun(cmd, NULL) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -210,8 +238,10 @@ int virNetDevOpenvswitchGetMigrateData(char **migrate, const char *ifname)
     size_t len;
     int ret = -1;
 
-    cmd = virCommandNewArgList(OVSVSCTL, "--timeout=5", "--if-exists", "get", "Interface",
-                               ifname, "external_ids:PortData", NULL);
+    cmd = virCommandNew(OVSVSCTL);
+    virNetDevOpenvswitchAddTimeout(cmd);
+    virCommandAddArgList(cmd, "--if-exists", "get", "Interface",
+                         ifname, "external_ids:PortData", NULL);
 
     virCommandSetOutputBuffer(cmd, migrate);
 
@@ -253,8 +283,9 @@ int virNetDevOpenvswitchSetMigrateData(char *migrate, const char *ifname)
         return 0;
     }
 
-    cmd = virCommandNewArgList(OVSVSCTL, "--timeout=5", "set",
-                               "Interface", ifname, NULL);
+    cmd = virCommandNew(OVSVSCTL);
+    virNetDevOpenvswitchAddTimeout(cmd);
+    virCommandAddArgList(cmd, "set", "Interface", ifname, NULL);
     virCommandAddArgFormat(cmd, "external_ids:PortData=%s", migrate);
 
     /* Run the command */
@@ -268,5 +299,141 @@ int virNetDevOpenvswitchSetMigrateData(char *migrate, const char *ifname)
     ret = 0;
  cleanup:
     virCommandFree(cmd);
+    return ret;
+}
+
+/**
+ * virNetDevOpenvswitchInterfaceStats:
+ * @ifname: the name of the interface
+ * @stats: the retreived domain interface stat
+ *
+ * Retrieves the OVS interfaces stats
+ *
+ * Returns 0 in case of success or -1 in case of failure
+ */
+int
+virNetDevOpenvswitchInterfaceStats(const char *ifname,
+                                   virDomainInterfaceStatsPtr stats)
+{
+    virCommandPtr cmd = NULL;
+    char *output;
+    char *tmp;
+    bool gotStats = false;
+    int ret = -1;
+
+    /* Just ensure the interface exists in ovs */
+    cmd = virCommandNew(OVSVSCTL);
+    virNetDevOpenvswitchAddTimeout(cmd);
+    virCommandAddArgList(cmd, "get", "Interface", ifname, "name", NULL);
+    virCommandSetOutputBuffer(cmd, &output);
+
+    if (virCommandRun(cmd, NULL) < 0) {
+        /* no ovs-vsctl or interface 'ifname' doesn't exists in ovs */
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Interface not found"));
+        goto cleanup;
+    }
+
+#define GET_STAT(name, member)                                              \
+    do {                                                                    \
+        VIR_FREE(output);                                                   \
+        virCommandFree(cmd);                                                \
+        cmd = virCommandNew(OVSVSCTL);                                      \
+        virNetDevOpenvswitchAddTimeout(cmd);                                \
+        virCommandAddArgList(cmd, "get", "Interface", ifname,               \
+                             "statistics:" name, NULL);                     \
+        virCommandSetOutputBuffer(cmd, &output);                            \
+        if (virCommandRun(cmd, NULL) < 0) {                                 \
+            stats->member = -1;                                             \
+        } else {                                                            \
+            if (virStrToLong_ll(output, &tmp, 10, &stats->member) < 0 ||    \
+                *tmp != '\n') {                                             \
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",                \
+                               _("Fail to parse ovs-vsctl output"));        \
+                goto cleanup;                                               \
+            }                                                               \
+            gotStats = true;                                                \
+        }                                                                   \
+    } while (0)
+
+    /* The TX/RX fields appear to be swapped here
+     * because this is the host view. */
+    GET_STAT("rx_bytes", tx_bytes);
+    GET_STAT("rx_packets", tx_packets);
+    GET_STAT("rx_errors", tx_errs);
+    GET_STAT("rx_dropped", tx_drop);
+    GET_STAT("tx_bytes", rx_bytes);
+    GET_STAT("tx_packets", rx_packets);
+    GET_STAT("tx_errors", rx_errs);
+    GET_STAT("tx_dropped", rx_drop);
+
+    if (!gotStats) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Interface doesn't have any statistics"));
+        goto cleanup;
+    }
+
+    ret = 0;
+
+ cleanup:
+    VIR_FREE(output);
+    virCommandFree(cmd);
+    return ret;
+}
+
+/**
+ * virNetDevOpenvswitchVhostuserGetIfname:
+ * @path: the path of the unix socket
+ * @ifname: the retrieved name of the interface
+ *
+ * Retreives the ovs ifname from vhostuser unix socket path.
+ *
+ * Returns: 1 if interface is an openvswitch interface,
+ *          0 if it is not, but no other error occurred,
+ *         -1 otherwise.
+ */
+int
+virNetDevOpenvswitchGetVhostuserIfname(const char *path,
+                                       char **ifname)
+{
+    virCommandPtr cmd = NULL;
+    char *tmpIfname = NULL;
+    char **tokens = NULL;
+    size_t ntokens = 0;
+    int status;
+    int ret = -1;
+    char *ovs_timeout = NULL;
+
+    /* Openvswitch vhostuser path are hardcoded to
+     * /<runstatedir>/openvswitch/<ifname>
+     * for example: /var/run/openvswitch/dpdkvhostuser0
+     *
+     * so we pick the filename and check it's a openvswitch interface
+     */
+    if (!path ||
+        !(tmpIfname = strrchr(path, '/'))) {
+        ret = 0;
+        goto cleanup;
+    }
+
+    tmpIfname++;
+    cmd = virCommandNew(OVSVSCTL);
+    virNetDevOpenvswitchAddTimeout(cmd);
+    virCommandAddArgList(cmd, "get", "Interface", tmpIfname, "name", NULL);
+    if (virCommandRun(cmd, &status) < 0 ||
+        status) {
+        /* it's not a openvswitch vhostuser interface. */
+        ret = 0;
+        goto cleanup;
+    }
+
+    if (VIR_STRDUP(*ifname, tmpIfname) < 0)
+        goto cleanup;
+    ret = 1;
+
+ cleanup:
+    virStringListFreeCount(tokens, ntokens);
+    virCommandFree(cmd);
+    VIR_FREE(ovs_timeout);
     return ret;
 }

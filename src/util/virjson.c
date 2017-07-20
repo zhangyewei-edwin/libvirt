@@ -376,6 +376,14 @@ virJSONValueFree(virJSONValuePtr value)
 }
 
 
+void
+virJSONValueHashFree(void *opaque,
+                     const void *name ATTRIBUTE_UNUSED)
+{
+    virJSONValueFree(opaque);
+}
+
+
 virJSONValuePtr
 virJSONValueNewString(const char *data)
 {
@@ -770,6 +778,30 @@ virJSONValueObjectGet(virJSONValuePtr object,
 }
 
 
+static virJSONValuePtr
+virJSONValueObjectSteal(virJSONValuePtr object,
+                        const char *key)
+{
+    size_t i;
+    virJSONValuePtr obj = NULL;
+
+    if (object->type != VIR_JSON_TYPE_OBJECT)
+        return NULL;
+
+    for (i = 0; i < object->data.object.npairs; i++) {
+        if (STREQ(object->data.object.pairs[i].key, key)) {
+            VIR_STEAL_PTR(obj, object->data.object.pairs[i].value);
+            VIR_FREE(object->data.object.pairs[i].key);
+            VIR_DELETE_ELEMENT(object->data.object.pairs, i,
+                               object->data.object.npairs);
+            break;
+        }
+    }
+
+    return obj;
+}
+
+
 /* Return the value associated with KEY within OBJECT, but return NULL
  * if the key is missing or if value is not the correct TYPE.  */
 virJSONValuePtr
@@ -778,6 +810,21 @@ virJSONValueObjectGetByType(virJSONValuePtr object,
                             virJSONType type)
 {
     virJSONValuePtr value = virJSONValueObjectGet(object, key);
+
+    if (value && value->type == type)
+        return value;
+    return NULL;
+}
+
+
+/* Steal the value associated with KEY within OBJECT, but return NULL
+ * if the key is missing or if value is not the correct TYPE.  */
+static virJSONValuePtr
+virJSONValueObjectStealByType(virJSONValuePtr object,
+                              const char *key,
+                              virJSONType type)
+{
+    virJSONValuePtr value = virJSONValueObjectSteal(object, key);
 
     if (value && value->type == type)
         return value;
@@ -858,6 +905,16 @@ virJSONValueObjectGetValue(virJSONValuePtr object,
 
 
 bool
+virJSONValueIsObject(virJSONValuePtr object)
+{
+    if (object)
+        return object->type == VIR_JSON_TYPE_OBJECT;
+    else
+        return false;
+}
+
+
+bool
 virJSONValueIsArray(virJSONValuePtr array)
 {
     return array->type == VIR_JSON_TYPE_ARRAY;
@@ -905,6 +962,61 @@ virJSONValueArraySteal(virJSONValuePtr array,
     VIR_DELETE_ELEMENT(array->data.array.values,
                        element,
                        array->data.array.nvalues);
+
+    return ret;
+}
+
+
+/**
+ * virJSONValueArrayForeachSteal:
+ * @array: array to iterate
+ * @cb: callback called on every member of the array
+ * @opaque: custom data for the callback
+ *
+ * Iterates members of the array and calls the callback on every single member.
+ * The return codes of the callback are interpreted as follows:
+ *  0: callback claims ownership of the array element and is responsible for
+ *     freeing it
+ *  1: callback doesn't claim ownership of the element
+ * -1: callback doesn't claim ownership of the element and iteration does not
+ *     continue
+ *
+ * Returns 0 if all members were iterated and/or stolen by the callback; -1
+ * on callback failure or if the JSON value object is not an array.
+ * The rest of the members stay in possession of the array and it's condensed.
+ */
+int
+virJSONValueArrayForeachSteal(virJSONValuePtr array,
+                              virJSONArrayIteratorFunc cb,
+                              void *opaque)
+{
+    size_t i;
+    size_t j = 0;
+    int ret = 0;
+    int rc;
+
+    if (array->type != VIR_JSON_TYPE_ARRAY)
+        return -1;
+
+    for (i = 0; i < array->data.array.nvalues; i++) {
+        if ((rc = cb(i, array->data.array.values[i], opaque)) < 0) {
+            ret = -1;
+            break;
+        }
+
+        if (rc == 0)
+            array->data.array.values[i] = NULL;
+    }
+
+    /* condense the remaining entries at the beginning */
+    for (i = 0; i < array->data.array.nvalues; i++) {
+        if (!array->data.array.values[i])
+            continue;
+
+        array->data.array.values[j++] = array->data.array.values[i];
+    }
+
+    array->data.array.nvalues = j;
 
     return ret;
 }
@@ -1194,6 +1306,13 @@ virJSONValueObjectGetArray(virJSONValuePtr object, const char *key)
 }
 
 
+virJSONValuePtr
+virJSONValueObjectStealArray(virJSONValuePtr object, const char *key)
+{
+    return virJSONValueObjectStealByType(object, key, VIR_JSON_TYPE_ARRAY);
+}
+
+
 int
 virJSONValueObjectIsNull(virJSONValuePtr object,
                          const char *key)
@@ -1220,7 +1339,7 @@ virJSONValueObjectIsNull(virJSONValuePtr object,
  * during iteration and -1 on generic errors.
  */
 int
-virJSONValueObjectForeachKeyValue(const virJSONValue *object,
+virJSONValueObjectForeachKeyValue(virJSONValuePtr object,
                                   virJSONValueObjectIteratorFunc cb,
                                   void *opaque)
 {
@@ -1817,3 +1936,137 @@ virJSONValueToString(virJSONValuePtr object ATTRIBUTE_UNUSED,
     return NULL;
 }
 #endif
+
+
+/**
+ * virJSONStringReformat:
+ * @jsonstr: string to reformat
+ * @pretty: use the pretty formatter
+ *
+ * Reformats a JSON string by passing it to the parser and then to the
+ * formatter. If @pretty is true the JSON is formatted for human eye
+ * compatibility.
+ *
+ * Returns the reformatted JSON string on success; NULL and a libvirt error on
+ * failure.
+ */
+char *
+virJSONStringReformat(const char *jsonstr,
+                      bool pretty)
+{
+    virJSONValuePtr json;
+    char *ret;
+
+    if (!(json = virJSONValueFromString(jsonstr)))
+        return NULL;
+
+    ret = virJSONValueToString(json, pretty);
+
+    virJSONValueFree(json);
+    return ret;
+}
+
+
+static int
+virJSONValueObjectDeflattenWorker(const char *key,
+                                  virJSONValuePtr value,
+                                  void *opaque)
+{
+    virJSONValuePtr retobj = opaque;
+    virJSONValuePtr newval = NULL;
+    virJSONValuePtr existobj;
+    char **tokens = NULL;
+    size_t ntokens = 0;
+    int ret = -1;
+
+    /* non-nested keys only need to be copied */
+    if (!strchr(key, '.')) {
+
+        if (virJSONValueIsObject(value))
+            newval = virJSONValueObjectDeflatten(value);
+        else
+            newval = virJSONValueCopy(value);
+
+        if (!newval)
+            return -1;
+
+        if (virJSONValueObjectHasKey(retobj, key)) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("can't deflatten colliding key '%s'"), key);
+            goto cleanup;
+        }
+
+        if (virJSONValueObjectAppend(retobj, key, newval) < 0)
+            goto cleanup;
+
+        return 0;
+    }
+
+    if (!(tokens = virStringSplitCount(key, ".", 2, &ntokens)))
+        goto cleanup;
+
+    if (ntokens != 2) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("invalid nested value key '%s'"), key);
+        goto cleanup;
+    }
+
+    if (!(existobj = virJSONValueObjectGet(retobj, tokens[0]))) {
+        if (!(existobj = virJSONValueNewObject()))
+            goto cleanup;
+
+        if (virJSONValueObjectAppend(retobj, tokens[0], existobj) < 0)
+            goto cleanup;
+
+    } else {
+        if (!virJSONValueIsObject(existobj)) {
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                           _("mixing nested objects and values is forbidden in "
+                             "JSON deflattening"));
+            goto cleanup;
+        }
+    }
+
+    ret = virJSONValueObjectDeflattenWorker(tokens[1], value, existobj);
+
+ cleanup:
+    virStringListFreeCount(tokens, ntokens);
+    virJSONValueFree(newval);
+
+    return ret;
+}
+
+
+/**
+ * virJSONValueObjectDeflatten:
+ *
+ * In some cases it's possible to nest JSON objects by prefixing object members
+ * with the parent object name followed by the dot and then the attribute name
+ * rather than directly using a nested value object (e.g qemu's JSON
+ * pseudo-protocol in backing file definition).
+ *
+ * This function will attempt to reverse the process and provide a nested json
+ * hierarchy so that the parsers can be kept simple and we still can use the
+ * weird syntax some users might use.
+ */
+virJSONValuePtr
+virJSONValueObjectDeflatten(virJSONValuePtr json)
+{
+    virJSONValuePtr deflattened;
+    virJSONValuePtr ret = NULL;
+
+    if (!(deflattened = virJSONValueNewObject()))
+        return NULL;
+
+    if (virJSONValueObjectForeachKeyValue(json,
+                                          virJSONValueObjectDeflattenWorker,
+                                          deflattened) < 0)
+        goto cleanup;
+
+    VIR_STEAL_PTR(ret, deflattened);
+
+ cleanup:
+    virJSONValueFree(deflattened);
+
+    return ret;
+}

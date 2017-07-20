@@ -27,11 +27,11 @@ testCompareFiles(const char *xml, const char *sexpr)
   int ret = -1;
   virDomainDefPtr def = NULL;
 
-  if (!(def = virDomainDefParseFile(xml, caps, xmlopt,
+  if (!(def = virDomainDefParseFile(xml, caps, xmlopt, NULL,
                                     VIR_DOMAIN_DEF_PARSE_INACTIVE)))
       goto fail;
 
-  if (!virDomainDefCheckABIStability(def, def)) {
+  if (!virDomainDefCheckABIStability(def, def, xmlopt)) {
       fprintf(stderr, "ABI stability check failed on %s", xml);
       goto fail;
   }
@@ -167,4 +167,4 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIRT_TEST_MAIN(mymain)
+VIR_TEST_MAIN(mymain)

@@ -25,6 +25,7 @@
 
 #include <config.h>
 #include "virsh-volume.h"
+#include "virsh-util.h"
 
 #include <fcntl.h>
 
@@ -206,7 +207,7 @@ static int
 virshVolSize(const char *data, unsigned long long *val)
 {
     char *end;
-    if (virStrToLong_ull(data, &end, 10, val) < 0)
+    if (virStrToLong_ullp(data, &end, 10, val) < 0)
         return -1;
     return virScaleInteger(val, end, 1, ULLONG_MAX);
 }
@@ -605,7 +606,7 @@ cmdVolClone(vshControl *ctl, const vshCmd *cmd)
 
     newxml = virshMakeCloneXML(origxml, name);
     if (!newxml) {
-        vshPrint(ctl, "%s", _("Failed to allocate XML buffer"));
+        vshError(ctl, "%s", _("Failed to allocate XML buffer"));
         goto cleanup;
     }
 
@@ -659,17 +660,12 @@ static const vshCmdOptDef opts_vol_upload[] = {
      .type = VSH_OT_INT,
      .help = N_("amount of data to upload")
     },
+    {.name = "sparse",
+     .type = VSH_OT_BOOL,
+     .help = N_("preserve sparseness of volume")
+    },
     {.name = NULL}
 };
-
-static int
-cmdVolUploadSource(virStreamPtr st ATTRIBUTE_UNUSED,
-                   char *bytes, size_t nbytes, void *opaque)
-{
-    int *fd = opaque;
-
-    return saferead(*fd, bytes, nbytes);
-}
 
 static bool
 cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
@@ -682,6 +678,8 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
     const char *name = NULL;
     unsigned long long offset = 0, length = 0;
     virshControlPtr priv = ctl->privData;
+    unsigned int flags = 0;
+    virshStreamCallbackData cbData;
 
     if (vshCommandOptULongLong(ctl, cmd, "offset", &offset) < 0)
         return false;
@@ -700,19 +698,34 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
+    cbData.ctl = ctl;
+    cbData.fd = fd;
+
+    if (vshCommandOptBool(cmd, "sparse"))
+        flags |= VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM;
+
     if (!(st = virStreamNew(priv->conn, 0))) {
         vshError(ctl, _("cannot create a new stream"));
         goto cleanup;
     }
 
-    if (virStorageVolUpload(vol, st, offset, length, 0) < 0) {
+    if (virStorageVolUpload(vol, st, offset, length, flags) < 0) {
         vshError(ctl, _("cannot upload to volume %s"), name);
         goto cleanup;
     }
 
-    if (virStreamSendAll(st, cmdVolUploadSource, &fd) < 0) {
-        vshError(ctl, _("cannot send data to volume %s"), name);
-        goto cleanup;
+    if (flags & VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM) {
+        if (virStreamSparseSendAll(st, virshStreamSource,
+                                   virshStreamInData,
+                                   virshStreamSourceSkip, &cbData) < 0) {
+            vshError(ctl, _("cannot send data to volume %s"), name);
+            goto cleanup;
+        }
+    } else {
+        if (virStreamSendAll(st, virshStreamSource, &cbData) < 0) {
+            vshError(ctl, _("cannot send data to volume %s"), name);
+            goto cleanup;
+        }
     }
 
     if (VIR_CLOSE(fd) < 0) {
@@ -762,6 +775,10 @@ static const vshCmdOptDef opts_vol_download[] = {
      .type = VSH_OT_INT,
      .help = N_("amount of data to download")
     },
+    {.name = "sparse",
+     .type = VSH_OT_BOOL,
+     .help = N_("preserve sparseness of volume")
+    },
     {.name = NULL}
 };
 
@@ -777,6 +794,7 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
     unsigned long long offset = 0, length = 0;
     bool created = false;
     virshControlPtr priv = ctl->privData;
+    unsigned int flags = 0;
 
     if (vshCommandOptULongLong(ctl, cmd, "offset", &offset) < 0)
         return false;
@@ -789,6 +807,9 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptStringReq(ctl, cmd, "file", &file) < 0)
         goto cleanup;
+
+    if (vshCommandOptBool(cmd, "sparse"))
+        flags |= VIR_STORAGE_VOL_DOWNLOAD_SPARSE_STREAM;
 
     if ((fd = open(file, O_WRONLY|O_CREAT|O_EXCL, 0666)) < 0) {
         if (errno != EEXIST ||
@@ -805,12 +826,12 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (virStorageVolDownload(vol, st, offset, length, 0) < 0) {
+    if (virStorageVolDownload(vol, st, offset, length, flags) < 0) {
         vshError(ctl, _("cannot download from volume %s"), name);
         goto cleanup;
     }
 
-    if (virStreamRecvAll(st, virshStreamSink, &fd) < 0) {
+    if (virStreamSparseRecvAll(st, virshStreamSink, virshStreamSkip, &fd) < 0) {
         vshError(ctl, _("cannot receive data from volume %s"), name);
         goto cleanup;
     }
@@ -996,6 +1017,10 @@ static const vshCmdOptDef opts_vol_info[] = {
      .type = VSH_OT_BOOL,
      .help = N_("sizes are represented in bytes rather than pretty units")
     },
+    {.name = "physical",
+     .type = VSH_OT_BOOL,
+     .help = N_("return the physical size of the volume in allocation field")
+    },
     {.name = NULL}
 };
 
@@ -1005,14 +1030,25 @@ cmdVolInfo(vshControl *ctl, const vshCmd *cmd)
     virStorageVolInfo info;
     virStorageVolPtr vol;
     bool bytes = vshCommandOptBool(cmd, "bytes");
+    bool physical = vshCommandOptBool(cmd, "physical");
     bool ret = true;
+    int rc;
+    unsigned int flags = 0;
 
     if (!(vol = virshCommandOptVol(ctl, cmd, "vol", "pool", NULL)))
         return false;
 
     vshPrint(ctl, "%-15s %s\n", _("Name:"), virStorageVolGetName(vol));
 
-    if (virStorageVolGetInfo(vol, &info) == 0) {
+    if (physical)
+        flags |= VIR_STORAGE_VOL_GET_PHYSICAL;
+
+    if (flags)
+        rc = virStorageVolGetInfoFlags(vol, &info, flags);
+    else
+        rc = virStorageVolGetInfo(vol, &info);
+
+    if (rc == 0) {
         double val;
         const char *unit;
 
@@ -1028,11 +1064,18 @@ cmdVolInfo(vshControl *ctl, const vshCmd *cmd)
         }
 
         if (bytes) {
-            vshPrint(ctl, "%-15s %llu %s\n", _("Allocation:"),
-                     info.allocation, _("bytes"));
+            if (physical)
+                vshPrint(ctl, "%-15s %llu %s\n", _("Physical:"),
+                         info.allocation, _("bytes"));
+            else
+                vshPrint(ctl, "%-15s %llu %s\n", _("Allocation:"),
+                         info.allocation, _("bytes"));
          } else {
             val = vshPrettyCapacity(info.allocation, &unit);
-            vshPrint(ctl, "%-15s %2.2lf %s\n", _("Allocation:"), val, unit);
+            if (physical)
+                vshPrint(ctl, "%-15s %2.2lf %s\n", _("Physical:"), val, unit);
+            else
+                vshPrint(ctl, "%-15s %2.2lf %s\n", _("Allocation:"), val, unit);
          }
     } else {
         ret = false;
@@ -1050,7 +1093,9 @@ static const vshCmdInfo info_vol_resize[] = {
      .data = N_("resize a vol")
     },
     {.name = "desc",
-     .data = N_("Resizes a storage volume.")
+     .data = N_("Resizes a storage volume. This is safe only for storage "
+                "volumes not in use by an active guest.\n"
+                "See blockresize for live resizing.")
     },
     {.name = NULL}
 };
@@ -1121,10 +1166,10 @@ cmdVolResize(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (virStorageVolResize(vol, capacity, flags) == 0) {
-        vshPrint(ctl,
-                 delta ? _("Size of volume '%s' successfully changed by %s\n")
-                 : _("Size of volume '%s' successfully changed to %s\n"),
-                 virStorageVolGetName(vol), capacityStr);
+        vshPrintExtra(ctl,
+                      delta ? _("Size of volume '%s' successfully changed by %s\n")
+                      : _("Size of volume '%s' successfully changed to %s\n"),
+                      virStorageVolGetName(vol), capacityStr);
         ret = true;
     } else {
         vshError(ctl,
@@ -1257,10 +1302,8 @@ virshStorageVolListCollect(vshControl *ctl,
         goto cleanup;
     }
 
-    if (nvols == 0) {
-        success = true;
+    if (nvols == 0)
         return list;
-    }
 
     /* Retrieve the list of volume names in the pool */
     names = vshCalloc(ctl, nvols, sizeof(*names));
@@ -1500,8 +1543,8 @@ cmdVolList(vshControl *ctl, const vshCmd *cmd ATTRIBUTE_UNUSED)
         goto cleanup;
 
     /* Display the header */
-    vshPrint(ctl, outputStr, _("Name"), _("Path"), _("Type"),
-             ("Capacity"), _("Allocation"));
+    vshPrintExtra(ctl, outputStr, _("Name"), _("Path"), _("Type"),
+                  _("Capacity"), _("Allocation"));
     for (i = nameStrLength + pathStrLength + typeStrLength
                            + capStrLength + allocStrLength
                            + 10; i > 0; i--)

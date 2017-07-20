@@ -24,10 +24,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <regex.h>
+#include <locale.h>
 
 #include "base64.h"
 #include "c-ctype.h"
 #include "virstring.h"
+#include "virthread.h"
 #include "viralloc.h"
 #include "virbuffer.h"
 #include "virerror.h"
@@ -38,7 +40,7 @@
 VIR_LOG_INIT("util.string");
 
 /*
- * The following virStringSplit & virStringJoin methods
+ * The following virStringSplit & virStringListJoin methods
  * are derived from g_strsplit / g_strjoin in glib2,
  * also available under the LGPLv2+ license terms
  */
@@ -60,13 +62,13 @@ VIR_LOG_INIT("util.string");
  *
  * As a special case, the result of splitting the empty string "" is an empty
  * vector, not a vector containing a single string. The reason for this
- * special case is that being able to represent a empty vector is typically
+ * special case is that being able to represent an empty vector is typically
  * more useful than consistent handling of empty elements. If you do need
  * to represent empty elements, you'll need to check for the empty string
  * before calling virStringSplit().
  *
  * Return value: a newly-allocated NULL-terminated array of strings. Use
- *    virStringFreeList() to free it.
+ *    virStringListFree() to free it.
  */
 char **
 virStringSplitCount(const char *string,
@@ -137,7 +139,7 @@ virStringSplit(const char *string,
 
 
 /**
- * virStringJoin:
+ * virStringListJoin:
  * @strings: a NULL-terminated array of strings to join
  * @delim: a string to insert between each of the strings
  *
@@ -148,8 +150,8 @@ virStringSplit(const char *string,
  * Returns: a newly-allocated string containing all of the strings joined
  *     together, with @delim between them
  */
-char *virStringJoin(const char **strings,
-                    const char *delim)
+char *virStringListJoin(const char **strings,
+                        const char *delim)
 {
     char *ret;
     virBuffer buf = VIR_BUFFER_INITIALIZER;
@@ -169,13 +171,82 @@ char *virStringJoin(const char **strings,
 
 
 /**
- * virStringFreeList:
+ * virStringListAdd:
+ * @strings: a NULL-terminated array of strings
+ * @item: string to add
+ *
+ * Creates new strings list with all strings duplicated and @item
+ * at the end of the list. Callers is responsible for freeing
+ * both @strings and returned list.
+ */
+char **
+virStringListAdd(const char **strings,
+                 const char *item)
+{
+    char **ret = NULL;
+    size_t i = virStringListLength(strings);
+
+    if (VIR_ALLOC_N(ret, i + 2) < 0)
+        goto error;
+
+    for (i = 0; strings && strings[i]; i++) {
+        if (VIR_STRDUP(ret[i], strings[i]) < 0)
+            goto error;
+    }
+
+    if (VIR_STRDUP(ret[i], item) < 0)
+        goto error;
+
+    return ret;
+ error:
+    virStringListFree(ret);
+    return NULL;
+}
+
+
+/**
+ * virStringListRemove:
+ * @strings: a NULL-terminated array of strings
+ * @item: string to remove
+ *
+ * Remove every occurrence of @item in list of @strings.
+ */
+void
+virStringListRemove(char ***strings,
+                    const char *item)
+{
+    size_t r, w = 0;
+
+    if (!strings || !*strings)
+        return;
+
+    for (r = 0; (*strings)[r]; r++) {
+        if (STREQ((*strings)[r], item)) {
+            VIR_FREE((*strings)[r]);
+            continue;
+        }
+        if (r != w)
+            (*strings)[w] = (*strings)[r];
+        w++;
+    }
+
+    if (w == 0) {
+        VIR_FREE(*strings);
+    } else {
+        (*strings)[w] = NULL;
+        ignore_value(VIR_REALLOC_N(*strings, w + 1));
+    }
+}
+
+
+/**
+ * virStringListFree:
  * @str_array: a NULL-terminated array of strings to free
  *
  * Frees a NULL-terminated array of strings, and the array itself.
- * If called on a NULL value, virStringFreeList() simply returns.
+ * If called on a NULL value, virStringListFree() simply returns.
  */
-void virStringFreeList(char **strings)
+void virStringListFree(char **strings)
 {
     char **tmp = strings;
     while (tmp && *tmp) {
@@ -187,14 +258,14 @@ void virStringFreeList(char **strings)
 
 
 /**
- * virStringFreeListCount:
+ * virStringListFreeCount:
  * @strings: array of strings to free
  * @count: number of elements in the array
  *
  * Frees a string array of @count length.
  */
 void
-virStringFreeListCount(char **strings,
+virStringListFreeCount(char **strings,
                        size_t count)
 {
     size_t i;
@@ -210,8 +281,8 @@ virStringFreeListCount(char **strings,
 
 
 bool
-virStringArrayHasString(const char **strings,
-                        const char *needle)
+virStringListHasString(const char **strings,
+                       const char *needle)
 {
     size_t i = 0;
 
@@ -227,7 +298,8 @@ virStringArrayHasString(const char **strings,
 }
 
 char *
-virStringGetFirstWithPrefix(char **strings, const char *prefix)
+virStringListGetFirstWithPrefix(char **strings,
+                                const char *prefix)
 {
     size_t i = 0;
 
@@ -446,17 +518,108 @@ virStrToLong_ullp(char const *s, char **end_ptr, int base,
     return 0;
 }
 
+/* In case thread-safe locales are available */
+#if HAVE_NEWLOCALE
+
+typedef locale_t virLocale;
+static virLocale virLocaleRaw;
+
+static int
+virLocaleOnceInit(void)
+{
+    virLocaleRaw = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+    if (!virLocaleRaw)
+        return -1;
+    return 0;
+}
+
+VIR_ONCE_GLOBAL_INIT(virLocale);
+
+/**
+ * virLocaleSetRaw:
+ *
+ * @oldlocale: set to old locale pointer
+ *
+ * Sets the locale to 'C' to allow operating on non-localized objects.
+ * Returns 0 on success -1 on error.
+ */
+static int
+virLocaleSetRaw(virLocale *oldlocale)
+{
+    if (virLocaleInitialize() < 0)
+        return -1;
+    *oldlocale = uselocale(virLocaleRaw);
+    return 0;
+}
+
+static void
+virLocaleRevert(virLocale *oldlocale)
+{
+    uselocale(*oldlocale);
+}
+
+static void
+virLocaleFixupRadix(char **strp ATTRIBUTE_UNUSED)
+{
+}
+
+#else /* !HAVE_NEWLOCALE */
+
+typedef int virLocale;
+
+static int
+virLocaleSetRaw(virLocale *oldlocale ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
+
+static void
+virLocaleRevert(virLocale *oldlocale ATTRIBUTE_UNUSED)
+{
+}
+
+static void
+virLocaleFixupRadix(char **strp)
+{
+    char *radix, *tmp;
+    struct lconv *lc;
+
+    lc = localeconv();
+    radix = lc->decimal_point;
+    tmp = strstr(*strp, radix);
+    if (tmp) {
+        *tmp = '.';
+        if (strlen(radix) > 1)
+            memmove(tmp + 1, tmp + strlen(radix), strlen(*strp) - (tmp - *strp));
+    }
+}
+
+#endif /* !HAVE_NEWLOCALE */
+
+
+/**
+ * virStrToDouble
+ *
+ * converts string with C locale (thread-safe) to double.
+ *
+ * Returns -1 on error or returns 0 on success.
+ */
 int
 virStrToDouble(char const *s,
                char **end_ptr,
                double *result)
 {
+    virLocale oldlocale;
     double val;
     char *p;
     int err;
 
     errno = 0;
+    if (virLocaleSetRaw(&oldlocale) < 0)
+        return -1;
     val = strtod(s, &p); /* exempt from syntax-check */
+    virLocaleRevert(&oldlocale);
+
     err = (errno || (!end_ptr && *p) || p == s);
     if (end_ptr)
         *end_ptr = p;
@@ -465,6 +628,31 @@ virStrToDouble(char const *s,
     *result = val;
     return 0;
 }
+
+/**
+ * virDoubleToStr
+ *
+ * converts double to string with C locale (thread-safe).
+ *
+ * Returns -1 on error, size of the string otherwise.
+ */
+int
+virDoubleToStr(char **strp, double number)
+{
+    virLocale oldlocale;
+    int ret = -1;
+
+    if (virLocaleSetRaw(&oldlocale) < 0)
+        return -1;
+
+    ret = virAsprintf(strp, "%lf", number);
+
+    virLocaleRevert(&oldlocale);
+    virLocaleFixupRadix(strp);
+
+    return ret;
+}
+
 
 int
 virVasprintfInternal(bool report,
@@ -814,7 +1002,7 @@ int virStringSortRevCompare(const void *a, const void *b)
  * @result: pointer to an array to be filled with NULL terminated list of matches
  *
  * Performs a POSIX extended regex search against a string and return all matching substrings.
- * The @result value should be freed with virStringFreeList() when no longer
+ * The @result value should be freed with virStringListFree() when no longer
  * required.
  *
  * @code
@@ -834,7 +1022,7 @@ int virStringSortRevCompare(const void *a, const void *b)
  *  // matches[2] == "bbb3c75c-d60f-43b0-b802-fd56b84a4222"
  *  // matches[3] == NULL;
  *
- *  virStringFreeList(matches);
+ *  virStringListFree(matches);
  * @endcode
  *
  * Returns: -1 on error, or number of matches
@@ -902,10 +1090,42 @@ virStringSearch(const char *str,
  cleanup:
     regfree(&re);
     if (ret < 0) {
-        virStringFreeList(*matches);
+        virStringListFree(*matches);
         *matches = NULL;
     }
     return ret;
+}
+
+/**
+ * virStringMatch:
+ * @str: string to match
+ * @regexp: POSIX Extended regular expression pattern used for matching
+ *
+ * Performs a POSIX extended regex match against a string.
+ * Returns true on match, false on error or no match.
+ */
+bool
+virStringMatch(const char *str,
+               const char *regexp)
+{
+    regex_t re;
+    int rv;
+
+    VIR_DEBUG("match '%s' for '%s'", str, regexp);
+
+    if ((rv = regcomp(&re, regexp, REG_EXTENDED | REG_NOSUB)) != 0) {
+        char error[100];
+        regerror(rv, &re, error, sizeof(error));
+        VIR_WARN("error while compiling regular expression '%s': %s",
+                 regexp, error);
+        return false;
+    }
+
+    rv = regexec(&re, str, 0, NULL, 0);
+
+    regfree(&re);
+
+    return rv == 0;
 }
 
 /**
@@ -1027,7 +1247,7 @@ virStringStripControlChars(char *str)
  * Capitalize the string with replacement of all '-' characters for '_'
  * characters. Caller frees the result.
  *
- * Returns 0 if src is NULL, 1 if capitalization was successfull, -1 on failure.
+ * Returns 0 if src is NULL, 1 if capitalization was successful, -1 on failure.
  */
 int
 virStringToUpper(char **dst, const char *src)
@@ -1109,4 +1329,18 @@ virStringEncodeBase64(const uint8_t *buf, size_t buflen)
     }
 
     return ret;
+}
+
+/**
+ * virStringTrimOptionalNewline:
+ * @str: the string to modify in-place
+ *
+ * Modify @str to remove a single '\n' character
+ * from its end, if one exists.
+ */
+void virStringTrimOptionalNewline(char *str)
+{
+    char *tmp = str + strlen(str) - 1;
+    if (*tmp == '\n')
+        *tmp = '\0';
 }

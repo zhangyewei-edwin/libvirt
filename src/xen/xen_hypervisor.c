@@ -68,7 +68,7 @@
 #include "xen_driver.h"
 #include "xen_hypervisor.h"
 #include "xs_internal.h"
-#include "virstats.h"
+#include "virnetdevtap.h"
 #include "block_stats.h"
 #include "xend_internal.h"
 #include "virbuffer.h"
@@ -120,11 +120,7 @@ typedef privcmd_hypercall_t hypercall_t;
 # define __HYPERVISOR_domctl 36
 #endif
 
-#ifdef WITH_RHEL5_API
-# define SYS_IFACE_MIN_VERS_NUMA 3
-#else
-# define SYS_IFACE_MIN_VERS_NUMA 4
-#endif
+#define SYS_IFACE_MIN_VERS_NUMA 4
 
 static int xen_ioctl_hypercall_cmd;
 static struct xenHypervisorVersions hv_versions = {
@@ -1266,7 +1262,8 @@ xenHypervisorGetSchedulerParameters(virConnectPtr conn,
                 }
 
                 /* TODO: Implement for Xen/SEDF */
-                TODO
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("SEDF schedular parameters not supported"));
                 return -1;
             case XEN_SCHEDULER_CREDIT:
                 memset(&op_dom, 0, sizeof(op_dom));
@@ -1363,7 +1360,8 @@ xenHypervisorSetSchedulerParameters(virConnectPtr conn,
         switch (op_sys.u.getschedulerid.sched_id) {
         case XEN_SCHEDULER_SEDF:
             /* TODO: Implement for Xen/SEDF */
-            TODO
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("SEDF schedular parameters not supported"));
             return -1;
         case XEN_SCHEDULER_CREDIT: {
             memset(&op_dom, 0, sizeof(op_dom));
@@ -1470,7 +1468,7 @@ xenHypervisorDomainInterfaceStats(virDomainDefPtr def,
         return -1;
     }
 
-    return virNetInterfaceStats(path, stats);
+    return virNetDevTapInterfaceStats(path, stats);
 #else
     virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                    _("/proc/net/dev: Interface not found"));

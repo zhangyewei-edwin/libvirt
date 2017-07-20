@@ -86,7 +86,8 @@ static int
 vmwareDomainDefPostParse(virDomainDefPtr def ATTRIBUTE_UNUSED,
                          virCapsPtr caps ATTRIBUTE_UNUSED,
                          unsigned int parseFlags ATTRIBUTE_UNUSED,
-                         void *opaque ATTRIBUTE_UNUSED)
+                         void *opaque ATTRIBUTE_UNUSED,
+                         void *parseOpaque ATTRIBUTE_UNUSED)
 {
     return 0;
 }
@@ -96,7 +97,8 @@ vmwareDomainDeviceDefPostParse(virDomainDeviceDefPtr dev ATTRIBUTE_UNUSED,
                                const virDomainDef *def ATTRIBUTE_UNUSED,
                                virCapsPtr caps ATTRIBUTE_UNUSED,
                                unsigned int parseFlags ATTRIBUTE_UNUSED,
-                               void *opaque ATTRIBUTE_UNUSED)
+                               void *opaque ATTRIBUTE_UNUSED,
+                               void *parseOpaque ATTRIBUTE_UNUSED)
 {
     return 0;
 }
@@ -112,7 +114,8 @@ vmwareDomainXMLConfigInit(void)
     virDomainXMLPrivateDataCallbacks priv = { .alloc = vmwareDataAllocFunc,
                                               .free = vmwareDataFreeFunc };
 
-    return virDomainXMLOptionNew(&vmwareDomainDefParserConfig, &priv, NULL);
+    return virDomainXMLOptionNew(&vmwareDomainDefParserConfig, &priv,
+                                 NULL, NULL, NULL);
 }
 
 static virDrvOpenStatus
@@ -387,7 +390,10 @@ vmwareDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int fla
 
     vmwareDriverLock(driver);
     if ((vmdef = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
-                                         parse_flags)) == NULL)
+                                         NULL, parse_flags)) == NULL)
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", vmdef->name, "\n") < 0)
         goto cleanup;
 
     /* generate vmx file */
@@ -422,9 +428,7 @@ vmwareDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int fla
     vmdef = NULL;
     vm->persistent = 1;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = -1;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, -1);
 
  cleanup:
     virDomainDefFree(vmdef);
@@ -681,7 +685,7 @@ vmwareDomainCreateXML(virConnectPtr conn, const char *xml,
     vmwareDriverLock(driver);
 
     if ((vmdef = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
-                                         parse_flags)) == NULL)
+                                         NULL, parse_flags)) == NULL)
         goto cleanup;
 
     /* generate vmx file */
@@ -723,9 +727,7 @@ vmwareDomainCreateXML(virConnectPtr conn, const char *xml,
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainDefFree(vmdef);
@@ -850,9 +852,7 @@ vmwareDomainLookupByID(virConnectPtr conn, int id)
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -901,9 +901,7 @@ vmwareDomainLookupByUUID(virConnectPtr conn, const unsigned char *uuid)
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -927,9 +925,7 @@ vmwareDomainLookupByName(virConnectPtr conn, const char *name)
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)

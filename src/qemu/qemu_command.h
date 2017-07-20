@@ -57,7 +57,8 @@ virCommandPtr qemuBuildCommandLine(virQEMUDriverPtr driver,
                                    virBitmapPtr nodeset,
                                    size_t *nnicindexes,
                                    int **nicindexes,
-                                   const char *domainLibDir)
+                                   const char *domainLibDir,
+                                   bool chardevStdioLogd)
     ATTRIBUTE_NONNULL(15);
 
 
@@ -69,6 +70,7 @@ int qemuBuildSecretInfoProps(qemuDomainSecretInfoPtr secinfo,
 int qemuBuildTLSx509BackendProps(const char *tlspath,
                                  bool isListen,
                                  bool verifypeer,
+                                 const char *secalias,
                                  virQEMUCapsPtr qemuCaps,
                                  virJSONValuePtr *propsret);
 
@@ -106,6 +108,7 @@ char *qemuDeviceDriveHostAlias(virDomainDiskDefPtr disk);
 
 /* Both legacy & current support */
 char *qemuBuildDriveStr(virDomainDiskDefPtr disk,
+                        virQEMUDriverConfigPtr cfg,
                         bool bootable,
                         virQEMUCapsPtr qemuCaps);
 
@@ -116,21 +119,19 @@ char *qemuBuildDriveDevStr(const virDomainDef *def,
                            virQEMUCapsPtr qemuCaps);
 
 /* Current, best practice */
-char *qemuBuildControllerDevStr(const virDomainDef *domainDef,
-                                virDomainControllerDefPtr def,
-                                virQEMUCapsPtr qemuCaps,
-                                int *nusbcontroller);
-
-int qemuBuildMemoryBackendStr(unsigned long long size,
-                              unsigned long long pagesize,
-                              int guestNode,
-                              virBitmapPtr userNodeset,
-                              virBitmapPtr autoNodeset,
-                              virDomainDefPtr def,
+int qemuBuildControllerDevStr(const virDomainDef *domainDef,
+                              virDomainControllerDefPtr def,
                               virQEMUCapsPtr qemuCaps,
-                              virQEMUDriverConfigPtr cfg,
+                              char **devstr,
+                              int *nusbcontroller);
+
+int qemuBuildMemoryBackendStr(virJSONValuePtr *backendProps,
                               const char **backendType,
-                              virJSONValuePtr *backendProps,
+                              virQEMUDriverConfigPtr cfg,
+                              virQEMUCapsPtr qemuCaps,
+                              virDomainDefPtr def,
+                              virDomainMemoryDefPtr mem,
+                              virBitmapPtr autoNodeset,
                               bool force);
 
 char *qemuBuildMemoryDeviceStr(virDomainMemoryDefPtr mem);
@@ -162,6 +163,16 @@ char *qemuBuildSCSIHostdevDrvStr(virDomainHostdevDefPtr dev);
 char *qemuBuildSCSIHostdevDevStr(const virDomainDef *def,
                                  virDomainHostdevDefPtr dev,
                                  virQEMUCapsPtr qemuCaps);
+char *
+qemuBuildSCSIVHostHostdevDevStr(const virDomainDef *def,
+                                virDomainHostdevDefPtr dev,
+                                virQEMUCapsPtr qemuCaps,
+                                char *vhostfdName);
+
+char *
+qemuBuildHostdevMediatedDevStr(const virDomainDef *def,
+                               virDomainHostdevDefPtr dev,
+                               virQEMUCapsPtr qemuCaps);
 
 char *qemuBuildRedirdevDevStr(const virDomainDef *def,
                               virDomainRedirdevDefPtr dev,
@@ -185,5 +196,15 @@ bool qemuCheckCCWS390AddressSupport(const virDomainDef *def,
 
 virJSONValuePtr qemuBuildHotpluggableCPUProps(const virDomainVcpuDef *vcpu)
     ATTRIBUTE_NONNULL(1);
+
+virJSONValuePtr qemuBuildShmemBackendMemProps(virDomainShmemDefPtr shmem)
+    ATTRIBUTE_NONNULL(1);
+
+char *qemuBuildShmemDevStr(virDomainDefPtr def,
+                           virDomainShmemDefPtr shmem,
+                           virQEMUCapsPtr qemuCaps)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
+
+
 
 #endif /* __QEMU_COMMAND_H__*/

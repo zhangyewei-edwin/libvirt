@@ -97,6 +97,10 @@ virNodeNumOfDevices(virConnectPtr conn, const char *cap, unsigned int flags)
  *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_FC_HOST
  *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_VPORTS
  *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI_GENERIC
+ *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_DRM
+ *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV_TYPES
+ *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV
+ *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_CCW_DEV
  *
  * Returns the number of node devices found or -1 and sets @devices to NULL in
  * case of error.  On success, the array stored into @devices is guaranteed to
@@ -636,7 +640,7 @@ virNodeDeviceReAttach(virNodeDevicePtr dev)
  * virNodeDeviceReset:
  * @dev: pointer to the node device
  *
- * Reset a previously dettached node device to the node before or
+ * Reset a previously detached node device to the node before or
  * after assigning it to a guest.
  *
  * The exact reset semantics depends on the hypervisor and device

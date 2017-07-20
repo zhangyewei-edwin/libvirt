@@ -31,6 +31,7 @@
 #include "virstoragefile.h"
 #include "virstring.h"
 #include "viruri.h"
+#include "storage_util.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -150,20 +151,20 @@ virStorageBackendGlusterOpen(virStoragePoolObjPtr pool)
 
 
 static ssize_t
-virStorageBackendGlusterReadHeader(glfs_fd_t *fd,
-                                   const char *name,
-                                   ssize_t maxlen,
-                                   char **buf)
+virStorageBackendGlusterRead(glfs_fd_t *fd,
+                             const char *name,
+                             size_t len,
+                             char **buf)
 {
     char *s;
     size_t nread = 0;
 
-    if (VIR_ALLOC_N(*buf, maxlen) < 0)
+    if (VIR_ALLOC_N(*buf, len) < 0)
         return -1;
 
     s = *buf;
-    while (maxlen) {
-        ssize_t r = glfs_read(fd, s, maxlen, 0);
+    while (len) {
+        ssize_t r = glfs_read(fd, s, len, 0);
         if (r < 0 && errno == EINTR)
             continue;
         if (r < 0) {
@@ -174,7 +175,7 @@ virStorageBackendGlusterReadHeader(glfs_fd_t *fd,
         if (r == 0)
             return nread;
         s += r;
-        maxlen -= r;
+        len -= r;
         nread += r;
     }
     return nread;
@@ -245,7 +246,7 @@ virStorageBackendGlusterRefreshVol(virStorageBackendGlusterStatePtr state,
     glfs_fd_t *fd = NULL;
     virStorageSourcePtr meta = NULL;
     char *header = NULL;
-    ssize_t len = VIR_STORAGE_MAX_HEADER;
+    ssize_t len;
     int backingFormat;
 
     *volptr = NULL;
@@ -291,7 +292,8 @@ virStorageBackendGlusterRefreshVol(virStorageBackendGlusterStatePtr state,
         goto cleanup;
     }
 
-    if ((len = virStorageBackendGlusterReadHeader(fd, name, len, &header)) < 0)
+    if ((len = virStorageBackendGlusterRead(fd, name, VIR_STORAGE_MAX_HEADER,
+                                            &header)) < 0)
         goto cleanup;
 
     if (!(meta = virStorageFileGetMetadataFromBuf(name, header, len,
@@ -490,6 +492,7 @@ virStorageBackendGlusterFindPoolSources(virConnectPtr conn ATTRIBUTE_UNUSED,
                                     };
     virStoragePoolSourcePtr source = NULL;
     char *ret = NULL;
+    int rc;
     size_t i;
 
     virCheckFlags(0, NULL);
@@ -510,10 +513,17 @@ virStorageBackendGlusterFindPoolSources(virConnectPtr conn ATTRIBUTE_UNUSED,
         goto cleanup;
     }
 
-    if (virStorageBackendFindGlusterPoolSources(source->hosts[0].name,
-                                                0, /* currently ignored */
-                                                &list) < 0)
+    if ((rc = virStorageBackendFindGlusterPoolSources(source->hosts[0].name,
+                                                      VIR_STORAGE_POOL_GLUSTER,
+                                                      &list, true)) < 0)
         goto cleanup;
+
+    if (rc == 0) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("no storage pools were found on host '%s'"),
+                       source->hosts[0].name);
+        goto cleanup;
+    }
 
     if (!(ret = virStoragePoolSourceListFormat(&list)))
         goto cleanup;
@@ -528,9 +538,22 @@ virStorageBackendGlusterFindPoolSources(virConnectPtr conn ATTRIBUTE_UNUSED,
 }
 
 
+static int
+virStorageBackendGlusterCheckPool(virStoragePoolObjPtr pool,
+                                  bool *active)
+{
+    /* Return previous state remembered by the status XML. If the pool is not
+     * available we will fail to refresh it and end up in the same situation.
+     * This will save one attempt to open the connection to the remote server */
+    *active = pool->active;
+    return 0;
+}
+
+
 virStorageBackend virStorageBackendGluster = {
     .type = VIR_STORAGE_POOL_GLUSTER,
 
+    .checkPool = virStorageBackendGlusterCheckPool,
     .refreshPool = virStorageBackendGlusterRefreshPool,
     .findPoolSources = virStorageBackendGlusterFindPoolSources,
 
@@ -699,9 +722,10 @@ virStorageFileBackendGlusterStat(virStorageSourcePtr src,
 
 
 static ssize_t
-virStorageFileBackendGlusterReadHeader(virStorageSourcePtr src,
-                                       ssize_t max_len,
-                                       char **buf)
+virStorageFileBackendGlusterRead(virStorageSourcePtr src,
+                                 size_t offset,
+                                 size_t len,
+                                 char **buf)
 {
     virStorageFileBackendGlusterPrivPtr priv = src->drv->priv;
     glfs_fd_t *fd = NULL;
@@ -715,8 +739,16 @@ virStorageFileBackendGlusterReadHeader(virStorageSourcePtr src,
         return -1;
     }
 
-    ret = virStorageBackendGlusterReadHeader(fd, src->path, max_len, buf);
+    if (offset > 0) {
+        if (glfs_lseek(fd, offset, SEEK_SET) == (off_t) -1) {
+            virReportSystemError(errno, _("cannot seek into '%s'"), src->path);
+            goto cleanup;
+        }
+    }
 
+    ret = virStorageBackendGlusterRead(fd, src->path, len, buf);
+
+ cleanup:
     if (fd)
         glfs_close(fd);
 
@@ -809,7 +841,7 @@ virStorageFileBackendGlusterGetUniqueIdentifier(virStorageSourcePtr src)
 
 
 static int
-virStorageFileBackendGlusterChown(virStorageSourcePtr src,
+virStorageFileBackendGlusterChown(const virStorageSource *src,
                                   uid_t uid,
                                   gid_t gid)
 {
@@ -829,11 +861,22 @@ virStorageFileBackend virStorageFileBackendGluster = {
     .storageFileCreate = virStorageFileBackendGlusterCreate,
     .storageFileUnlink = virStorageFileBackendGlusterUnlink,
     .storageFileStat = virStorageFileBackendGlusterStat,
-    .storageFileReadHeader = virStorageFileBackendGlusterReadHeader,
+    .storageFileRead = virStorageFileBackendGlusterRead,
     .storageFileAccess = virStorageFileBackendGlusterAccess,
     .storageFileChown = virStorageFileBackendGlusterChown,
 
     .storageFileGetUniqueIdentifier = virStorageFileBackendGlusterGetUniqueIdentifier,
-
-
 };
+
+
+int
+virStorageBackendGlusterRegister(void)
+{
+    if (virStorageBackendRegister(&virStorageBackendGluster) < 0)
+        return -1;
+
+    if (virStorageBackendFileRegister(&virStorageFileBackendGluster) < 0)
+        return -1;
+
+    return 0;
+}

@@ -16,11 +16,6 @@
 ## License along with this library.  If not, see
 ## <http://www.gnu.org/licenses/>.
 
-PERL = perl
-
-# The directory containing the source code (if it contains documentation).
-DOC_SOURCE_DIR=../src
-
 DEVHELP_DIR=$(datadir)/gtk-doc/html/libvirt
 
 apihtml =					\
@@ -59,6 +54,20 @@ css =         \
   libvirt.css \
   main.css
 
+fonts = \
+  fonts/LICENSE.md \
+  fonts/stylesheet.css \
+  fonts/overpass-bold-italic.woff \
+  fonts/overpass-bold.woff \
+  fonts/overpass-italic.woff \
+  fonts/overpass-light-italic.woff \
+  fonts/overpass-light.woff \
+  fonts/overpass-mono-bold.woff \
+  fonts/overpass-mono-light.woff \
+  fonts/overpass-mono-regular.woff \
+  fonts/overpass-mono-semibold.woff \
+  fonts/overpass-regular.woff
+
 devhelppng =		\
   devhelp/home.png	\
   devhelp/left.png	\
@@ -69,17 +78,30 @@ devhelpcss = devhelp/style.css
 
 devhelpxsl = devhelp/devhelp.xsl devhelp/html.xsl
 
+logofiles = \
+  logos/logo-base.svg \
+  logos/logo-square.svg \
+  logos/logo-square-powered.svg \
+  logos/logo-banner-dark.svg \
+  logos/logo-banner-light.svg \
+  logos/logo-square-96.png \
+  logos/logo-square-128.png \
+  logos/logo-square-192.png \
+  logos/logo-square-256.png \
+  logos/logo-square-powered-96.png \
+  logos/logo-square-powered-128.png \
+  logos/logo-square-powered-192.png \
+  logos/logo-square-powered-256.png \
+  logos/logo-banner-dark-256.png \
+  logos/logo-banner-dark-800.png \
+  logos/logo-banner-light-256.png \
+  logos/logo-banner-light-800.png
+
 png = \
   32favicon.png \
-  libvirt-header-bg.png \
-  libvirt-header-logo.png \
-  libvirtLogo.png \
-  libvirt-net-logical.png \
-  libvirt-net-physical.png \
   libvirt-daemon-arch.png \
   libvirt-driver-arch.png \
   libvirt-object-model.png \
-  madeWith.png \
   migration-managed-direct.png \
   migration-managed-p2p.png \
   migration-native.png \
@@ -95,15 +117,14 @@ internals_html_in = \
   $(patsubst $(srcdir)/%,%,$(wildcard $(srcdir)/internals/*.html.in))
 internals_html = $(internals_html_in:%.html.in=%.html)
 
-# todo.html is special - it is shipped in the tarball, but we
-# have a dedicated 'todo' target to rebuild it from a proper
-# config file, all other users are able to build it locally.
-# For all other files, since we ship pre-built html in the
-# tarball, we must also ship the sources, even when those
-# sources are themselves generated.
-dot_html_in = $(notdir $(wildcard $(srcdir)/*.html.in)) \
-  todo.html.in \
-  hvsupport.html.in
+# Since we ship pre-built html in the tarball, we must also
+# ship the sources, even when those sources are themselves
+# generated.
+# Generate hvsupport.html and news.html first, since they take one extra step.
+dot_html_in = \
+  hvsupport.html.in \
+  news.html.in \
+  $(notdir $(wildcard $(srcdir)/*.html.in))
 dot_html = $(dot_html_in:%.html.in=%.html)
 
 dot_php_in = $(notdir $(wildcard $(srcdir)/*.php.in))
@@ -136,8 +157,6 @@ api_DATA = \
        libvirt-admin-api.xml
 
 fig = \
-  libvirt-net-logical.fig \
-  libvirt-net-physical.fig \
   libvirt-daemon-arch.fig \
   libvirt-driver-arch.fig \
   libvirt-object-model.fig \
@@ -152,15 +171,15 @@ schema_DATA = $(wildcard $(srcdir)/schemas/*.rng)
 
 EXTRA_DIST=					\
   apibuild.py genaclperms.pl \
-  site.xsl subsite.xsl newapi.xsl news.xsl page.xsl \
-  hacking1.xsl hacking2.xsl wrapstring.xsl \
+  site.xsl subsite.xsl newapi.xsl page.xsl \
+  wrapstring.xsl \
   $(dot_html) $(dot_html_in) $(gif) $(apihtml) $(apipng) \
   $(devhelphtml) $(devhelppng) $(devhelpcss) $(devhelpxsl) \
   $(xml) $(qemu_xml) $(lxc_xml) $(admin_xml) $(fig) $(png) $(css) \
-  $(patches) $(dot_php_in) $(dot_php_code_in) $(dot_php)\
-  $(internals_html_in) $(internals_html) \
-  sitemap.html.in aclperms.htmlinc \
-  todo.pl hvsupport.pl todo.cfg-example \
+  $(logofiles) $(patches) $(dot_php_in) $(dot_php_code_in) $(dot_php)\
+  $(internals_html_in) $(internals_html) $(fonts) \
+  aclperms.htmlinc \
+  hvsupport.pl \
   $(schema_DATA)
 
 acl_generated = aclperms.htmlinc
@@ -187,24 +206,6 @@ admin_api: $(srcdir)/libvirt-admin-api.xml $(srcdir)/libvirt-admin-refs.xml
 web: $(dot_html) $(internals_html) html/index.html devhelp/index.html \
   $(dot_php)
 
-todo.html.in: todo.pl
-	if [ -f  todo.cfg ]; then \
-		echo "Generating $@"; \
-		$(PERL) $< > $@ \
-		|| { rm $@ && exit 1; }; \
-	else \
-		echo "Stubbing $@"; \
-		printf "%s\n" \
-		  "<html xmlns=\"http://www.w3.org/1999/xhtml\">" \
-		  "<body>" \
-		  "<h1>Todo list unavailable: no config file</h1>" \
-		  "</body></html>" > $@ ; \
-	fi
-
-todo:
-	rm -f todo.html.in
-	$(MAKE) todo.html
-
 hvsupport.html: $(srcdir)/hvsupport.html.in
 
 $(srcdir)/hvsupport.html.in: $(srcdir)/hvsupport.pl $(api_DATA) \
@@ -214,13 +215,35 @@ $(srcdir)/hvsupport.html.in: $(srcdir)/hvsupport.pl $(api_DATA) \
 	$(AM_V_GEN)$(PERL) $(srcdir)/hvsupport.pl $(top_srcdir)/src > $@ \
 		|| { rm $@ && exit 1; }
 
-.PHONY: todo
+# xsltproc seems to add the xmlns="" attribute to random output elements:
+# use sed to strip it out, as leaving it there triggers XML errors during
+# further transformation steps
+news.html.in: \
+	  $(srcdir)/news.xml \
+	  $(srcdir)/news-html.xsl
+	$(AM_V_GEN) \
+	if [ -x $(XSLTPROC) ]; then \
+	  $(XSLTPROC) --nonet \
+	    $(srcdir)/news-html.xsl \
+	    $(srcdir)/news.xml \
+	  >$@-tmp \
+	    || { rm -f $@-tmp; exit 1; }; \
+	  sed 's/ xmlns=""//g' $@-tmp >$@ \
+	    || { rm -f $@-tmp; exit 1; }; \
+	  rm -f $@-tmp; \
+	fi
+EXTRA_DIST += \
+	$(srcdir)/news.xml \
+	$(srcdir)/news.rng \
+	$(srcdir)/news-html.xsl
+MAINTAINERCLEANFILES += \
+	$(srcdir)/news.html.in
 
 %.png: %.fig
 	convert -rotate 90 $< $@
 
 %.html.tmp: %.html.in site.xsl subsite.xsl page.xsl \
-		sitemap.html.in $(acl_generated)
+		$(acl_generated)
 	@if [ -x $(XSLTPROC) ] ; then \
 	  echo "Generating $@"; \
 	  name=`echo $@ | sed -e 's/.tmp//'`; \
@@ -246,7 +269,7 @@ $(srcdir)/hvsupport.html.in: $(srcdir)/hvsupport.pl $(api_DATA) \
 	  || { rm $(srcdir)/$@ && exit 1; }; \
 	  else echo "missing XHTML1 DTD"; cat $< > $(srcdir)/$@ ; fi ; fi
 
-%.php.tmp: %.php.in site.xsl page.xsl sitemap.html.in
+%.php.tmp: %.php.in site.xsl page.xsl
 	@if [ -x $(XSLTPROC) ] ; then \
 	  echo "Generating $@"; \
 	  $(XSLTPROC) --stringparam pagename $(@:.tmp=) --nonet \
@@ -262,7 +285,7 @@ $(srcdir)/hvsupport.html.in: $(srcdir)/hvsupport.pl $(api_DATA) \
 
 $(apihtml_generated): html/index.html
 
-html/index.html: libvirt-api.xml newapi.xsl page.xsl sitemap.html.in
+html/index.html: libvirt-api.xml newapi.xsl page.xsl $(APIBUILD_STAMP)
 	$(AM_V_GEN)if [ -x $(XSLTPROC) ] ; then \
 	  $(XSLTPROC) --nonet -o $(srcdir)/ \
 	  --stringparam builddir '$(abs_top_builddir)' \
@@ -320,6 +343,16 @@ $(APIBUILD_STAMP): $(srcdir)/apibuild.py \
 		$(top_srcdir)/include/libvirt/libvirt-admin.h \
 		$(top_srcdir)/include/libvirt/virterror.h \
 		$(top_srcdir)/src/libvirt.c \
+		$(top_srcdir)/src/libvirt-domain-snapshot.c \
+		$(top_srcdir)/src/libvirt-domain.c \
+		$(top_srcdir)/src/libvirt-host.c \
+		$(top_srcdir)/src/libvirt-interface.c \
+		$(top_srcdir)/src/libvirt-network.c \
+		$(top_srcdir)/src/libvirt-nodedev.c \
+		$(top_srcdir)/src/libvirt-nwfilter.c \
+		$(top_srcdir)/src/libvirt-secret.c \
+		$(top_srcdir)/src/libvirt-storage.c \
+		$(top_srcdir)/src/libvirt-stream.c \
 		$(top_srcdir)/src/libvirt-lxc.c \
 		$(top_srcdir)/src/libvirt-qemu.c \
 		$(top_srcdir)/src/libvirt-admin.c \
@@ -334,11 +367,10 @@ check-local: all
 dist-local: all
 
 clean-local:
-	rm -f *~ *.bak *.hierarchy *.signals *-unused.txt *.html
+	rm -f *~ *.bak *.hierarchy *.signals *-unused.txt *.html html/*.html
 
 maintainer-clean-local: clean-local
-	rm -rf $(srcdir)/libvirt-api.xml $(srcdir)/libvirt-refs.xml \
-		todo.html.in
+	rm -rf $(srcdir)/libvirt-api.xml $(srcdir)/libvirt-refs.xml
 	rm -rf $(srcdir)/libvirt-qemu-api.xml $(srcdir)/libvirt-qemu-refs.xml
 	rm -rf $(srcdir)/libvirt-lxc-api.xml $(srcdir)/libvirt-lxc-refs.xml
 	rm -rf $(srcdir)/libvirt-admin-api.xml $(srcdir)/libvirt-admin-refs.xml
@@ -350,6 +382,9 @@ install-data-local:
 	$(mkinstalldirs) $(DESTDIR)$(HTML_DIR)
 	for f in $(css) $(dot_html) $(gif) $(png); do \
 	  $(INSTALL) -m 0644 $(srcdir)/$$f $(DESTDIR)$(HTML_DIR); done
+	$(mkinstalldirs) $(DESTDIR)$(HTML_DIR)/logos
+	for f in $(logofiles); do \
+	  $(INSTALL) -m 0644 $(srcdir)/$$f $(DESTDIR)$(HTML_DIR)/logos; done
 	$(mkinstalldirs) $(DESTDIR)$(HTML_DIR)/html
 	for h in $(apihtml); do \
 	  $(INSTALL) -m 0644 $(srcdir)/$$h $(DESTDIR)$(HTML_DIR)/html; done
@@ -362,10 +397,16 @@ install-data-local:
 	for file in $(devhelphtml) $(devhelppng) $(devhelpcss); do \
 	    $(INSTALL) -m 0644 $(srcdir)/$${file} $(DESTDIR)$(DEVHELP_DIR) ; \
 	done
-	$(INSTALL_DATA) $(srcdir)/libvirtLogo.png $(DESTDIR)$(pkgdatadir)
+	$(mkinstalldirs) $(DESTDIR)$(HTML_DIR)/fonts
+	for f in $(fonts); do \
+	  $(INSTALL) -m 0644 $(srcdir)/$$f $(DESTDIR)$(HTML_DIR)/fonts; \
+	done
 
 uninstall-local:
-	for f in $(css) $(dot_html) $(gif) $(png); do \
+	for f in $(css) $(dot_html) $(gif) $(png) $(fonts); do \
+	  rm -f $(DESTDIR)$(HTML_DIR)/$$f; \
+	done
+	for f in $(logofiles); do \
 	  rm -f $(DESTDIR)$(HTML_DIR)/$$f; \
 	done
 	for h in $(apihtml); do rm -f $(DESTDIR)$(HTML_DIR)/$$h; done
@@ -376,4 +417,3 @@ uninstall-local:
 	for f in $(devhelphtml) $(devhelppng) $(devhelpcss); do \
 	  rm -f $(DESTDIR)$(DEVHELP_DIR)/$$(basename $$f); \
 	done
-	rm -f $(DESTDIR)$(pkgdatadir)/libvirtLogo.png

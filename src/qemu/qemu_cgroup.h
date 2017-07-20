@@ -43,6 +43,18 @@ int qemuSetupHostdevCgroup(virDomainObjPtr vm,
 int qemuTeardownHostdevCgroup(virDomainObjPtr vm,
                               virDomainHostdevDefPtr dev)
    ATTRIBUTE_RETURN_CHECK;
+int qemuSetupMemoryDevicesCgroup(virDomainObjPtr vm,
+                                 virDomainMemoryDefPtr mem);
+int qemuTeardownMemoryDevicesCgroup(virDomainObjPtr vm,
+                                    virDomainMemoryDefPtr mem);
+int qemuSetupRNGCgroup(virDomainObjPtr vm,
+                       virDomainRNGDefPtr rng);
+int qemuTeardownRNGCgroup(virDomainObjPtr vm,
+                          virDomainRNGDefPtr rng);
+int qemuSetupChardevCgroup(virDomainObjPtr vm,
+                           virDomainChrDefPtr dev);
+int qemuTeardownChardevCgroup(virDomainObjPtr vm,
+                              virDomainChrDefPtr dev);
 int qemuConnectCgroup(virQEMUDriverPtr driver,
                       virDomainObjPtr vm);
 int qemuSetupCgroup(virQEMUDriverPtr driver,
@@ -68,4 +80,5 @@ int qemuCgroupEmulatorAllNodesAllow(virCgroupPtr cgroup,
                                     qemuCgroupEmulatorAllNodesDataPtr *data);
 void qemuCgroupEmulatorAllNodesRestore(qemuCgroupEmulatorAllNodesDataPtr data);
 
+extern const char *const defaultDeviceACL[];
 #endif /* __QEMU_CGROUP_H__ */

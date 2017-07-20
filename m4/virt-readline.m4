@@ -17,6 +17,10 @@ dnl License along with this library.  If not, see
 dnl <http://www.gnu.org/licenses/>.
 dnl
 
+AC_DEFUN([LIBVIRT_ARG_READLINE],[
+  LIBVIRT_ARG_WITH_FEATURE([READLINE], [readline], [check])
+])
+
 AC_DEFUN([LIBVIRT_CHECK_READLINE],[
   extra_LIBS=
   lv_saved_libs=$LIBS
@@ -41,7 +45,9 @@ AC_DEFUN([LIBVIRT_CHECK_READLINE],[
   # function, to ensure we aren't being confused by caching.
   LIBS=$lv_saved_libs
   AC_CHECK_LIB([readline], [rl_initialize],
-    [], [READLINE_LIBS="$READLINE_LIBS $extra_LIBS"])
+    [READLINE_CFLAGS="-D_FUNCTION_DEF $READLINE_CFLAGS"
+     AC_SUBST(READLINE_CFLAGS)],
+    [READLINE_LIBS="$READLINE_LIBS $extra_LIBS"])
   LIBS=$lv_saved_libs
 ])
 

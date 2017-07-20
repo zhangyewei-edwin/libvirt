@@ -360,7 +360,7 @@ static int qemuStringToArgvEnv(const char *args,
  error:
     VIR_FREE(progenv);
     VIR_FREE(progargv);
-    virStringFreeList(arglist);
+    virStringListFree(arglist);
     return -1;
 }
 
@@ -417,7 +417,7 @@ qemuParseKeywords(const char *str,
 
         endmark = start;
         do {
-            /* Qemu accepts ',,' as an escape for a literal comma;
+            /* QEMU accepts ',,' as an escape for a literal comma;
              * skip past those here while searching for the end of the
              * value, then strip them down below */
             endmark = strchr(endmark, ',');
@@ -654,7 +654,7 @@ qemuParseCommandLineDisk(virDomainXMLOptionPtr xmlopt,
     if (VIR_ALLOC(def->src) < 0)
         goto error;
 
-    if (qemuDomainMachineIsPSeries(dom))
+    if (qemuDomainIsPSeries(dom))
         def->bus = VIR_DOMAIN_DISK_BUS_SCSI;
     else
        def->bus = VIR_DOMAIN_DISK_BUS_IDE;
@@ -746,7 +746,7 @@ qemuParseCommandLineDisk(virDomainXMLOptionPtr xmlopt,
         } else if (STREQ(keywords[i], "if")) {
             if (STREQ(values[i], "ide")) {
                 def->bus = VIR_DOMAIN_DISK_BUS_IDE;
-                if (qemuDomainMachineIsPSeries(dom)) {
+                if (qemuDomainIsPSeries(dom)) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
                                    _("pseries systems do not support ide devices '%s'"), val);
                     goto error;
@@ -1441,8 +1441,7 @@ qemuParseCommandLineCPU(virDomainDefPtr dom,
             if (*feature == '\0')
                 goto syntax;
 
-            if (dom->os.arch != VIR_ARCH_X86_64 &&
-                dom->os.arch != VIR_ARCH_I686) {
+            if (!ARCH_IS_X86(dom->os.arch)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("%s platform doesn't support CPU features'"),
                                virArchToString(dom->os.arch));
@@ -1588,7 +1587,7 @@ qemuParseCommandLineCPU(virDomainDefPtr dom,
             case VIR_DOMAIN_HYPERV_LAST:
                 break;
             }
-            virStringFreeList(hv_tokens);
+            virStringListFree(hv_tokens);
             hv_tokens = NULL;
         } else if (STREQ(tokens[i], "kvm=off")) {
              dom->features[VIR_DOMAIN_FEATURE_KVM] = VIR_TRISTATE_SWITCH_ON;
@@ -1606,7 +1605,7 @@ qemuParseCommandLineCPU(virDomainDefPtr dom,
                 goto cleanup;
 
             is_32bit = (virCPUDataCheckFeature(cpuData, "lm") != 1);
-            cpuDataFree(cpuData);
+            virCPUDataFree(cpuData);
         } else if (model) {
             is_32bit = STREQ(model, "qemu32");
         }
@@ -1619,8 +1618,8 @@ qemuParseCommandLineCPU(virDomainDefPtr dom,
 
  cleanup:
     VIR_FREE(model);
-    virStringFreeList(tokens);
-    virStringFreeList(hv_tokens);
+    virStringListFree(tokens);
+    virStringListFree(hv_tokens);
     return ret;
 
  syntax:
@@ -1694,19 +1693,12 @@ qemuParseCommandLineSmp(virDomainDefPtr dom,
                 threads = n;
             else if (STREQ(kws[i], "maxcpus"))
                 maxcpus = n;
+            else if (STREQ(kws[i], "cpus"))
+                vcpus = n;
             else
                 goto syntax;
         }
     }
-
-    if (maxcpus == 0)
-        maxcpus = vcpus;
-
-    if (virDomainDefSetVcpusMax(dom, maxcpus, xmlopt) < 0)
-        goto error;
-
-    if (virDomainDefSetVcpus(dom, vcpus) < 0)
-        goto error;
 
     if (sockets && cores && threads) {
         virCPUDefPtr cpu;
@@ -1719,6 +1711,27 @@ qemuParseCommandLineSmp(virDomainDefPtr dom,
     } else if (sockets || cores || threads) {
         goto syntax;
     }
+
+    if (maxcpus == 0) {
+        if (cores) {
+            if (virDomainDefGetVcpusTopology(dom, &maxcpus) < 0)
+                goto error;
+        } else {
+            maxcpus = vcpus;
+        }
+    }
+
+    if (maxcpus == 0)
+        goto syntax;
+
+    if (vcpus == 0)
+        vcpus = maxcpus;
+
+    if (virDomainDefSetVcpusMax(dom, maxcpus, xmlopt) < 0)
+        goto error;
+
+    if (virDomainDefSetVcpus(dom, vcpus) < 0)
+        goto error;
 
     ret = 0;
 
@@ -1849,8 +1862,7 @@ qemuParseCommandLine(virCapsPtr caps,
     else
         def->os.arch = VIR_ARCH_I686;
 
-    if ((def->os.arch == VIR_ARCH_I686) ||
-        (def->os.arch == VIR_ARCH_X86_64))
+    if (ARCH_IS_X86(def->os.arch))
         def->features[VIR_DOMAIN_FEATURE_ACPI] = VIR_TRISTATE_SWITCH_ON;
 
 #define WANT_VALUE()                                                   \
@@ -1938,7 +1950,7 @@ qemuParseCommandLine(virCapsPtr caps,
             }
             if (STREQ(arg, "-cdrom")) {
                 disk->device = VIR_DOMAIN_DISK_DEVICE_CDROM;
-                if (qemuDomainMachineIsPSeries(def))
+                if (qemuDomainIsPSeries(def))
                     disk->bus = VIR_DOMAIN_DISK_BUS_SCSI;
                 if (VIR_STRDUP(disk->dst, "hdc") < 0)
                     goto error;
@@ -1953,7 +1965,7 @@ qemuParseCommandLine(virCapsPtr caps,
                         disk->bus = VIR_DOMAIN_DISK_BUS_IDE;
                     else
                         disk->bus = VIR_DOMAIN_DISK_BUS_SCSI;
-                   if (qemuDomainMachineIsPSeries(def))
+                   if (qemuDomainIsPSeries(def))
                        disk->bus = VIR_DOMAIN_DISK_BUS_SCSI;
                 }
                 if (VIR_STRDUP(disk->dst, arg + 1) < 0)
@@ -2182,17 +2194,17 @@ qemuParseCommandLine(virCapsPtr caps,
                         def->keywrap->dea = VIR_TRISTATE_SWITCH_ABSENT;
                 }
             }
-            virStringFreeList(list);
+            virStringListFree(list);
             list = NULL;
         } else if (STREQ(arg, "-serial")) {
             WANT_VALUE();
             if (STRNEQ(val, "none")) {
                 virDomainChrDefPtr chr;
 
-                if (!(chr = virDomainChrDefNew()))
+                if (!(chr = virDomainChrDefNew(NULL)))
                     goto error;
 
-                if (qemuParseCommandLineChr(&chr->source, val) < 0) {
+                if (qemuParseCommandLineChr(chr->source, val) < 0) {
                     virDomainChrDefFree(chr);
                     goto error;
                 }
@@ -2208,10 +2220,10 @@ qemuParseCommandLine(virCapsPtr caps,
             if (STRNEQ(val, "none")) {
                 virDomainChrDefPtr chr;
 
-                if (!(chr = virDomainChrDefNew()))
+                if (!(chr = virDomainChrDefNew(NULL)))
                     goto error;
 
-                if (qemuParseCommandLineChr(&chr->source, val) < 0) {
+                if (qemuParseCommandLineChr(chr->source, val) < 0) {
                     virDomainChrDefFree(chr);
                     goto error;
                 }
@@ -2628,7 +2640,7 @@ qemuParseCommandLine(virCapsPtr caps,
 
     VIR_FREE(nics);
 
-    if (virDomainDefPostParse(def, caps, 0, xmlopt) < 0)
+    if (virDomainDefPostParse(def, caps, 0, xmlopt, NULL) < 0)
         goto error;
 
     if (cmd->num_args || cmd->num_env) {
@@ -2644,7 +2656,7 @@ qemuParseCommandLine(virCapsPtr caps,
     virDomainDiskDefFree(disk);
     qemuDomainCmdlineDefFree(cmd);
     virDomainDefFree(def);
-    virStringFreeList(list);
+    virStringListFree(list);
     VIR_FREE(nics);
     if (monConfig) {
         virDomainChrSourceDefFree(*monConfig);
@@ -2674,8 +2686,8 @@ virDomainDefPtr qemuParseCommandLineString(virCapsPtr caps,
                                pidfile, monConfig, monJSON);
 
  cleanup:
-    virStringFreeList(progargv);
-    virStringFreeList(progenv);
+    virStringListFree(progargv);
+    virStringListFree(progenv);
 
     return def;
 }
@@ -2722,7 +2734,7 @@ static int qemuParseProcFileStrings(int pid_value,
 
  cleanup:
     if (ret < 0)
-        virStringFreeList(str);
+        virStringListFree(str);
     VIR_FREE(data);
     VIR_FREE(path);
     return ret;
@@ -2766,7 +2778,7 @@ virDomainDefPtr qemuParseCommandLinePid(virCapsPtr caps,
 
  cleanup:
     VIR_FREE(exepath);
-    virStringFreeList(progargv);
-    virStringFreeList(progenv);
+    virStringListFree(progargv);
+    virStringListFree(progenv);
     return def;
 }

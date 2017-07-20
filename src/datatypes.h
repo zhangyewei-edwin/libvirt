@@ -223,6 +223,20 @@ extern virClassPtr virAdmClientClass;
         }                                                               \
     } while (0)
 
+# define virCheckSecretGoto(obj, label)                                 \
+    do {                                                                \
+        virSecretPtr _secret = (obj);                                   \
+        if (!virObjectIsClass(_secret, virSecretClass) ||               \
+            !virObjectIsClass(_secret->conn, virConnectClass)) {        \
+            virReportErrorHelper(VIR_FROM_SECRET,                       \
+                                 VIR_ERR_INVALID_SECRET,                \
+                                 __FILE__, __FUNCTION__, __LINE__,      \
+                                 __FUNCTION__);                         \
+            virDispatchError(NULL);                                     \
+            goto label;                                                 \
+        }                                                               \
+    } while (0)
+
 # define virCheckStreamReturn(obj, retval)                              \
     do {                                                                \
         virStreamPtr _st = (obj);                                       \
@@ -669,7 +683,8 @@ struct _virNWFilter {
 virConnectPtr virGetConnect(void);
 virDomainPtr virGetDomain(virConnectPtr conn,
                           const char *name,
-                          const unsigned char *uuid);
+                          const unsigned char *uuid,
+                          int id);
 virNetworkPtr virGetNetwork(virConnectPtr conn,
                             const char *name,
                             const unsigned char *uuid);
@@ -682,11 +697,11 @@ virStoragePoolPtr virGetStoragePool(virConnectPtr conn,
                                     void *privateData,
                                     virFreeCallback freeFunc);
 virStorageVolPtr virGetStorageVol(virConnectPtr conn,
-                                     const char *pool,
-                                    const char *name,
-                                    const char *key,
-                                    void *privateData,
-                                    virFreeCallback freeFunc);
+                                  const char *pool,
+                                  const char *name,
+                                  const char *key,
+                                  void *privateData,
+                                  virFreeCallback freeFunc);
 virNodeDevicePtr virGetNodeDevice(virConnectPtr conn,
                                   const char *name);
 virSecretPtr virGetSecret(virConnectPtr conn,
@@ -722,5 +737,13 @@ void virConnectCloseCallbackDataCall(virConnectCloseCallbackDataPtr close,
                                      int reason);
 virConnectCloseFunc
 virConnectCloseCallbackDataGetCallback(virConnectCloseCallbackDataPtr close);
+void virAdmConnectCloseCallbackDataReset(virAdmConnectCloseCallbackDataPtr cbdata);
+int virAdmConnectCloseCallbackDataRegister(virAdmConnectCloseCallbackDataPtr cbdata,
+                                           virAdmConnectPtr conn,
+                                           virAdmConnectCloseFunc cb,
+                                           void *opaque,
+                                           virFreeCallback freecb);
+int virAdmConnectCloseCallbackDataUnregister(virAdmConnectCloseCallbackDataPtr cbdata,
+                                             virAdmConnectCloseFunc cb);
 
 #endif /* __VIR_DATATYPES_H__ */

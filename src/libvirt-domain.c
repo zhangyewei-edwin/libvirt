@@ -3519,77 +3519,9 @@ virDomainMigrateUnmanaged(virDomainPtr domain,
  * Migrate the domain object from its current host to the destination
  * host given by dconn (a connection to the destination host).
  *
- * Flags may be one of more of the following:
- *   VIR_MIGRATE_LIVE      Do not pause the VM during migration
- *   VIR_MIGRATE_PEER2PEER Direct connection between source & destination hosts
- *   VIR_MIGRATE_TUNNELLED Tunnel migration data over the libvirt RPC channel
- *   VIR_MIGRATE_PERSIST_DEST If the migration is successful, persist the domain
- *                            on the destination host.
- *   VIR_MIGRATE_UNDEFINE_SOURCE If the migration is successful, undefine the
- *                               domain on the source host.
- *   VIR_MIGRATE_PAUSED    Leave the domain suspended on the remote side.
- *   VIR_MIGRATE_NON_SHARED_DISK Migration with non-shared storage with full
- *                               disk copy
- *   VIR_MIGRATE_NON_SHARED_INC  Migration with non-shared storage with
- *                               incremental disk copy
- *   VIR_MIGRATE_CHANGE_PROTECTION Protect against domain configuration
- *                                 changes during the migration process (set
- *                                 automatically when supported).
- *   VIR_MIGRATE_UNSAFE    Force migration even if it is considered unsafe.
- *   VIR_MIGRATE_OFFLINE Migrate offline
- *   VIR_MIGRATE_POSTCOPY Enable (but do not start) post-copy
- *
- * VIR_MIGRATE_TUNNELLED requires that VIR_MIGRATE_PEER2PEER be set.
- * Applications using the VIR_MIGRATE_PEER2PEER flag will probably
- * prefer to invoke virDomainMigrateToURI, avoiding the need to
- * open connection to the destination host themselves.
- *
- * If a hypervisor supports renaming domains during migration,
- * then you may set the dname parameter to the new name (otherwise
- * it keeps the same name).  If this is not supported by the
- * hypervisor, dname must be NULL or else you will get an error.
- *
- * If the VIR_MIGRATE_PEER2PEER flag is set, the uri parameter
- * must be a valid libvirt connection URI, by which the source
- * libvirt driver can connect to the destination libvirt. If
- * omitted, the dconn connection object will be queried for its
- * current URI.
- *
- * If the VIR_MIGRATE_PEER2PEER flag is NOT set, the URI parameter
- * takes a hypervisor specific format. The hypervisor capabilities
- * XML includes details of the support URI schemes. If omitted
- * the dconn will be asked for a default URI.
- *
- * If you want to copy non-shared storage within migration you
- * can use either VIR_MIGRATE_NON_SHARED_DISK or
- * VIR_MIGRATE_NON_SHARED_INC as they are mutually exclusive.
- *
- * In either case it is typically only necessary to specify a
- * URI if the destination host has multiple interfaces and a
- * specific interface is required to transmit migration data.
- *
- * The maximum bandwidth (in MiB/s) that will be used to do migration
- * can be specified with the bandwidth parameter.  If set to 0,
- * libvirt will choose a suitable default.  Some hypervisors do
- * not support this feature and will return an error if bandwidth
- * is not 0.
- *
- * Users should note that implementation of VIR_MIGRATE_OFFLINE
- * flag in some drivers does not copy storage or any other file
- * based storage (e.g. UEFI variable storage).
- *
- * Enabling the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
- * migration.  Use virDomainMigrateStartPostCopy to switch migration into
- * the post-copy mode.  See virDomainMigrateStartPostCopy for more details
- * about post-copy.
- *
- * To see which features are supported by the current hypervisor,
- * see virConnectGetCapabilities, /capabilities/host/migration_features.
- *
- * There are many limitations on migration imposed by the underlying
- * technology - for example it may not be possible to migrate between
- * different processors even with the same architecture, or between
- * different types of hypervisor.
+ * This function is similar to virDomainMigrate3, but it only supports a fixed
+ * set of parameters: @dname corresponds to VIR_MIGRATE_PARAM_DEST_NAME, @uri
+ * is VIR_MIGRATE_PARAM_URI, and @bandwidth is VIR_MIGRATE_PARAM_BANDWIDTH.
  *
  * virDomainFree should be used to free the resources after the
  * returned domain object is no longer needed.
@@ -3740,89 +3672,10 @@ virDomainMigrate(virDomainPtr domain,
  * Migrate the domain object from its current host to the destination
  * host given by dconn (a connection to the destination host).
  *
- * Flags may be one of more of the following:
- *   VIR_MIGRATE_LIVE      Do not pause the VM during migration
- *   VIR_MIGRATE_PEER2PEER Direct connection between source & destination hosts
- *   VIR_MIGRATE_TUNNELLED Tunnel migration data over the libvirt RPC channel
- *   VIR_MIGRATE_PERSIST_DEST If the migration is successful, persist the domain
- *                            on the destination host.
- *   VIR_MIGRATE_UNDEFINE_SOURCE If the migration is successful, undefine the
- *                               domain on the source host.
- *   VIR_MIGRATE_PAUSED    Leave the domain suspended on the remote side.
- *   VIR_MIGRATE_NON_SHARED_DISK Migration with non-shared storage with full
- *                               disk copy
- *   VIR_MIGRATE_NON_SHARED_INC  Migration with non-shared storage with
- *                               incremental disk copy
- *   VIR_MIGRATE_CHANGE_PROTECTION Protect against domain configuration
- *                                 changes during the migration process (set
- *                                 automatically when supported).
- *   VIR_MIGRATE_UNSAFE    Force migration even if it is considered unsafe.
- *   VIR_MIGRATE_OFFLINE Migrate offline
- *   VIR_MIGRATE_POSTCOPY Enable (but do not start) post-copy
- *
- * VIR_MIGRATE_TUNNELLED requires that VIR_MIGRATE_PEER2PEER be set.
- * Applications using the VIR_MIGRATE_PEER2PEER flag will probably
- * prefer to invoke virDomainMigrateToURI, avoiding the need to
- * open connection to the destination host themselves.
- *
- * If a hypervisor supports renaming domains during migration,
- * then you may set the dname parameter to the new name (otherwise
- * it keeps the same name).  If this is not supported by the
- * hypervisor, dname must be NULL or else you will get an error.
- *
- * If the VIR_MIGRATE_PEER2PEER flag is set, the uri parameter
- * must be a valid libvirt connection URI, by which the source
- * libvirt driver can connect to the destination libvirt. If
- * omitted, the dconn connection object will be queried for its
- * current URI.
- *
- * If the VIR_MIGRATE_PEER2PEER flag is NOT set, the URI parameter
- * takes a hypervisor specific format. The hypervisor capabilities
- * XML includes details of the support URI schemes. If omitted
- * the dconn will be asked for a default URI.
- *
- * If you want to copy non-shared storage within migration you
- * can use either VIR_MIGRATE_NON_SHARED_DISK or
- * VIR_MIGRATE_NON_SHARED_INC as they are mutually exclusive.
- *
- * In either case it is typically only necessary to specify a
- * URI if the destination host has multiple interfaces and a
- * specific interface is required to transmit migration data.
- *
- * The maximum bandwidth (in MiB/s) that will be used to do migration
- * can be specified with the bandwidth parameter.  If set to 0,
- * libvirt will choose a suitable default.  Some hypervisors do
- * not support this feature and will return an error if bandwidth
- * is not 0.
- *
- * Users should note that implementation of VIR_MIGRATE_OFFLINE
- * flag in some drivers does not copy storage or any other file
- * based storage (e.g. UEFI variable storage).
- *
- * Enabling the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
- * migration.  Use virDomainMigrateStartPostCopy to switch migration into
- * the post-copy mode.  See virDomainMigrateStartPostCopy for more details
- * about post-copy.
- *
- * To see which features are supported by the current hypervisor,
- * see virConnectGetCapabilities, /capabilities/host/migration_features.
- *
- * There are many limitations on migration imposed by the underlying
- * technology - for example it may not be possible to migrate between
- * different processors even with the same architecture, or between
- * different types of hypervisor.
- *
- * If the hypervisor supports it, @dxml can be used to alter
- * host-specific portions of the domain XML that will be used on
- * the destination.  For example, it is possible to alter the
- * backing filename that is associated with a disk device, in order
- * to account for naming differences between source and destination
- * in accessing the underlying storage.  The migration will fail
- * if @dxml would cause any guest-visible changes.  Pass NULL
- * if no changes are needed to the XML between source and destination.
- * @dxml cannot be used to rename the domain during migration (use
- * @dname for that purpose).  Domain name in @dxml must match the
- * original domain name.
+ * This function is similar to virDomainMigrate3, but it only supports a fixed
+ * set of parameters: @dxml corresponds to VIR_MIGRATE_PARAM_DEST_XML, @dname
+ * is VIR_MIGRATE_PARAM_DEST_NAME, @uri is VIR_MIGRATE_PARAM_URI, and
+ * @bandwidth is VIR_MIGRATE_PARAM_BANDWIDTH.
  *
  * virDomainFree should be used to free the resources after the
  * returned domain object is no longer needed.
@@ -3979,23 +3832,13 @@ virDomainMigrate2(virDomainPtr domain,
  * Migrate the domain object from its current host to the destination host
  * given by dconn (a connection to the destination host).
  *
+ * See VIR_MIGRATE_PARAM_* and virDomainMigrateFlags for detailed description
+ * of accepted migration parameters and flags.
+ *
  * See virDomainMigrateFlags documentation for description of individual flags.
  *
  * VIR_MIGRATE_TUNNELLED and VIR_MIGRATE_PEER2PEER are not supported by this
  * API, use virDomainMigrateToURI3 instead.
- *
- * If you want to copy non-shared storage within migration you
- * can use either VIR_MIGRATE_NON_SHARED_DISK or
- * VIR_MIGRATE_NON_SHARED_INC as they are mutually exclusive.
- *
- * Users should note that implementation of VIR_MIGRATE_OFFLINE
- * flag in some drivers does not copy storage or any other file
- * based storage (e.g. UEFI variable storage).
- *
- * Enabling the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
- * migration.  Use virDomainMigrateStartPostCopy to switch migration into
- * the post-copy mode.  See virDomainMigrateStartPostCopy for more details
- * about post-copy.
  *
  * There are many limitations on migration imposed by the underlying
  * technology - for example it may not be possible to migrate between
@@ -4219,69 +4062,20 @@ int virDomainMigrateUnmanagedCheckCompat(virDomainPtr domain,
  * Migrate the domain object from its current host to the destination
  * host given by duri.
  *
- * Flags may be one of more of the following:
- *   VIR_MIGRATE_LIVE      Do not pause the VM during migration
- *   VIR_MIGRATE_PEER2PEER Direct connection between source & destination hosts
- *   VIR_MIGRATE_TUNNELLED Tunnel migration data over the libvirt RPC channel
- *   VIR_MIGRATE_PERSIST_DEST If the migration is successful, persist the domain
- *                            on the destination host.
- *   VIR_MIGRATE_UNDEFINE_SOURCE If the migration is successful, undefine the
- *                               domain on the source host.
- *   VIR_MIGRATE_PAUSED    Leave the domain suspended on the remote side.
- *   VIR_MIGRATE_NON_SHARED_DISK Migration with non-shared storage with full
- *                               disk copy
- *   VIR_MIGRATE_NON_SHARED_INC  Migration with non-shared storage with
- *                               incremental disk copy
- *   VIR_MIGRATE_CHANGE_PROTECTION Protect against domain configuration
- *                                 changes during the migration process (set
- *                                 automatically when supported).
- *   VIR_MIGRATE_UNSAFE    Force migration even if it is considered unsafe.
- *   VIR_MIGRATE_OFFLINE Migrate offline
- *   VIR_MIGRATE_POSTCOPY Enable (but do not start) post-copy
+ * This function is similar to virDomainMigrateToURI3, but it only supports a
+ * fixed set of parameters: @dname corresponds to VIR_MIGRATE_PARAM_DEST_NAME,
+ * and @bandwidth corresponds to VIR_MIGRATE_PARAM_BANDWIDTH.
  *
  * The operation of this API hinges on the VIR_MIGRATE_PEER2PEER flag.
- * If the VIR_MIGRATE_PEER2PEER flag is NOT set, the duri parameter
- * takes a hypervisor specific format. The uri_transports element of the
- * hypervisor capabilities XML includes details of the supported URI
- * schemes. Not all hypervisors will support this mode of migration, so
- * if the VIR_MIGRATE_PEER2PEER flag is not set, then it may be necessary
- * to use the alternative virDomainMigrate API providing and explicit
- * virConnectPtr for the destination host.
  *
- * If the VIR_MIGRATE_PEER2PEER flag IS set, the duri parameter
- * must be a valid libvirt connection URI, by which the source
- * libvirt driver can connect to the destination libvirt.
+ * If the VIR_MIGRATE_PEER2PEER flag IS set, the @duri parameter must be a
+ * valid libvirt connection URI, by which the source libvirt driver can connect
+ * to the destination libvirt. In other words, @duri corresponds to @dconnuri
+ * of virDomainMigrateToURI3.
  *
- * VIR_MIGRATE_TUNNELLED requires that VIR_MIGRATE_PEER2PEER be set.
- *
- * If you want to copy non-shared storage within migration you
- * can use either VIR_MIGRATE_NON_SHARED_DISK or
- * VIR_MIGRATE_NON_SHARED_INC as they are mutually exclusive.
- *
- * If a hypervisor supports renaming domains during migration,
- * the dname parameter specifies the new name for the domain.
- * Setting dname to NULL keeps the domain name the same.  If domain
- * renaming is not supported by the hypervisor, dname must be NULL or
- * else an error will be returned.
- *
- * The maximum bandwidth (in MiB/s) that will be used to do migration
- * can be specified with the bandwidth parameter.  If set to 0,
- * libvirt will choose a suitable default.  Some hypervisors do
- * not support this feature and will return an error if bandwidth
- * is not 0.
- *
- * Enabling the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
- * migration.  Use virDomainMigrateStartPostCopy to switch migration into
- * the post-copy mode.  See virDomainMigrateStartPostCopy for more details
- * about post-copy.
- *
- * To see which features are supported by the current hypervisor,
- * see virConnectGetCapabilities, /capabilities/host/migration_features.
- *
- * There are many limitations on migration imposed by the underlying
- * technology - for example it may not be possible to migrate between
- * different processors even with the same architecture, or between
- * different types of hypervisor.
+ * If the VIR_MIGRATE_PEER2PEER flag is NOT set, the @duri parameter takes a
+ * hypervisor specific URI used to initiate the migration. In this case @duri
+ * corresponds to VIR_MIGRATE_PARAM_URI of virDomainMigrateToURI3.
  *
  * Returns 0 if the migration succeeded, -1 upon error.
  */
@@ -4336,84 +4130,24 @@ virDomainMigrateToURI(virDomainPtr domain,
  * @bandwidth: (optional) specify migration bandwidth limit in MiB/s
  *
  * Migrate the domain object from its current host to the destination
- * host given by duri.
+ * host given by @dconnuri.
  *
- * Flags may be one of more of the following:
- *   VIR_MIGRATE_LIVE      Do not pause the VM during migration
- *   VIR_MIGRATE_PEER2PEER Direct connection between source & destination hosts
- *   VIR_MIGRATE_TUNNELLED Tunnel migration data over the libvirt RPC channel
- *   VIR_MIGRATE_PERSIST_DEST If the migration is successful, persist the domain
- *                            on the destination host.
- *   VIR_MIGRATE_UNDEFINE_SOURCE If the migration is successful, undefine the
- *                               domain on the source host.
- *   VIR_MIGRATE_PAUSED    Leave the domain suspended on the remote side.
- *   VIR_MIGRATE_NON_SHARED_DISK Migration with non-shared storage with full
- *                               disk copy
- *   VIR_MIGRATE_NON_SHARED_INC  Migration with non-shared storage with
- *                               incremental disk copy
- *   VIR_MIGRATE_CHANGE_PROTECTION Protect against domain configuration
- *                                 changes during the migration process (set
- *                                 automatically when supported).
- *   VIR_MIGRATE_UNSAFE    Force migration even if it is considered unsafe.
- *   VIR_MIGRATE_OFFLINE Migrate offline
- *   VIR_MIGRATE_POSTCOPY Enable (but do not start) post-copy
+ * This function is similar to virDomainMigrateToURI3, but it only supports a
+ * fixed set of parameters: @miguri corresponds to VIR_MIGRATE_PARAM_URI, @dxml
+ * is VIR_MIGRATE_PARAM_DEST_XML, @dname is VIR_MIGRATE_PARAM_DEST_NAME, and
+ * @bandwidth corresponds to VIR_MIGRATE_PARAM_BANDWIDTH.
  *
  * The operation of this API hinges on the VIR_MIGRATE_PEER2PEER flag.
  *
- * If the VIR_MIGRATE_PEER2PEER flag is set, the @dconnuri parameter
- * must be a valid libvirt connection URI, by which the source
- * libvirt driver can connect to the destination libvirt. If the
- * VIR_MIGRATE_PEER2PEER flag is NOT set, then @dconnuri must be
- * NULL.
+ * If the VIR_MIGRATE_PEER2PEER flag IS set, the @dconnuri parameter must be a
+ * valid libvirt connection URI, by which the source libvirt driver can connect
+ * to the destination libvirt. In other words, @dconnuri has the same semantics
+ * as in virDomainMigrateToURI3.
  *
- * If the VIR_MIGRATE_TUNNELLED flag is NOT set, then the @miguri
- * parameter allows specification of a URI to use to initiate the
- * VM migration. It takes a hypervisor specific format. The uri_transports
- * element of the hypervisor capabilities XML includes details of the
- * supported URI schemes.
- *
- * VIR_MIGRATE_TUNNELLED requires that VIR_MIGRATE_PEER2PEER be set.
- *
- * If you want to copy non-shared storage within migration you
- * can use either VIR_MIGRATE_NON_SHARED_DISK or
- * VIR_MIGRATE_NON_SHARED_INC as they are mutually exclusive.
- * As of 1.2.11 disks of some types ('file' and 'volume') are
- * precreated automatically, if there's a pool defined on the
- * destination for the disk path.
- *
- * If a hypervisor supports changing the configuration of the guest
- * during migration, the @dxml parameter specifies the new config
- * for the guest. The configuration must include an identical set
- * of virtual devices, to ensure a stable guest ABI across migration.
- * Only parameters related to host side configuration can be
- * changed in the XML. Hypervisors will validate this and refuse to
- * allow migration if the provided XML would cause a change in the
- * guest ABI,
- *
- * If a hypervisor supports renaming domains during migration,
- * the dname parameter specifies the new name for the domain.
- * Setting dname to NULL keeps the domain name the same.  If domain
- * renaming is not supported by the hypervisor, dname must be NULL or
- * else an error will be returned.
- *
- * The maximum bandwidth (in MiB/s) that will be used to do migration
- * can be specified with the bandwidth parameter.  If set to 0,
- * libvirt will choose a suitable default.  Some hypervisors do
- * not support this feature and will return an error if bandwidth
- * is not 0.
- *
- * Enabling the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
- * migration.  Use virDomainMigrateStartPostCopy to switch migration into
- * the post-copy mode.  See virDomainMigrateStartPostCopy for more details
- * about post-copy.
- *
- * To see which features are supported by the current hypervisor,
- * see virConnectGetCapabilities, /capabilities/host/migration_features.
- *
- * There are many limitations on migration imposed by the underlying
- * technology - for example it may not be possible to migrate between
- * different processors even with the same architecture, or between
- * different types of hypervisor.
+ * If the VIR_MIGRATE_PEER2PEER flag is NOT set, the @dconnuri must be NULL
+ * and the @miguri parameter takes a hypervisor specific URI used to initiate
+ * the migration. In this case @miguri corresponds to VIR_MIGRATE_PARAM_URI of
+ * virDomainMigrateToURI3.
  *
  * Returns 0 if the migration succeeded, -1 upon error.
  */
@@ -4468,7 +4202,8 @@ virDomainMigrateToURI2(virDomainPtr domain,
  * Migrate the domain object from its current host to the destination host
  * given by URI.
  *
- * See virDomainMigrateFlags documentation for description of individual flags.
+ * See VIR_MIGRATE_PARAM_* and virDomainMigrateFlags for detailed description
+ * of accepted migration parameters and flags.
  *
  * The operation of this API hinges on the VIR_MIGRATE_PEER2PEER flag.
  *
@@ -4478,19 +4213,12 @@ virDomainMigrateToURI2(virDomainPtr domain,
  *
  * If the VIR_MIGRATE_PEER2PEER flag is NOT set, then @dconnuri must be NULL
  * and VIR_MIGRATE_PARAM_URI migration parameter must be filled in with
- * hypervisor specific URI used to initiate the migration. This is called
- * "direct" migration.
- *
- * VIR_MIGRATE_TUNNELLED requires that VIR_MIGRATE_PEER2PEER be set.
- *
- * If you want to copy non-shared storage within migration you
- * can use either VIR_MIGRATE_NON_SHARED_DISK or
- * VIR_MIGRATE_NON_SHARED_INC as they are mutually exclusive.
- *
- * Enabling the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
- * migration.  Use virDomainMigrateStartPostCopy to switch migration into
- * the post-copy mode.  See virDomainMigrateStartPostCopy for more details
- * about post-copy.
+ * hypervisor specific URI used to initiate the migration. The uri_transports
+ * element of the hypervisor capabilities XML includes supported URI schemes.
+ * This is called "direct" migration. Not all hypervisors support this mode of
+ * migration, so if the VIR_MIGRATE_PEER2PEER flag is not set, then it may be
+ * necessary to use the alternative virDomainMigrate3 API providing an explicit
+ * virConnectPtr for the destination host.
  *
  * There are many limitations on migration imposed by the underlying
  * technology - for example it may not be possible to migrate between
@@ -6092,7 +5820,7 @@ virDomainMemoryStats(virDomainPtr dom, virDomainMemoryStatPtr stats,
 int
 virDomainBlockPeek(virDomainPtr dom,
                    const char *disk,
-                   unsigned long long offset /* really 64 bits */,
+                   unsigned long long offset,
                    size_t size,
                    void *buffer,
                    unsigned int flags)
@@ -6228,7 +5956,7 @@ virDomainBlockResize(virDomainPtr dom,
  */
 int
 virDomainMemoryPeek(virDomainPtr dom,
-                    unsigned long long start /* really 64 bits */,
+                    unsigned long long start,
                     size_t size,
                     void *buffer,
                     unsigned int flags)
@@ -6559,9 +6287,9 @@ virDomainUndefine(virDomainPtr domain)
  * whether this flag is present.  On hypervisors where snapshots do
  * not use libvirt metadata, this flag has no effect.
  *
- * If the domain has any nvram specified, then including
- * VIR_DOMAIN_UNDEFINE_NVRAM will also remove that file, and omitting the flag
- * will cause the undefine process to fail.
+ * If the domain has any nvram specified, the undefine process will fail
+ * unless VIR_DOMAIN_UNDEFINE_KEEP_NVRAM is specified, or if
+ * VIR_DOMAIN_UNDEFINE_NVRAM is specified to remove the nvram file.
  *
  * Returns 0 in case of success, -1 in case of error
  */
@@ -7138,7 +6866,7 @@ virDomainSendKey(virDomainPtr domain,
  * @domain: pointer to domain object
  * @pid_value: a positive integer process ID, or negative integer process group ID
  * @signum: a signal from the virDomainProcessSignal enum
- * @flags: one of the virDomainProcessSignalFlag values
+ * @flags: currently unused, pass 0
  *
  * Send a signal to the designated process in the guest
  *
@@ -7282,7 +7010,8 @@ virDomainSetVcpus(virDomainPtr domain, unsigned int nvcpus)
  * CPU limit is altered; generally, this value must be less than or
  * equal to virConnectGetMaxVcpus().  Otherwise, this call affects the
  * current virtual CPU limit, which must be less than or equal to the
- * maximum limit.
+ * maximum limit. Note that hypervisors may not allow changing the maximum
+ * vcpu count if processor topology is specified.
  *
  * If @flags includes VIR_DOMAIN_VCPU_GUEST, then the state of processors is
  * modified inside the guest instead of the hypervisor. This flag can only
@@ -8226,7 +7955,7 @@ virDomainSetMetadata(virDomainPtr domain,
                                   "newlines"));
             goto error;
         }
-        /* fallthrough */
+        ATTRIBUTE_FALLTHROUGH;
     case VIR_DOMAIN_METADATA_DESCRIPTION:
         virCheckNullArgGoto(uri, error);
         virCheckNullArgGoto(key, error);
@@ -8974,7 +8703,9 @@ virDomainGetJobStats(virDomainPtr domain,
  * @domain: a domain object
  *
  * Requests that the current background job be aborted at the
- * soonest opportunity.
+ * soonest opportunity. In case the job is a migration in a post-copy mode,
+ * virDomainAbortJob will report an error (see virDomainMigrateStartPostCopy
+ * for more details).
  *
  * Returns 0 in case of success and -1 in case of failure.
  */
@@ -9248,7 +8979,8 @@ virDomainMigrateGetMaxSpeed(virDomainPtr domain,
  * rolled back because none of the hosts has complete state. If this happens,
  * libvirt will leave the domain paused on both hosts with
  * VIR_DOMAIN_PAUSED_POSTCOPY_FAILED reason. It's up to the upper layer to
- * decide what to do in such case.
+ * decide what to do in such case. Because of this, libvirt will refuse to
+ * cancel post-copy migration via virDomainAbortJob.
  *
  * The following domain life cycle events are emitted during post-copy
  * migration:
@@ -10294,6 +10026,10 @@ virDomainBlockRebase(virDomainPtr dom, const char *disk,
  * Some hypervisors will restrict certain actions, such as virDomainSave()
  * or virDomainDetachDevice(), while a copy job is active; they may
  * also restrict a copy job to transient domains.
+ *
+ * If @flags contains VIR_DOMAIN_BLOCK_COPY_TRANSIENT_JOB the job will not be
+ * recoverable if the VM is turned off while job is active. This flag will
+ * remove the restriction of copy jobs to transient domains.
  *
  * The @disk parameter is either an unambiguous source name of the
  * block device (the <source file='...'/> sub-element, such as
@@ -11380,111 +11116,176 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  * binary-OR of enum virDomainStatsTypes. The following groups are available
  * (although not necessarily implemented for each hypervisor):
  *
- * VIR_DOMAIN_STATS_STATE: Return domain state and reason for entering that
- * state. The typed parameter keys are in this format:
- * "state.state" - state of the VM, returned as int from virDomainState enum
- * "state.reason" - reason for entering given state, returned as int from
- *                  virDomain*Reason enum corresponding to given state.
+ * VIR_DOMAIN_STATS_STATE:
+ *     Return domain state and reason for entering that state. The typed
+ *     parameter keys are in this format:
  *
- * VIR_DOMAIN_STATS_CPU_TOTAL: Return CPU statistics and usage information.
- * The typed parameter keys are in this format:
- * "cpu.time" - total cpu time spent for this domain in nanoseconds
- *              as unsigned long long.
- * "cpu.user" - user cpu time spent in nanoseconds as unsigned long long.
- * "cpu.system" - system cpu time spent in nanoseconds as unsigned long long.
+ *     "state.state" - state of the VM, returned as int from virDomainState enum
+ *     "state.reason" - reason for entering given state, returned as int from
+ *                      virDomain*Reason enum corresponding to given state.
  *
- * VIR_DOMAIN_STATS_BALLOON: Return memory balloon device information.
- * The typed parameter keys are in this format:
- * "balloon.current" - the memory in kiB currently used
- *                     as unsigned long long.
- * "balloon.maximum" - the maximum memory in kiB allowed
- *                     as unsigned long long.
+ * VIR_DOMAIN_STATS_CPU_TOTAL:
+ *     Return CPU statistics and usage information. The typed parameter keys
+ *     are in this format:
  *
- * VIR_DOMAIN_STATS_VCPU: Return virtual CPU statistics.
- * Due to VCPU hotplug, the vcpu.<num>.* array could be sparse.
- * The actual size of the array corresponds to "vcpu.current".
- * The array size will never exceed "vcpu.maximum".
- * The typed parameter keys are in this format:
- * "vcpu.current" - current number of online virtual CPUs as unsigned int.
- * "vcpu.maximum" - maximum number of online virtual CPUs as unsigned int.
- * "vcpu.<num>.state" - state of the virtual CPU <num>, as int
- *                      from virVcpuState enum.
- * "vcpu.<num>.time" - virtual cpu time spent by virtual CPU <num>
- *                     as unsigned long long.
+ *     "cpu.time" - total cpu time spent for this domain in nanoseconds
+ *                  as unsigned long long.
+ *     "cpu.user" - user cpu time spent in nanoseconds as unsigned long long.
+ *     "cpu.system" - system cpu time spent in nanoseconds as unsigned long
+ *                    long.
  *
- * VIR_DOMAIN_STATS_INTERFACE: Return network interface statistics.
- * The typed parameter keys are in this format:
- * "net.count" - number of network interfaces on this domain
- *               as unsigned int.
- * "net.<num>.name" - name of the interface <num> as string.
- * "net.<num>.rx.bytes" - bytes received as unsigned long long.
- * "net.<num>.rx.pkts" - packets received as unsigned long long.
- * "net.<num>.rx.errs" - receive errors as unsigned long long.
- * "net.<num>.rx.drop" - receive packets dropped as unsigned long long.
- * "net.<num>.tx.bytes" - bytes transmitted as unsigned long long.
- * "net.<num>.tx.pkts" - packets transmitted as unsigned long long.
- * "net.<num>.tx.errs" - transmission errors as unsigned long long.
- * "net.<num>.tx.drop" - transmit packets dropped as unsigned long long.
+ * VIR_DOMAIN_STATS_BALLOON:
+ *     Return memory balloon device information.
+ *     The typed parameter keys are in this format:
  *
- * VIR_DOMAIN_STATS_BLOCK: Return block devices statistics.  By default,
- * this information is limited to the active layer of each <disk> of the
- * domain (where block.count is equal to the number of disks), but adding
- * VIR_CONNECT_GET_ALL_DOMAINS_STATS_BACKING to @flags will expand the
- * array to cover backing chains (block.count corresponds to the number
- * of host resources used together to provide the guest disks).
- * The typed parameter keys are in this format:
- * "block.count" - number of block devices in the subsequent list,
- *                 as unsigned int.
- * "block.<num>.name" - name of the block device <num> as string.
- *                      matches the target name (vda/sda/hda) of the
- *                      block device.  If the backing chain is listed,
- *                      this name is the same for all host resources tied
- *                      to the same guest device.
- * "block.<num>.backingIndex" - unsigned int giving the <backingStore> index,
- *                              only used when backing images are listed.
- * "block.<num>.path" - string describing the source of block device <num>,
- *                      if it is a file or block device (omitted for network
- *                      sources and drives with no media inserted).
- * "block.<num>.rd.reqs" - number of read requests as unsigned long long.
- * "block.<num>.rd.bytes" - number of read bytes as unsigned long long.
- * "block.<num>.rd.times" - total time (ns) spent on reads as
- *                          unsigned long long.
- * "block.<num>.wr.reqs" - number of write requests as unsigned long long.
- * "block.<num>.wr.bytes" - number of written bytes as unsigned long long.
- * "block.<num>.wr.times" - total time (ns) spent on writes as
- *                          unsigned long long.
- * "block.<num>.fl.reqs" - total flush requests as unsigned long long.
- * "block.<num>.fl.times" - total time (ns) spent on cache flushing as
- *                          unsigned long long.
- * "block.<num>.errors" - Xen only: the 'oo_req' value as
- *                        unsigned long long.
- * "block.<num>.allocation" - offset of the highest written sector
- *                            as unsigned long long.
- * "block.<num>.capacity" - logical size in bytes of the block device backing
- *                          image as unsigned long long.
- * "block.<num>.physical" - physical size in bytes of the container of the
- *                          backing image as unsigned long long.
+ *     "balloon.current" - the memory in kiB currently used
+ *                         as unsigned long long.
+ *     "balloon.maximum" - the maximum memory in kiB allowed
+ *                         as unsigned long long.
  *
- * VIR_DOMAIN_STATS_PERF: Return perf event statistics.
- * The typed parameter keys are in this format:
- * "perf.cmt" - the usage of l3 cache (bytes) by applications running on the
- *              platform as unsigned long long. It is produced by cmt perf
- *              event.
- * "perf.mbmt" - the total system bandwidth (bytes/s) from one level of cache
- *               to another as unsigned long long. It is produced by mbmt perf
- *               event.
- * "perf.mbml" - the amount of data (bytes/s) sent through the memory controller
- *               on the socket as unsigned long long. It is produced by mbml
- *               perf event.
- * "perf.cache_misses"     - the count of cache misses as unsigned long long.
+ * VIR_DOMAIN_STATS_VCPU:
+ *     Return virtual CPU statistics.
+ *     Due to VCPU hotplug, the vcpu.<num>.* array could be sparse.
+ *     The actual size of the array corresponds to "vcpu.current".
+ *     The array size will never exceed "vcpu.maximum".
+ *     The typed parameter keys are in this format:
+ *
+ *     "vcpu.current" - current number of online virtual CPUs as unsigned int.
+ *     "vcpu.maximum" - maximum number of online virtual CPUs as unsigned int.
+ *     "vcpu.<num>.state" - state of the virtual CPU <num>, as int
+ *                          from virVcpuState enum.
+ *     "vcpu.<num>.time" - virtual cpu time spent by virtual CPU <num>
+ *                         as unsigned long long.
+ *
+ * VIR_DOMAIN_STATS_INTERFACE:
+ *     Return network interface statistics.
+ *     The typed parameter keys are in this format:
+ *
+ *     "net.count" - number of network interfaces on this domain
+ *                   as unsigned int.
+ *     "net.<num>.name" - name of the interface <num> as string.
+ *     "net.<num>.rx.bytes" - bytes received as unsigned long long.
+ *     "net.<num>.rx.pkts" - packets received as unsigned long long.
+ *     "net.<num>.rx.errs" - receive errors as unsigned long long.
+ *     "net.<num>.rx.drop" - receive packets dropped as unsigned long long.
+ *     "net.<num>.tx.bytes" - bytes transmitted as unsigned long long.
+ *     "net.<num>.tx.pkts" - packets transmitted as unsigned long long.
+ *     "net.<num>.tx.errs" - transmission errors as unsigned long long.
+ *     "net.<num>.tx.drop" - transmit packets dropped as unsigned long long.
+ *
+ * VIR_DOMAIN_STATS_BLOCK:
+ *     Return block devices statistics.  By default,
+ *     this information is limited to the active layer of each <disk> of the
+ *     domain (where block.count is equal to the number of disks), but adding
+ *     VIR_CONNECT_GET_ALL_DOMAINS_STATS_BACKING to @flags will expand the
+ *     array to cover backing chains (block.count corresponds to the number
+ *     of host resources used together to provide the guest disks).
+ *     The typed parameter keys are in this format:
+ *
+ *     "block.count" - number of block devices in the subsequent list,
+ *                     as unsigned int.
+ *     "block.<num>.name" - name of the block device <num> as string.
+ *                          matches the target name (vda/sda/hda) of the
+ *                          block device.  If the backing chain is listed,
+ *                          this name is the same for all host resources tied
+ *                          to the same guest device.
+ *     "block.<num>.backingIndex" - unsigned int giving the <backingStore>
+ *                                   index, only used when backing images
+ *                                   are listed.
+ *     "block.<num>.path" - string describing the source of block device <num>,
+ *                          if it is a file or block device (omitted for network
+ *                          sources and drives with no media inserted).
+ *     "block.<num>.rd.reqs" - number of read requests as unsigned long long.
+ *     "block.<num>.rd.bytes" - number of read bytes as unsigned long long.
+ *     "block.<num>.rd.times" - total time (ns) spent on reads as
+ *                              unsigned long long.
+ *     "block.<num>.wr.reqs" - number of write requests as unsigned long long.
+ *     "block.<num>.wr.bytes" - number of written bytes as unsigned long long.
+ *     "block.<num>.wr.times" - total time (ns) spent on writes as
+ *                              unsigned long long.
+ *     "block.<num>.fl.reqs" - total flush requests as unsigned long long.
+ *     "block.<num>.fl.times" - total time (ns) spent on cache flushing as
+ *                              unsigned long long.
+ *     "block.<num>.errors" - Xen only: the 'oo_req' value as
+ *                            unsigned long long.
+ *     "block.<num>.allocation" - offset of the highest written sector
+ *                                as unsigned long long.
+ *     "block.<num>.capacity" - logical size in bytes of the block device
+ *                              backing image as unsigned long long.
+ *     "block.<num>.physical" - physical size in bytes of the container of the
+ *                              backing image as unsigned long long.
+ *     "block.<num>.threshold" - current threshold for delivering the
+ *                               VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD
+ *                               event in bytes. See virDomainSetBlockThreshold.
+ *
+ * VIR_DOMAIN_STATS_PERF:
+ *     Return perf event statistics.
+ *     The typed parameter keys are in this format:
+ *
+ *     "perf.cmt" - the usage of l3 cache (bytes) by applications running on
+ *                  the platform as unsigned long long. It is produced by cmt
+ *                  perf event.
+ *     "perf.mbmt" - the total system bandwidth (bytes/s) from one level of
+ *                   cache to another as unsigned long long. It is produced
+ *                   by mbmt perf event.
+ *     "perf.mbml" - the amount of data (bytes/s) sent through the memory
+ *                   controller on the socket as unsigned long long. It is
+ *                   produced by mbml perf event.
+ *     "perf.cache_misses" - the count of cache misses as unsigned long long.
  *                           It is produced by cache_misses perf event.
- * "perf.cache_references" - the count of cache hits as unsigned long long.
- *                           It is produced by cache_references perf event.
- * "perf.instructions"     - The count of instructions as unsigned long long.
+ *     "perf.cache_references" - the count of cache hits as unsigned long long.
+ *                               It is produced by cache_references perf event.
+ *     "perf.instructions" - The count of instructions as unsigned long long.
  *                           It is produced by instructions perf event.
- * "perf.cpu_cycles"       - The number of cpu cycles one instruction needs as
- *                           unsigned long long. It is produced by cpu_cycles
- *                           perf event.
+ *     "perf.cpu_cycles" - The count of cpu cycles (total/elapsed) as an
+ *                         unsigned long long. It is produced by cpu_cycles
+ *                         perf event.
+ *     "perf.branch_instructions" - The count of branch instructions as
+ *                                  unsigned long long. It is produced by
+ *                                  branch_instructions perf event.
+ *     "perf.branch_misses" - The count of branch misses as unsigned long
+ *                            long. It is produced by branch_misses perf event.
+ *     "perf.bus_cycles" - The count of bus cycles as unsigned long
+ *                         long. It is produced by bus_cycles perf event.
+ *     "perf.stalled_cycles_frontend" - The count of stalled cpu cycles in the
+ *                                      frontend of the instruction processor
+ *                                      pipeline as unsigned long long. It is
+ *                                      produced by stalled_cycles_frontend
+ *                                      perf event.
+ *     "perf.stalled_cycles_backend"  - The count of stalled cpu cycles in the
+ *                                      backend of the instruction processor
+ *                                      pipeline as unsigned long long. It is
+ *                                      produced by stalled_cycles_backend
+ *                                      perf event.
+ *     "perf.ref_cpu_cycles" - The count of total cpu cycles not affected by
+ *                             CPU frequency scaling by applications running
+ *                             as unsigned long long. It is produced by the
+ *                             ref_cpu_cycles perf event.
+ *     "perf.cpu_clock" - The count of cpu clock time as unsigned long long.
+ *                        It is produced by the cpu_clock perf event.
+ *     "perf.task_clock" - The count of task clock time as unsigned long long.
+ *                         It is produced by the task_clock perf event.
+ *     "perf.page_faults" - The count of page faults as unsigned long long.
+ *                          It is produced by the page_faults perf event
+ *     "perf.context_switches" - The count of context switches as unsigned long
+ *                               long. It is produced by the context_switches
+ *                               perf event.
+ *     "perf.cpu_migrations" - The count of cpu migrations, from one logical
+ *                             processor to another, as unsigned long
+ *                             long. It is produced by the cpu_migrations
+ *                             perf event.
+ *     "perf.page_faults_min" - The count of minor page faults as unsigned
+ *                              long long. It is produced by the
+ *                              page_faults_min perf event.
+ *     "perf.page_faults_maj" - The count of major page faults as unsigned
+ *                              long long. It is produced by the
+ *                              page_faults_maj perf event.
+ *     "perf.alignment_faults" - The count of alignment faults as unsigned
+ *                               long long. It is produced by the
+ *                               alignment_faults perf event
+ *     "perf.emulation_faults" - The count of emulation faults as unsigned
+ *                               long long. It is produced by the
+ *                               emulation_faults perf event
  *
  * Note that entire stats groups or individual stat fields may be missing from
  * the output in case they are not supported by the given hypervisor, are not
@@ -11779,34 +11580,35 @@ virDomainFSInfoFree(virDomainFSInfoPtr info)
  * The caller *must* free @ifaces when no longer needed. Usual use case
  * looks like this:
  *
- *  virDomainInterfacePtr *ifaces = NULL;
- *  int ifaces_count = 0;
- *  size_t i, j;
- *  virDomainPtr dom = ... obtain a domain here ...;
+ *   virDomainInterfacePtr *ifaces = NULL;
+ *   int ifaces_count = 0;
+ *   size_t i, j;
+ *   virDomainPtr dom = ... obtain a domain here ...;
  *
- *  if ((ifaces_count = virDomainInterfaceAddresses(dom, &ifaces,
- *           VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)) < 0)
- *      goto cleanup;
+ *   if ((ifaces_count = virDomainInterfaceAddresses(dom, &ifaces,
+ *            VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)) < 0)
+ *       goto cleanup;
  *
  *  ... do something with returned values, for example:
- *  for (i = 0; i < ifaces_count; i++) {
- *      printf("name: %s", ifaces[i]->name);
- *      if (ifaces[i]->hwaddr)
- *          printf(" hwaddr: %s", ifaces[i]->hwaddr);
  *
- *      for (j = 0; j < ifaces[i]->naddrs; j++) {
- *          virDomainIPAddressPtr ip_addr = ifaces[i]->addrs + j;
- *          printf("[addr: %s prefix: %d type: %d]",
- *                 ip_addr->addr, ip_addr->prefix, ip_addr->type);
- *      }
- *      printf("\n");
- *  }
+ *   for (i = 0; i < ifaces_count; i++) {
+ *       printf("name: %s", ifaces[i]->name);
+ *       if (ifaces[i]->hwaddr)
+ *           printf(" hwaddr: %s", ifaces[i]->hwaddr);
  *
- *  cleanup:
- *      if (ifaces && ifaces_count > 0)
- *          for (i = 0; i < ifaces_count; i++)
- *              virDomainInterfaceFree(ifaces[i]);
- *      free(ifaces);
+ *       for (j = 0; j < ifaces[i]->naddrs; j++) {
+ *           virDomainIPAddressPtr ip_addr = ifaces[i]->addrs + j;
+ *           printf("[addr: %s prefix: %d type: %d]",
+ *                  ip_addr->addr, ip_addr->prefix, ip_addr->type);
+ *       }
+ *       printf("\n");
+ *   }
+ *
+ *   cleanup:
+ *       if (ifaces && ifaces_count > 0)
+ *           for (i = 0; i < ifaces_count; i++)
+ *               virDomainInterfaceFree(ifaces[i]);
+ *       free(ifaces);
  *
  * Returns the number of interfaces on success, -1 in case of error.
  */
@@ -11972,6 +11774,110 @@ virDomainSetGuestVcpus(virDomainPtr domain,
         int ret;
         ret = domain->conn->driver->domainSetGuestVcpus(domain, cpumap, state,
                                                         flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(domain->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainSetVcpu:
+ * @domain: pointer to domain object
+ * @vcpumap: text representation of a bitmap of vcpus to set
+ * @state: 0 to disable/1 to enable cpus described by @vcpumap
+ * @flags: bitwise-OR of virDomainModificationImpact
+ *
+ * Enables/disables individual vcpus described by @vcpumap in the hypervisor.
+ *
+ * Various hypervisor implementations may limit to operate on just 1
+ * hotpluggable entity (which may contain multiple vCPUs on certain platforms).
+ *
+ * Note that OSes and hypervisors may require vCPU 0 to stay online.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int
+virDomainSetVcpu(virDomainPtr domain,
+                 const char *vcpumap,
+                 int state,
+                 unsigned int flags)
+{
+    VIR_DOMAIN_DEBUG(domain, "vcpumap='%s' state=%i flags=%x",
+                     NULLSTR(vcpumap), state, flags);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    virCheckReadOnlyGoto(domain->conn->flags, error);
+
+    virCheckNonNullArgGoto(vcpumap, error);
+
+    if (domain->conn->driver->domainSetVcpu) {
+        int ret;
+        ret = domain->conn->driver->domainSetVcpu(domain, vcpumap, state, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(domain->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainSetBlockThreshold:
+ * @domain: pointer to domain object
+ * @dev: string specifying the block device or backing chain element
+ * @threshold: threshold in bytes when to fire the event
+ * @flags: currently unused, callers should pass 0
+ *
+ * Set the threshold level for delivering the
+ * VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD if the device or backing chain element
+ * described by @dev is written beyond the set threshold level. The threshold
+ * level is unset once the event fires. The event might not be delivered at all
+ * if libvirtd was not running at the moment when the threshold was reached.
+ *
+ * Hypervisors report the last written sector of an image in the bulk stats API
+ * (virConnectGetAllDomainStats/virDomainListGetStats) as
+ * "block.<num>.allocation" in the VIR_DOMAIN_STATS_BLOCK group. The current
+ * threshold value is reported as "block.<num>.threshold".
+ *
+ * This event allows to use thin-provisioned storage which needs management
+ * tools to grow it without the need for polling of the data.
+ *
+ * Returns 0 if the operation has started, -1 on failure.
+ */
+int
+virDomainSetBlockThreshold(virDomainPtr domain,
+                           const char *dev,
+                           unsigned long long threshold,
+                           unsigned int flags)
+{
+    VIR_DOMAIN_DEBUG(domain, "dev='%s' threshold=%llu flags=%x",
+                     NULLSTR(dev), threshold, flags);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    virCheckReadOnlyGoto(domain->conn->flags, error);
+
+    virCheckNonNullArgGoto(dev, error);
+
+    if (domain->conn->driver->domainSetBlockThreshold) {
+        int ret;
+        ret = domain->conn->driver->domainSetBlockThreshold(domain, dev,
+                                                            threshold, flags);
         if (ret < 0)
             goto error;
         return ret;

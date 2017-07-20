@@ -64,17 +64,6 @@ usage(int status)
     exit(status);
 }
 
-static int
-customLeaseRewriteFile(int fd, void *opaque)
-{
-    char **data = opaque;
-
-    if (safewrite(fd, *data, strlen(*data)) < 0)
-        return -1;
-
-    return 0;
-}
-
 /* Flags denoting actions for a lease */
 enum virLeaseActionFlags {
     VIR_LEASE_ACTION_ADD,       /* Create new lease */
@@ -206,7 +195,7 @@ main(int argc, char **argv)
         if (!lease_new)
             break;
 
-        /* fallthrough */
+        ATTRIBUTE_FALLTHROUGH;
     case VIR_LEASE_ACTION_DEL:
         /* Delete the corresponding lease, if it already exists */
         delete = true;
@@ -243,7 +232,7 @@ main(int argc, char **argv)
         }
         lease_new = NULL;
 
-        /* fallthrough */
+        ATTRIBUTE_FALLTHROUGH;
     case VIR_LEASE_ACTION_DEL:
         if (!(leases_str = virJSONValueToString(leases_array_new, true))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -252,8 +241,7 @@ main(int argc, char **argv)
         }
 
         /* Write to file */
-        if (virFileRewrite(custom_lease_file, 0644,
-                           customLeaseRewriteFile, &leases_str) < 0)
+        if (virFileRewriteStr(custom_lease_file, 0644, leases_str) < 0)
             goto cleanup;
         break;
 

@@ -1,5 +1,6 @@
 #include <config.h>
 
+#include "viralloc.h"
 #include "virstring.h"
 #include "virnetdev.h"
 #include "virnetdevtap.h"
@@ -27,8 +28,12 @@ int virNetDevTapCreateInBridgePort(const char *brname ATTRIBUTE_UNUSED,
                                    size_t tapfdSize ATTRIBUTE_UNUSED,
                                    virNetDevVPortProfilePtr virtPortProfile ATTRIBUTE_UNUSED,
                                    virNetDevVlanPtr virtVlan ATTRIBUTE_UNUSED,
+                                   virNetDevCoalescePtr coalesce ATTRIBUTE_UNUSED,
+                                   unsigned int mtu ATTRIBUTE_UNUSED,
+                                   unsigned int *actualMTU ATTRIBUTE_UNUSED,
                                    unsigned int fakeflags ATTRIBUTE_UNUSED)
 {
+    VIR_FREE(*ifname);
     if (VIR_STRDUP(*ifname, "vnet0") < 0)
         return -1;
     return 0;

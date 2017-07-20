@@ -3,10 +3,9 @@
   <selfctime>0</selfctime>
   <selfvers>0</selfvers>
   <usedQMP/>
+  <flag name='kvm'/>
   <flag name='mem-path'/>
   <flag name='drive-serial'/>
-  <flag name='chardev'/>
-  <flag name='enable-kvm'/>
   <flag name='monitor-json'/>
   <flag name='sdl'/>
   <flag name='netdev'/>
@@ -20,19 +19,16 @@
   <flag name='fsdev'/>
   <flag name='name-process'/>
   <flag name='smbios-type'/>
-  <flag name='vga-qxl'/>
   <flag name='spice'/>
   <flag name='vga-none'/>
   <flag name='boot-index'/>
   <flag name='hda-duplex'/>
   <flag name='drive-aio'/>
-  <flag name='pci-multibus'/>
   <flag name='pci-bootindex'/>
   <flag name='ccid-emulated'/>
   <flag name='ccid-passthru'/>
   <flag name='chardev-spicevmc'/>
   <flag name='virtio-tx-alg'/>
-  <flag name='device-qxl-vga'/>
   <flag name='pci-multifunction'/>
   <flag name='virtio-blk-pci.ioeventfd'/>
   <flag name='sga'/>
@@ -120,7 +116,6 @@
   <flag name='VGA.vgamem_mb'/>
   <flag name='vmware-svga.vgamem_mb'/>
   <flag name='qxl.vgamem_mb'/>
-  <flag name='qxl-vga.vgamem_mb'/>
   <flag name='pci-serial'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
@@ -129,38 +124,62 @@
   <flag name='e1000'/>
   <flag name='virtio-net'/>
   <flag name='qxl.vram64_size_mb'/>
-  <flag name='qxl-vga.vram64_size_mb'/>
   <flag name='device-tray-moved-event'/>
   <flag name='nec-usb-xhci-ports'/>
   <flag name='display'/>
+  <flag name='query-cpu-definitions'/>
   <version>1004002</version>
   <kvmVersion>0</kvmVersion>
   <package></package>
   <arch>x86_64</arch>
-  <cpu name='Opteron_G5'/>
-  <cpu name='Opteron_G4'/>
-  <cpu name='Opteron_G3'/>
-  <cpu name='Opteron_G2'/>
-  <cpu name='Opteron_G1'/>
-  <cpu name='Haswell'/>
-  <cpu name='SandyBridge'/>
-  <cpu name='Westmere'/>
-  <cpu name='Nehalem'/>
-  <cpu name='Penryn'/>
-  <cpu name='Conroe'/>
-  <cpu name='n270'/>
-  <cpu name='athlon'/>
-  <cpu name='pentium3'/>
-  <cpu name='pentium2'/>
-  <cpu name='pentium'/>
-  <cpu name='486'/>
-  <cpu name='coreduo'/>
-  <cpu name='kvm32'/>
-  <cpu name='qemu32'/>
-  <cpu name='kvm64'/>
-  <cpu name='core2duo'/>
-  <cpu name='phenom'/>
-  <cpu name='qemu64'/>
+  <cpu type='kvm' name='Opteron_G5'/>
+  <cpu type='kvm' name='Opteron_G4'/>
+  <cpu type='kvm' name='Opteron_G3'/>
+  <cpu type='kvm' name='Opteron_G2'/>
+  <cpu type='kvm' name='Opteron_G1'/>
+  <cpu type='kvm' name='Haswell'/>
+  <cpu type='kvm' name='SandyBridge'/>
+  <cpu type='kvm' name='Westmere'/>
+  <cpu type='kvm' name='Nehalem'/>
+  <cpu type='kvm' name='Penryn'/>
+  <cpu type='kvm' name='Conroe'/>
+  <cpu type='kvm' name='n270'/>
+  <cpu type='kvm' name='athlon'/>
+  <cpu type='kvm' name='pentium3'/>
+  <cpu type='kvm' name='pentium2'/>
+  <cpu type='kvm' name='pentium'/>
+  <cpu type='kvm' name='486'/>
+  <cpu type='kvm' name='coreduo'/>
+  <cpu type='kvm' name='kvm32'/>
+  <cpu type='kvm' name='qemu32'/>
+  <cpu type='kvm' name='kvm64'/>
+  <cpu type='kvm' name='core2duo'/>
+  <cpu type='kvm' name='phenom'/>
+  <cpu type='kvm' name='qemu64'/>
+  <cpu type='tcg' name='Opteron_G5'/>
+  <cpu type='tcg' name='Opteron_G4'/>
+  <cpu type='tcg' name='Opteron_G3'/>
+  <cpu type='tcg' name='Opteron_G2'/>
+  <cpu type='tcg' name='Opteron_G1'/>
+  <cpu type='tcg' name='Haswell'/>
+  <cpu type='tcg' name='SandyBridge'/>
+  <cpu type='tcg' name='Westmere'/>
+  <cpu type='tcg' name='Nehalem'/>
+  <cpu type='tcg' name='Penryn'/>
+  <cpu type='tcg' name='Conroe'/>
+  <cpu type='tcg' name='n270'/>
+  <cpu type='tcg' name='athlon'/>
+  <cpu type='tcg' name='pentium3'/>
+  <cpu type='tcg' name='pentium2'/>
+  <cpu type='tcg' name='pentium'/>
+  <cpu type='tcg' name='486'/>
+  <cpu type='tcg' name='coreduo'/>
+  <cpu type='tcg' name='kvm32'/>
+  <cpu type='tcg' name='qemu32'/>
+  <cpu type='tcg' name='kvm64'/>
+  <cpu type='tcg' name='core2duo'/>
+  <cpu type='tcg' name='phenom'/>
+  <cpu type='tcg' name='qemu64'/>
   <machine name='pc-i440fx-1.4' alias='pc' maxCpus='0'/>
   <machine name='pc-q35-1.4' alias='q35' maxCpus='0'/>
   <machine name='isapc' maxCpus='0'/>

@@ -33,9 +33,11 @@
 #include "virfile.h"
 #include "viralloc.h"
 #include "virlog.h"
+#include "virmdev.h"
 #include "virpci.h"
 #include "virusb.h"
 #include "virscsi.h"
+#include "virscsivhost.h"
 #include "virstoragefile.h"
 #include "virstring.h"
 #include "virutil.h"
@@ -66,6 +68,148 @@ struct _virSecurityDACCallbackData {
     virSecurityManagerPtr manager;
     virSecurityLabelDefPtr secdef;
 };
+
+typedef struct _virSecurityDACChownItem virSecurityDACChownItem;
+typedef virSecurityDACChownItem *virSecurityDACChownItemPtr;
+struct _virSecurityDACChownItem {
+    char *path;
+    const virStorageSource *src;
+    uid_t uid;
+    gid_t gid;
+};
+
+typedef struct _virSecurityDACChownList virSecurityDACChownList;
+typedef virSecurityDACChownList *virSecurityDACChownListPtr;
+struct _virSecurityDACChownList {
+    virSecurityDACDataPtr priv;
+    virSecurityDACChownItemPtr *items;
+    size_t nItems;
+};
+
+
+virThreadLocal chownList;
+
+static int
+virSecurityDACChownListAppend(virSecurityDACChownListPtr list,
+                              const char *path,
+                              const virStorageSource *src,
+                              uid_t uid,
+                              gid_t gid)
+{
+    int ret = -1;
+    char *tmp = NULL;
+    virSecurityDACChownItemPtr item = NULL;
+
+    if (VIR_ALLOC(item) < 0)
+        return -1;
+
+    if (VIR_STRDUP(tmp, path) < 0)
+        goto cleanup;
+
+    item->path = tmp;
+    item->src = src;
+    item->uid = uid;
+    item->gid = gid;
+
+    if (VIR_APPEND_ELEMENT(list->items, list->nItems, item) < 0)
+        goto cleanup;
+
+    tmp = NULL;
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(tmp);
+    VIR_FREE(item);
+    return ret;
+}
+
+static void
+virSecurityDACChownListFree(void *opaque)
+{
+    virSecurityDACChownListPtr list = opaque;
+    size_t i;
+
+    if (!list)
+        return;
+
+    for (i = 0; i < list->nItems; i++) {
+        VIR_FREE(list->items[i]->path);
+        VIR_FREE(list->items[i]);
+    }
+    VIR_FREE(list);
+}
+
+
+/**
+ * virSecurityDACTransactionAppend:
+ * @path: Path to chown
+ * @src: disk source to chown
+ * @uid: user ID
+ * @gid: group ID
+ *
+ * Appends an entry onto transaction list.
+ *
+ * Returns: 1 in case of successful append
+ *          0 if there is no transaction enabled
+ *         -1 otherwise.
+ */
+static int
+virSecurityDACTransactionAppend(const char *path,
+                                const virStorageSource *src,
+                                uid_t uid,
+                                gid_t gid)
+{
+    virSecurityDACChownListPtr list = virThreadLocalGet(&chownList);
+    if (!list)
+        return 0;
+
+    if (virSecurityDACChownListAppend(list, path, src, uid, gid) < 0)
+        return -1;
+
+    return 1;
+}
+
+
+static int virSecurityDACSetOwnershipInternal(const virSecurityDACData *priv,
+                                              const virStorageSource *src,
+                                              const char *path,
+                                              uid_t uid,
+                                              gid_t gid);
+
+/**
+ * virSecurityDACTransactionRun:
+ * @pid: process pid
+ * @opaque: opaque data
+ *
+ * This is the callback that runs in the same namespace as the domain we are
+ * relabelling. For given transaction (@opaque) it relabels all the paths on
+ * the list.
+ *
+ * Returns: 0 on success
+ *         -1 otherwise.
+ */
+static int
+virSecurityDACTransactionRun(pid_t pid ATTRIBUTE_UNUSED,
+                             void *opaque)
+{
+    virSecurityDACChownListPtr list = opaque;
+    size_t i;
+
+    for (i = 0; i < list->nItems; i++) {
+        virSecurityDACChownItemPtr item = list->items[i];
+
+        /* TODO Implement rollback */
+        if (virSecurityDACSetOwnershipInternal(list->priv,
+                                               item->src,
+                                               item->path,
+                                               item->uid,
+                                               item->gid) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
 
 /* returns -1 on error, 0 on success */
 int
@@ -237,6 +381,13 @@ virSecurityDACProbe(const char *virtDriver ATTRIBUTE_UNUSED)
 static int
 virSecurityDACOpen(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED)
 {
+    if (virThreadLocalInit(&chownList,
+                           virSecurityDACChownListFree) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to initialize thread local variable"));
+        return -1;
+    }
+
     return 0;
 }
 
@@ -277,14 +428,129 @@ virSecurityDACPreFork(virSecurityManagerPtr mgr)
     return 0;
 }
 
+/**
+ * virSecurityDACTransactionStart:
+ * @mgr: security manager
+ *
+ * Starts a new transaction. In transaction nothing is chown()-ed until
+ * TransactionCommit() is called. This is implemented as a list that is
+ * appended to whenever chown() would be called. Since secdriver APIs
+ * can be called from multiple threads (to work over different domains)
+ * the pointer to the list is stored in thread local variable.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise.
+ */
 static int
-virSecurityDACSetOwnershipInternal(virSecurityDACDataPtr priv,
-                                   virStorageSourcePtr src,
+virSecurityDACTransactionStart(virSecurityManagerPtr mgr)
+{
+    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
+    virSecurityDACChownListPtr list;
+
+    list = virThreadLocalGet(&chownList);
+    if (list) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Another relabel transaction is already started"));
+        return -1;
+    }
+
+    if (VIR_ALLOC(list) < 0)
+        return -1;
+
+    list->priv = priv;
+
+    if (virThreadLocalSet(&chownList, list) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to set thread local variable"));
+        VIR_FREE(list);
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * virSecurityDACTransactionCommit:
+ * @mgr: security manager
+ * @pid: domain's PID
+ *
+ * Enters the @pid namespace (usually @pid refers to a domain) and
+ * performs all the chown()-s on the list. Note that the transaction is
+ * also freed, therefore new one has to be started after successful
+ * return from this function. Also it is considered as error if there's
+ * no transaction set and this function is called.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise.
+ */
+static int
+virSecurityDACTransactionCommit(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
+                                pid_t pid)
+{
+    virSecurityDACChownListPtr list;
+    int ret = -1;
+
+    list = virThreadLocalGet(&chownList);
+    if (!list) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("No transaction is set"));
+        goto cleanup;
+    }
+
+    if (virThreadLocalSet(&chownList, NULL) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to clear thread local variable"));
+        goto cleanup;
+    }
+
+    if (virProcessRunInMountNamespace(pid,
+                                      virSecurityDACTransactionRun,
+                                      list) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    virSecurityDACChownListFree(list);
+    return ret;
+}
+
+/**
+ * virSecurityDACTransactionAbort:
+ * @mgr: security manager
+ *
+ * Cancels and frees any out standing transaction.
+ */
+static void
+virSecurityDACTransactionAbort(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED)
+{
+    virSecurityDACChownListPtr list;
+
+    list = virThreadLocalGet(&chownList);
+    if (!list)
+        return;
+
+    if (virThreadLocalSet(&chownList, NULL) < 0)
+        VIR_DEBUG("Unable to clear thread local variable");
+    virSecurityDACChownListFree(list);
+}
+
+
+static int
+virSecurityDACSetOwnershipInternal(const virSecurityDACData *priv,
+                                   const virStorageSource *src,
                                    const char *path,
                                    uid_t uid,
                                    gid_t gid)
 {
     int rc;
+
+    /* Be aware that this function might run in a separate process.
+     * Therefore, any driver state changes would be thrown away. */
+
+    if ((rc = virSecurityDACTransactionAppend(path, src, uid, gid)) < 0)
+        return -1;
+    else if (rc > 0)
+        return 0;
 
     VIR_INFO("Setting DAC user and group on '%s' to '%ld:%ld'",
              NULLSTR(src ? src->path : path), (long) uid, (long) gid);
@@ -582,6 +848,15 @@ virSecurityDACSetSCSILabel(virSCSIDevicePtr dev ATTRIBUTE_UNUSED,
 
 
 static int
+virSecurityDACSetHostLabel(virSCSIVHostDevicePtr dev ATTRIBUTE_UNUSED,
+                           const char *file,
+                           void *opaque)
+{
+    return virSecurityDACSetHostdevLabelHelper(file, opaque);
+}
+
+
+static int
 virSecurityDACSetHostdevLabel(virSecurityManagerPtr mgr,
                               virDomainDefPtr def,
                               virDomainHostdevDefPtr dev,
@@ -592,6 +867,8 @@ virSecurityDACSetHostdevLabel(virSecurityManagerPtr mgr,
     virDomainHostdevSubsysUSBPtr usbsrc = &dev->source.subsys.u.usb;
     virDomainHostdevSubsysPCIPtr pcisrc = &dev->source.subsys.u.pci;
     virDomainHostdevSubsysSCSIPtr scsisrc = &dev->source.subsys.u.scsi;
+    virDomainHostdevSubsysSCSIVHostPtr hostsrc = &dev->source.subsys.u.scsi_host;
+    virDomainHostdevSubsysMediatedDevPtr mdevsrc = &dev->source.subsys.u.mdev;
     int ret = -1;
 
     if (!priv->dynamicOwnership)
@@ -676,6 +953,31 @@ virSecurityDACSetHostdevLabel(virSecurityManagerPtr mgr,
         break;
     }
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST: {
+        virSCSIVHostDevicePtr host = virSCSIVHostDeviceNew(hostsrc->wwpn);
+
+        if (!host)
+            goto done;
+
+        ret = virSCSIVHostDeviceFileIterate(host,
+                                            virSecurityDACSetHostLabel,
+                                            &cbdata);
+        virSCSIVHostDeviceFree(host);
+        break;
+    }
+
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV: {
+        char *vfiodev = NULL;
+
+        if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
+            goto done;
+
+        ret = virSecurityDACSetHostdevLabelHelper(vfiodev, &cbdata);
+
+        VIR_FREE(vfiodev);
+        break;
+    }
+
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
         ret = 0;
         break;
@@ -720,6 +1022,17 @@ virSecurityDACRestoreSCSILabel(virSCSIDevicePtr dev ATTRIBUTE_UNUSED,
 
 
 static int
+virSecurityDACRestoreHostLabel(virSCSIVHostDevicePtr dev ATTRIBUTE_UNUSED,
+                               const char *file,
+                               void *opaque)
+{
+    virSecurityManagerPtr mgr = opaque;
+    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
+    return virSecurityDACRestoreFileLabel(priv, file);
+}
+
+
+static int
 virSecurityDACRestoreHostdevLabel(virSecurityManagerPtr mgr,
                                   virDomainDefPtr def,
                                   virDomainHostdevDefPtr dev,
@@ -731,6 +1044,8 @@ virSecurityDACRestoreHostdevLabel(virSecurityManagerPtr mgr,
     virDomainHostdevSubsysUSBPtr usbsrc = &dev->source.subsys.u.usb;
     virDomainHostdevSubsysPCIPtr pcisrc = &dev->source.subsys.u.pci;
     virDomainHostdevSubsysSCSIPtr scsisrc = &dev->source.subsys.u.scsi;
+    virDomainHostdevSubsysSCSIVHostPtr hostsrc = &dev->source.subsys.u.scsi_host;
+    virDomainHostdevSubsysMediatedDevPtr mdevsrc = &dev->source.subsys.u.mdev;
     int ret = -1;
 
     secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
@@ -805,6 +1120,32 @@ virSecurityDACRestoreHostdevLabel(virSecurityManagerPtr mgr,
         break;
     }
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST: {
+        virSCSIVHostDevicePtr host = virSCSIVHostDeviceNew(hostsrc->wwpn);
+
+        if (!host)
+            goto done;
+
+        ret = virSCSIVHostDeviceFileIterate(host,
+                                            virSecurityDACRestoreHostLabel,
+                                            mgr);
+        virSCSIVHostDeviceFree(host);
+
+        break;
+    }
+
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV: {
+        char *vfiodev = NULL;
+
+        if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
+            goto done;
+
+        ret = virSecurityDACRestoreFileLabel(virSecurityManagerGetPrivateData(mgr),
+                                             vfiodev);
+        VIR_FREE(vfiodev);
+        break;
+    }
+
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
         ret = 0;
         break;
@@ -818,8 +1159,8 @@ virSecurityDACRestoreHostdevLabel(virSecurityManagerPtr mgr,
 static int
 virSecurityDACSetChardevLabel(virSecurityManagerPtr mgr,
                               virDomainDefPtr def,
-                              virDomainChrDefPtr dev,
-                              virDomainChrSourceDefPtr dev_source)
+                              virDomainChrSourceDefPtr dev_source,
+                              bool chardevStdioLogd)
 
 {
     virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
@@ -832,11 +1173,15 @@ virSecurityDACSetChardevLabel(virSecurityManagerPtr mgr,
 
     seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
 
-    if (dev)
-        chr_seclabel = virDomainChrDefGetSecurityLabelDef(dev,
-                                                          SECURITY_DAC_NAME);
+    chr_seclabel = virDomainChrSourceDefGetSecurityLabelDef(dev_source,
+                                                            SECURITY_DAC_NAME);
 
     if (chr_seclabel && !chr_seclabel->relabel)
+        return 0;
+
+    if (!chr_seclabel &&
+        dev_source->type == VIR_DOMAIN_CHR_TYPE_FILE &&
+        chardevStdioLogd)
         return 0;
 
     if (chr_seclabel && chr_seclabel->label) {
@@ -904,19 +1249,23 @@ virSecurityDACSetChardevLabel(virSecurityManagerPtr mgr,
 static int
 virSecurityDACRestoreChardevLabel(virSecurityManagerPtr mgr,
                                   virDomainDefPtr def ATTRIBUTE_UNUSED,
-                                  virDomainChrDefPtr dev,
-                                  virDomainChrSourceDefPtr dev_source)
+                                  virDomainChrSourceDefPtr dev_source,
+                                  bool chardevStdioLogd)
 {
     virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityDeviceLabelDefPtr chr_seclabel = NULL;
     char *in = NULL, *out = NULL;
     int ret = -1;
 
-    if (dev)
-        chr_seclabel = virDomainChrDefGetSecurityLabelDef(dev,
-                                                          SECURITY_DAC_NAME);
+    chr_seclabel = virDomainChrSourceDefGetSecurityLabelDef(dev_source,
+                                                            SECURITY_DAC_NAME);
 
     if (chr_seclabel && !chr_seclabel->relabel)
+        return 0;
+
+    if (!chr_seclabel &&
+        dev_source->type == VIR_DOMAIN_CHR_TYPE_FILE &&
+        chardevStdioLogd)
         return 0;
 
     switch ((virDomainChrType) dev_source->type) {
@@ -961,14 +1310,21 @@ virSecurityDACRestoreChardevLabel(virSecurityManagerPtr mgr,
 }
 
 
+struct _virSecuritySELinuxChardevCallbackData {
+    virSecurityManagerPtr mgr;
+    bool chardevStdioLogd;
+};
+
+
 static int
 virSecurityDACRestoreChardevCallback(virDomainDefPtr def,
-                                     virDomainChrDefPtr dev,
+                                     virDomainChrDefPtr dev ATTRIBUTE_UNUSED,
                                      void *opaque)
 {
-    virSecurityManagerPtr mgr = opaque;
+    struct _virSecuritySELinuxChardevCallbackData *data = opaque;
 
-    return virSecurityDACRestoreChardevLabel(mgr, def, dev, &dev->source);
+    return virSecurityDACRestoreChardevLabel(data->mgr, def, dev->source,
+                                             data->chardevStdioLogd);
 }
 
 
@@ -981,8 +1337,9 @@ virSecurityDACSetTPMFileLabel(virSecurityManagerPtr mgr,
 
     switch (tpm->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        ret = virSecurityDACSetChardevLabel(mgr, def, NULL,
-                                            &tpm->data.passthrough.source);
+        ret = virSecurityDACSetChardevLabel(mgr, def,
+                                            &tpm->data.passthrough.source,
+                                            false);
         break;
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
@@ -1001,8 +1358,9 @@ virSecurityDACRestoreTPMFileLabel(virSecurityManagerPtr mgr,
 
     switch (tpm->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        ret = virSecurityDACRestoreChardevLabel(mgr, def, NULL,
-                                          &tpm->data.passthrough.source);
+        ret = virSecurityDACRestoreChardevLabel(mgr, def,
+                                                &tpm->data.passthrough.source,
+                                                false);
         break;
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
@@ -1073,9 +1431,34 @@ virSecurityDACRestoreInputLabel(virSecurityManagerPtr mgr,
 
 
 static int
+virSecurityDACRestoreMemoryLabel(virSecurityManagerPtr mgr,
+                                 virDomainDefPtr def ATTRIBUTE_UNUSED,
+                                 virDomainMemoryDefPtr mem)
+{
+    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
+    int ret = -1;
+
+    switch ((virDomainMemoryModel) mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        ret = virSecurityDACRestoreFileLabel(priv, mem->nvdimmPath);
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        ret = 0;
+        break;
+    }
+
+    return ret;
+}
+
+
+static int
 virSecurityDACRestoreAllLabel(virSecurityManagerPtr mgr,
                               virDomainDefPtr def,
-                              bool migrated)
+                              bool migrated,
+                              bool chardevStdioLogd)
 {
     virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityLabelDefPtr secdef;
@@ -1111,10 +1494,22 @@ virSecurityDACRestoreAllLabel(virSecurityManagerPtr mgr,
             rc = -1;
     }
 
+    for (i = 0; i < def->nmems; i++) {
+        if (virSecurityDACRestoreMemoryLabel(mgr,
+                                             def,
+                                             def->mems[i]) < 0)
+            rc = -1;
+    }
+
+    struct _virSecuritySELinuxChardevCallbackData chardevData = {
+        .mgr = mgr,
+        .chardevStdioLogd = chardevStdioLogd,
+    };
+
     if (virDomainChrDefForeach(def,
                                false,
                                virSecurityDACRestoreChardevCallback,
-                               mgr) < 0)
+                               &chardevData) < 0)
         rc = -1;
 
     if (def->tpm) {
@@ -1134,19 +1529,56 @@ virSecurityDACRestoreAllLabel(virSecurityManagerPtr mgr,
 
 static int
 virSecurityDACSetChardevCallback(virDomainDefPtr def,
-                                 virDomainChrDefPtr dev,
+                                 virDomainChrDefPtr dev ATTRIBUTE_UNUSED,
                                  void *opaque)
 {
-    virSecurityManagerPtr mgr = opaque;
+    struct _virSecuritySELinuxChardevCallbackData *data = opaque;
 
-    return virSecurityDACSetChardevLabel(mgr, def, dev, &dev->source);
+    return virSecurityDACSetChardevLabel(data->mgr, def, dev->source,
+                                         data->chardevStdioLogd);
+}
+
+
+static int
+virSecurityDACSetMemoryLabel(virSecurityManagerPtr mgr,
+                             virDomainDefPtr def,
+                             virDomainMemoryDefPtr mem)
+
+{
+    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
+    virSecurityLabelDefPtr seclabel;
+    int ret = -1;
+    uid_t user;
+    gid_t group;
+
+    switch ((virDomainMemoryModel) mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
+        if (seclabel && !seclabel->relabel)
+            return 0;
+
+        if (virSecurityDACGetIds(seclabel, priv, &user, &group, NULL, NULL) < 0)
+            return -1;
+
+        ret = virSecurityDACSetOwnership(priv, NULL, mem->nvdimmPath, user, group);
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        ret = 0;
+        break;
+    }
+
+    return ret;
 }
 
 
 static int
 virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
                           virDomainDefPtr def,
-                          const char *stdin_path ATTRIBUTE_UNUSED)
+                          const char *stdin_path ATTRIBUTE_UNUSED,
+                          bool chardevStdioLogd)
 {
     virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityLabelDefPtr secdef;
@@ -1182,10 +1614,22 @@ virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
             return -1;
     }
 
+    for (i = 0; i < def->nmems; i++) {
+        if (virSecurityDACSetMemoryLabel(mgr,
+                                         def,
+                                         def->mems[i]) < 0)
+            return -1;
+    }
+
+    struct _virSecuritySELinuxChardevCallbackData chardevData = {
+        .mgr = mgr,
+        .chardevStdioLogd = chardevStdioLogd,
+    };
+
     if (virDomainChrDefForeach(def,
                                true,
                                virSecurityDACSetChardevCallback,
-                               mgr) < 0)
+                               &chardevData) < 0)
         return -1;
 
     if (def->tpm) {
@@ -1576,6 +2020,10 @@ virSecurityDriver virSecurityDriverDAC = {
 
     .preFork                            = virSecurityDACPreFork,
 
+    .transactionStart                   = virSecurityDACTransactionStart,
+    .transactionCommit                  = virSecurityDACTransactionCommit,
+    .transactionAbort                   = virSecurityDACTransactionAbort,
+
     .domainSecurityVerify               = virSecurityDACVerify,
 
     .domainSetSecurityDiskLabel         = virSecurityDACSetDiskLabel,
@@ -1583,6 +2031,9 @@ virSecurityDriver virSecurityDriverDAC = {
 
     .domainSetSecurityImageLabel        = virSecurityDACSetImageLabel,
     .domainRestoreSecurityImageLabel    = virSecurityDACRestoreImageLabel,
+
+    .domainSetSecurityMemoryLabel       = virSecurityDACSetMemoryLabel,
+    .domainRestoreSecurityMemoryLabel   = virSecurityDACRestoreMemoryLabel,
 
     .domainSetSecurityDaemonSocketLabel = virSecurityDACSetDaemonSocketLabel,
     .domainSetSecuritySocketLabel       = virSecurityDACSetSocketLabel,

@@ -47,10 +47,10 @@
 #include "viruuid.h"
 #include "virbuffer.h"
 #include "viralloc.h"
-#include "nodeinfo.h"
 #include "virfile.h"
 #include "vircommand.h"
 #include "virstring.h"
+#include "virhostcpu.h"
 
 #define VIR_FROM_THIS VIR_FROM_OPENVZ
 
@@ -151,7 +151,7 @@ openvzParseBarrierLimit(const char* value,
 
     ret = 0;
  error:
-    virStringFreeListCount(tmp, ntmp);
+    virStringListFreeCount(tmp, ntmp);
     return ret;
 }
 
@@ -165,7 +165,10 @@ virCapsPtr openvzCapsInit(void)
                                    false, false)) == NULL)
         goto no_memory;
 
-    if (nodeCapsInitNUMA(caps) < 0)
+    if (virCapabilitiesInitNUMA(caps) < 0)
+        goto no_memory;
+
+    if (virCapabilitiesInitCaches(caps) < 0)
         goto no_memory;
 
     if ((guest = virCapabilitiesAddGuest(caps,
@@ -570,7 +573,7 @@ int openvzLoadDomains(struct openvz_driver *driver)
         }
 
         if (ret == 0 || vcpus == 0)
-            vcpus = openvzGetNodeCPUs();
+            vcpus = virHostCPUGetCount();
 
         if (virDomainDefSetVcpusMax(def, vcpus, driver->xmlopt) < 0)
             goto cleanup;
@@ -626,17 +629,6 @@ int openvzLoadDomains(struct openvz_driver *driver)
     virObjectUnref(dom);
     virDomainDefFree(def);
     return -1;
-}
-
-unsigned int
-openvzGetNodeCPUs(void)
-{
-    virNodeInfo nodeinfo;
-
-    if (nodeGetInfo(&nodeinfo) < 0)
-        return 0;
-
-    return nodeinfo.cpus;
 }
 
 static int
@@ -762,7 +754,7 @@ openvzReadConfigParam(const char *conf_file, const char *param, char **value)
 /*
  * Read parameter from container config
  *
- * value will be freed before a new value is assined to it, the caller is
+ * value will be freed before a new value is assigned to it, the caller is
  * responsible for freeing it afterwards.
  *
  * sample: 133, "OSTEMPLATE", &value

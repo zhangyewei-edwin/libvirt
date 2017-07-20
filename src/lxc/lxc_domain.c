@@ -328,8 +328,8 @@ virLXCDomainObjPrivateXMLFormat(virBufferPtr buf,
 {
     virLXCDomainObjPrivatePtr priv = vm->privateData;
 
-    virBufferAsprintf(buf, "<init pid='%llu'/>\n",
-                      (unsigned long long)priv->initpid);
+    virBufferAsprintf(buf, "<init pid='%lld'/>\n",
+                      (long long) priv->initpid);
 
     return 0;
 }
@@ -340,9 +340,9 @@ virLXCDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
                                virDomainDefParserConfigPtr config ATTRIBUTE_UNUSED)
 {
     virLXCDomainObjPrivatePtr priv = vm->privateData;
-    unsigned long long thepid;
+    long long thepid;
 
-    if (virXPathULongLong("string(./init[1]/@pid)", ctxt, &thepid) < 0) {
+    if (virXPathLongLong("string(./init[1]/@pid)", ctxt, &thepid) < 0) {
         VIR_WARN("Failed to load init pid from state %s",
                  virGetLastErrorMessage());
         priv->initpid = 0;
@@ -364,7 +364,8 @@ static int
 virLXCDomainDefPostParse(virDomainDefPtr def,
                          virCapsPtr caps,
                          unsigned int parseFlags ATTRIBUTE_UNUSED,
-                         void *opaque ATTRIBUTE_UNUSED)
+                         void *opaque ATTRIBUTE_UNUSED,
+                         void *parseOpaque ATTRIBUTE_UNUSED)
 {
     /* check for emulator and create a default one if needed */
     if (!def->emulator &&
@@ -380,7 +381,8 @@ virLXCDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
                                const virDomainDef *def ATTRIBUTE_UNUSED,
                                virCapsPtr caps ATTRIBUTE_UNUSED,
                                unsigned int parseFlags ATTRIBUTE_UNUSED,
-                               void *opaque ATTRIBUTE_UNUSED)
+                               void *opaque ATTRIBUTE_UNUSED,
+                               void *parseOpaque ATTRIBUTE_UNUSED)
 {
     if (dev->type == VIR_DOMAIN_DEVICE_CHR &&
         dev->data.chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&

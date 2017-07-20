@@ -28,6 +28,9 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if HAVE_SYS_MOUNT_H
+# include <sys/mount.h>
+#endif
 #if HAVE_SETRLIMIT
 # include <sys/time.h>
 # include <sys/resource.h>
@@ -608,8 +611,7 @@ int virProcessGetPids(pid_t pid, size_t *npids, pid_t **pids)
     *npids = 0;
     *pids = NULL;
 
-    if (virAsprintf(&taskPath, "/proc/%llu/task",
-                    (unsigned long long)pid) < 0)
+    if (virAsprintf(&taskPath, "/proc/%llu/task", (long long) pid) < 0)
         goto cleanup;
 
     if (virDirOpen(&dir, taskPath) < 0)
@@ -657,7 +659,7 @@ int virProcessGetNamespaces(pid_t pid,
         int fd;
 
         if (virAsprintf(&nsfile, "/proc/%llu/ns/%s",
-                        (unsigned long long)pid,
+                        (long long) pid,
                         ns[i]) < 0)
             goto cleanup;
 
@@ -745,7 +747,15 @@ virProcessSetMaxMemLock(pid_t pid, unsigned long long bytes)
     if (bytes == 0)
         return 0;
 
-    rlim.rlim_cur = rlim.rlim_max = bytes;
+    /* We use VIR_DOMAIN_MEMORY_PARAM_UNLIMITED internally to represent
+     * unlimited memory amounts, but setrlimit() and prlimit() use
+     * RLIM_INFINITY for the same purpose, so we need to translate between
+     * the two conventions */
+    if (virMemoryLimitIsSet(bytes))
+        rlim.rlim_cur = rlim.rlim_max = bytes;
+    else
+        rlim.rlim_cur = rlim.rlim_max = RLIM_INFINITY;
+
     if (pid == 0) {
         if (setrlimit(RLIMIT_MEMLOCK, &rlim) < 0) {
             virReportSystemError(errno,
@@ -808,8 +818,14 @@ virProcessGetMaxMemLock(pid_t pid,
     }
 
     /* virProcessSetMaxMemLock() sets both rlim_cur and rlim_max to the
-     * same value, so we can retrieve just rlim_max here */
-    *bytes = rlim.rlim_max;
+     * same value, so we can retrieve just rlim_max here. We use
+     * VIR_DOMAIN_MEMORY_PARAM_UNLIMITED internally to represent unlimited
+     * memory amounts, but setrlimit() and prlimit() use RLIM_INFINITY for the
+     * same purpose, so we need to translate between the two conventions */
+    if (rlim.rlim_max == RLIM_INFINITY)
+        *bytes = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
+    else
+        *bytes = rlim.rlim_max;
 
     return 0;
 }
@@ -968,8 +984,7 @@ int virProcessGetStartTime(pid_t pid,
     int len;
     char **tokens = NULL;
 
-    if (virAsprintf(&filename, "/proc/%llu/stat",
-                    (unsigned long long)pid) < 0)
+    if (virAsprintf(&filename, "/proc/%llu/stat", (long long) pid) < 0)
         return -1;
 
     if ((len = virFileReadAll(filename, 1024, &buf)) < 0)
@@ -1016,7 +1031,7 @@ int virProcessGetStartTime(pid_t pid,
     ret = 0;
 
  cleanup:
-    virStringFreeList(tokens);
+    virStringListFree(tokens);
     VIR_FREE(filename);
     VIR_FREE(buf);
     return ret;
@@ -1051,8 +1066,8 @@ int virProcessGetStartTime(pid_t pid,
 {
     static int warned;
     if (virAtomicIntInc(&warned) == 1) {
-        VIR_WARN("Process start time of pid %llu not available on this platform",
-                 (unsigned long long)pid);
+        VIR_WARN("Process start time of pid %lld not available on this platform",
+                 (long long) pid);
     }
     *timestamp = 0;
     return 0;
@@ -1069,7 +1084,7 @@ static int virProcessNamespaceHelper(int errfd,
     int fd = -1;
     int ret = -1;
 
-    if (virAsprintf(&path, "/proc/%llu/ns/mnt", (unsigned long long)pid) < 0)
+    if (virAsprintf(&path, "/proc/%lld/ns/mnt", (long long) pid) < 0)
         goto cleanup;
 
     if ((fd = open(path, O_RDONLY)) < 0) {
@@ -1136,8 +1151,14 @@ virProcessRunInMountNamespace(pid_t pid,
         VIR_FORCE_CLOSE(errfd[1]);
         ignore_value(virFileReadHeaderFD(errfd[0], 1024, &buf));
         ret = virProcessWait(child, &status, false);
-        if (!ret)
+        if (!ret) {
             ret = status == EXIT_CANCELED ? -1 : status;
+            if (ret) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("child reported: %s"),
+                               NULLSTR(buf));
+            }
+        }
         VIR_FREE(buf);
     }
 
@@ -1147,6 +1168,113 @@ virProcessRunInMountNamespace(pid_t pid,
     return ret;
 }
 
+
+#if defined(HAVE_SYS_MOUNT_H) && defined(HAVE_UNSHARE)
+int
+virProcessSetupPrivateMountNS(void)
+{
+    int ret = -1;
+
+    if (unshare(CLONE_NEWNS) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Cannot unshare mount namespace"));
+        goto cleanup;
+    }
+
+    if (mount("", "/", NULL, MS_SLAVE|MS_REC, NULL) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Failed to switch root mount into slave mode"));
+        goto cleanup;
+    }
+
+    ret = 0;
+ cleanup:
+    return ret;
+}
+
+#else /* !defined(HAVE_SYS_MOUNT_H) || !defined(HAVE_UNSHARE) */
+
+int
+virProcessSetupPrivateMountNS(void)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Namespaces are not supported on this platform."));
+    return -1;
+}
+#endif /* !defined(HAVE_SYS_MOUNT_H) || !defined(HAVE_UNSHARE) */
+
+#if defined(__linux__)
+ATTRIBUTE_NORETURN static int
+virProcessDummyChild(void *argv ATTRIBUTE_UNUSED)
+{
+    _exit(0);
+}
+
+/**
+ * virProcessNamespaceAvailable:
+ * @ns: what namespaces to check (bitwise-OR of virProcessNamespaceFlags)
+ *
+ * Check if given list of namespaces (@ns) is available.
+ * If not, appropriate error message is produced.
+ *
+ * Returns: 0 on success (all the namespaces from @flags are available),
+ *         -1 on error (with error message reported).
+ */
+int
+virProcessNamespaceAvailable(unsigned int ns)
+{
+    int flags = 0;
+    int cpid;
+    char *childStack;
+    char *stack;
+    int stacksize = getpagesize() * 4;
+
+    if (ns & VIR_PROCESS_NAMESPACE_MNT)
+        flags |= CLONE_NEWNS;
+    if (ns & VIR_PROCESS_NAMESPACE_IPC)
+        flags |= CLONE_NEWIPC;
+    if (ns & VIR_PROCESS_NAMESPACE_NET)
+        flags |= CLONE_NEWNET;
+    if (ns & VIR_PROCESS_NAMESPACE_PID)
+        flags |= CLONE_NEWPID;
+    if (ns & VIR_PROCESS_NAMESPACE_USER)
+        flags |= CLONE_NEWUSER;
+    if (ns & VIR_PROCESS_NAMESPACE_UTS)
+        flags |= CLONE_NEWUTS;
+
+    /* Signal parent as soon as the child dies. RIP. */
+    flags |= SIGCHLD;
+
+    if (VIR_ALLOC_N(stack, stacksize) < 0)
+        return -1;
+
+    childStack = stack + stacksize;
+
+    cpid = clone(virProcessDummyChild, childStack, flags, NULL);
+    VIR_FREE(stack);
+    if (cpid < 0) {
+        char ebuf[1024] ATTRIBUTE_UNUSED;
+        VIR_DEBUG("clone call returned %s, container support is not enabled",
+                  virStrerror(errno, ebuf, sizeof(ebuf)));
+        return -1;
+    } else if (virProcessWait(cpid, NULL, false) < 0) {
+        return -1;
+    }
+
+    VIR_DEBUG("All namespaces (%x) are enabled", ns);
+    return 0;
+}
+
+#else /* !defined(__linux__) */
+
+int
+virProcessNamespaceAvailable(unsigned int ns ATTRIBUTE_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Namespaces are not supported on this platform."));
+    return -1;
+}
+#endif /* !defined(__linux__) */
 
 /**
  * virProcessExitWithStatus:
@@ -1185,7 +1313,7 @@ virProcessExitWithStatus(int status)
     exit(value);
 }
 
-#if HAVE_SCHED_SETSCHEDULER && defined(SCHED_BATCH) && defined(SCHED_IDLE)
+#if HAVE_SCHED_SETSCHEDULER
 
 static int
 virProcessSchedTranslatePolicy(virProcessSchedPolicy policy)
@@ -1195,10 +1323,18 @@ virProcessSchedTranslatePolicy(virProcessSchedPolicy policy)
         return SCHED_OTHER;
 
     case VIR_PROC_POLICY_BATCH:
+# ifdef SCHED_BATCH
         return SCHED_BATCH;
+# else
+        return -1;
+# endif
 
     case VIR_PROC_POLICY_IDLE:
+# ifdef SCHED_IDLE
         return SCHED_IDLE;
+# else
+        return -1;
+# endif
 
     case VIR_PROC_POLICY_FIFO:
         return SCHED_FIFO;
@@ -1222,10 +1358,18 @@ virProcessSetScheduler(pid_t pid,
     struct sched_param param = {0};
     int pol = virProcessSchedTranslatePolicy(policy);
 
-    VIR_DEBUG("pid=%d, policy=%d, priority=%u", pid, policy, priority);
+    VIR_DEBUG("pid=%lld, policy=%d, priority=%u",
+              (long long) pid, policy, priority);
 
     if (!policy)
         return 0;
+
+    if (pol < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Scheduler '%s' is not supported on this platform"),
+                       virProcessSchedPolicyTypeToString(policy));
+        return -1;
+    }
 
     if (pol == SCHED_FIFO || pol == SCHED_RR) {
         int min = 0;
@@ -1257,8 +1401,8 @@ virProcessSetScheduler(pid_t pid,
 
     if (sched_setscheduler(pid, pol, &param) < 0) {
         virReportSystemError(errno,
-                             _("Cannot set scheduler parameters for pid %d"),
-                             pid);
+                             _("Cannot set scheduler parameters for pid %lld"),
+                             (long long) pid);
         return -1;
     }
 

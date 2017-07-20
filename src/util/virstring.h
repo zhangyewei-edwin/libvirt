@@ -37,15 +37,23 @@ char **virStringSplit(const char *string,
                       size_t max_tokens)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-char *virStringJoin(const char **strings,
-                    const char *delim)
+char *virStringListJoin(const char **strings,
+                        const char *delim)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-void virStringFreeList(char **strings);
-void virStringFreeListCount(char **strings, size_t count);
+char **virStringListAdd(const char **strings,
+                        const char *item);
+void virStringListRemove(char ***strings,
+                         const char *item);
 
-bool virStringArrayHasString(const char **strings, const char *needle);
-char *virStringGetFirstWithPrefix(char **strings, const char *prefix)
+void virStringListFree(char **strings);
+void virStringListFreeCount(char **strings,
+                            size_t count);
+
+bool virStringListHasString(const char **strings,
+                            const char *needle);
+char *virStringListGetFirstWithPrefix(char **strings,
+                                      const char *prefix)
     ATTRIBUTE_NONNULL(2);
 
 char *virArgvToString(const char *const *argv);
@@ -100,6 +108,9 @@ int virStrToDouble(char const *s,
                    char **end_ptr,
                    double *result)
     ATTRIBUTE_RETURN_CHECK;
+
+int virDoubleToStr(char **strp, double number)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_RETURN_CHECK;
 
 void virSkipSpaces(const char **str) ATTRIBUTE_NONNULL(1);
 void virSkipSpacesAndBackslash(const char **str) ATTRIBUTE_NONNULL(1);
@@ -266,6 +277,9 @@ ssize_t virStringSearch(const char *str,
                         char ***matches)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(4);
 
+bool virStringMatch(const char *str,
+                    const char *regexp);
+
 char *virStringReplace(const char *haystack,
                        const char *oldneedle,
                        const char *newneedle)
@@ -279,5 +293,7 @@ bool virStringIsPrintable(const char *str);
 bool virStringBufferIsPrintable(const uint8_t *buf, size_t buflen);
 
 char *virStringEncodeBase64(const uint8_t *buf, size_t buflen);
+
+void virStringTrimOptionalNewline(char *str);
 
 #endif /* __VIR_STRING_H__ */

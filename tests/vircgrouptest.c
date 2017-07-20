@@ -885,6 +885,7 @@ mymain(void)
     DETECT_MOUNTS("cgroups3");
     DETECT_MOUNTS("all-in-one");
     DETECT_MOUNTS("no-cgroups");
+    DETECT_MOUNTS("kubevirt");
 
     if (virTestRun("New cgroup for self", testCgroupNewForSelf, NULL) < 0)
         ret = -1;
@@ -944,7 +945,7 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIRT_TEST_MAIN_PRELOAD(mymain, abs_builddir "/.libs/vircgroupmock.so")
+VIR_TEST_MAIN_PRELOAD(mymain, abs_builddir "/.libs/vircgroupmock.so")
 
 #else
 int

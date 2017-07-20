@@ -328,7 +328,7 @@ typedef nsISupports IAudioAdapter;
 typedef nsISupports INetworkAdapter;
 typedef nsISupports ISerialPort;
 typedef nsISupports IParallelPort;
-typedef nsISupports IVRDxServer;
+typedef nsISupports IVRDEServer;
 typedef nsISupports IUSBCommon;
 typedef nsISupports IUSBDeviceFilter;
 typedef nsISupports IMedium;
@@ -340,7 +340,6 @@ typedef nsISupports IDisplay;
 typedef nsISupports IHost;
 typedef nsISupports IHostNetworkInterface;
 typedef nsISupports IDHCPServer;
-typedef IMedium IHardDisk;
 typedef nsISupports IKeyboard;
 
 /* Macros for all vbox drivers. */
@@ -397,7 +396,7 @@ typedef nsISupports IKeyboard;
 # define vboxIIDToUUID(iid, uuid)                gVBoxAPI.UIID.vboxIIDToUUID(data, iid, uuid)
 # define vboxIIDFromUUID(iid, uuid)              gVBoxAPI.UIID.vboxIIDFromUUID(data, iid, uuid)
 # define vboxIIDIsEqual(iid1, iid2)              gVBoxAPI.UIID.vboxIIDIsEqual(data, iid1, iid2)
-# define DEBUGIID(msg, iid)                      gVBoxAPI.UIID.DEBUGIID(msg, iid)
+# define DEBUGIID(msg, iid)                      gVBoxAPI.UIID.DEBUGIID(data, msg, iid)
 # define vboxIIDFromArrayItem(iid, array, idx) \
     gVBoxAPI.UIID.vboxIIDFromArrayItem(data, iid, array, idx)
 
@@ -410,15 +409,7 @@ typedef nsISupports IKeyboard;
 # define installUniformedAPI(gVBoxAPI, result)                          \
     do {                                                                \
         result = 0;                                                     \
-        if (uVersion >= 2001052 && uVersion < 2002051) {                \
-            vbox22InstallUniformedAPI(&gVBoxAPI);                       \
-        } else if (uVersion >= 2002051 && uVersion < 3000051) {         \
-            vbox30InstallUniformedAPI(&gVBoxAPI);                       \
-        } else if (uVersion >= 3000051 && uVersion < 3001051) {         \
-            vbox31InstallUniformedAPI(&gVBoxAPI);                       \
-        } else if (uVersion >= 3001051 && uVersion < 3002051) {         \
-            vbox32InstallUniformedAPI(&gVBoxAPI);                       \
-        } else if (uVersion >= 3002051 && uVersion < 4000051) {         \
+        if (uVersion >= 3002051 && uVersion < 4000051) {         \
             vbox40InstallUniformedAPI(&gVBoxAPI);                       \
         } else if (uVersion >= 4000051 && uVersion < 4001051) {         \
             vbox41InstallUniformedAPI(&gVBoxAPI);                       \
@@ -432,9 +423,11 @@ typedef nsISupports IKeyboard;
             vbox43_4InstallUniformedAPI(&gVBoxAPI);                     \
         } else if (uVersion >= 4003051 && uVersion < 5000051) {         \
             vbox50InstallUniformedAPI(&gVBoxAPI);                       \
+        } else if (uVersion >= 5000051 && uVersion < 5001051) {         \
+            vbox51InstallUniformedAPI(&gVBoxAPI);                       \
         } else {                                                        \
             result = -1;                                                \
         }                                                               \
-    } while(0)
+    } while (0)
 
 #endif /* VBOX_COMMON_H */

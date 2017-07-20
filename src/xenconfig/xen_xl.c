@@ -34,6 +34,7 @@
 #include "virstoragefile.h"
 #include "xen_xl.h"
 #include "libxl_capabilities.h"
+#include "cpu/cpu.h"
 
 #define VIR_FROM_THIS VIR_FROM_XENXL
 
@@ -106,6 +107,7 @@ xenParseXLOS(virConfPtr conf, virDomainDefPtr def, virCapsPtr caps)
     if (def->os.type == VIR_DOMAIN_OSTYPE_HVM) {
         const char *bios;
         const char *boot;
+        int val = 0;
 
         if (xenConfigGetString(conf, "bios", &bios, NULL) < 0)
             return -1;
@@ -163,6 +165,52 @@ xenParseXLOS(virConfPtr conf, virDomainDefPtr def, virCapsPtr caps)
                 break;
             }
             def->os.nBootDevs++;
+        }
+
+        if (xenConfigGetBool(conf, "nestedhvm", &val, -1) < 0)
+            return -1;
+
+        if (val == 1) {
+            virCPUDefPtr cpu;
+
+            if (VIR_ALLOC(cpu) < 0)
+                return -1;
+
+            cpu->mode = VIR_CPU_MODE_HOST_PASSTHROUGH;
+            cpu->type = VIR_CPU_TYPE_GUEST;
+            def->cpu = cpu;
+        } else if (val == 0) {
+            const char *vtfeature = NULL;
+
+            if (caps && caps->host.cpu && ARCH_IS_X86(def->os.arch)) {
+                if (virCPUCheckFeature(caps->host.arch, caps->host.cpu, "vmx"))
+                    vtfeature = "vmx";
+                else if (virCPUCheckFeature(caps->host.arch, caps->host.cpu, "svm"))
+                    vtfeature = "svm";
+            }
+
+            if (vtfeature) {
+                virCPUDefPtr cpu;
+
+                if (VIR_ALLOC(cpu) < 0)
+                    return -1;
+
+                if (VIR_ALLOC(cpu->features) < 0) {
+                    VIR_FREE(cpu);
+                    return -1;
+                }
+
+                if (VIR_STRDUP(cpu->features->name, vtfeature) < 0) {
+                    VIR_FREE(cpu->features);
+                    VIR_FREE(cpu);
+                    return -1;
+                }
+                cpu->features->policy = VIR_CPU_FEATURE_DISABLE;
+                cpu->nfeatures = cpu->nfeatures_max = 1;
+                cpu->mode = VIR_CPU_MODE_HOST_PASSTHROUGH;
+                cpu->type = VIR_CPU_TYPE_GUEST;
+                def->cpu = cpu;
+            }
         }
     } else {
         if (xenConfigCopyStringOpt(conf, "bootloader", &def->os.bootloader) < 0)
@@ -267,6 +315,10 @@ xenParseXLDiskSrc(virDomainDiskDefPtr disk, char *srcstr)
 {
     char *tmpstr = NULL;
     int ret = -1;
+
+    /* A NULL source is valid, e.g. an empty CDROM */
+    if (srcstr == NULL)
+        return 0;
 
     if (STRPREFIX(srcstr, "rbd:")) {
         if (!(tmpstr = virStringReplace(srcstr, "\\\\", "\\")))
@@ -393,6 +445,18 @@ xenParseXLDisk(virConfPtr conf, virDomainDefPtr def)
 
                 case LIBXL_DISK_FORMAT_EMPTY:
                     break;
+
+#ifdef LIBXL_HAVE_QED
+                case LIBXL_DISK_FORMAT_QED:
+                    disk->src->format = VIR_STORAGE_FILE_QED;
+                    break;
+#endif
+
+                default:
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                   _("disk image format not supported: %s"),
+                                   libxl_disk_format_to_string(libxldisk->format));
+                    goto fail;
                 }
 
                 switch (libxldisk->backend) {
@@ -415,6 +479,11 @@ xenParseXLDisk(virConfPtr conf, virDomainDefPtr def)
                         goto fail;
                     virDomainDiskSetType(disk, VIR_STORAGE_TYPE_BLOCK);
                     break;
+                default:
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                   _("disk backend not supported: %s"),
+                                   libxl_disk_backend_to_string(libxldisk->backend));
+                    goto fail;
                 }
             }
 
@@ -685,6 +754,95 @@ xenParseXLUSB(virConfPtr conf, virDomainDefPtr def)
     return 0;
 }
 
+static int
+xenParseXLChannel(virConfPtr conf, virDomainDefPtr def)
+{
+    virConfValuePtr list = virConfGetValue(conf, "channel");
+    virDomainChrDefPtr channel = NULL;
+    char *name = NULL;
+    char *path = NULL;
+
+    if (list && list->type == VIR_CONF_LIST) {
+        list = list->list;
+        while (list) {
+            char type[10];
+            char *key;
+
+            if ((list->type != VIR_CONF_STRING) || (list->str == NULL))
+                goto skipchannel;
+
+            key = list->str;
+            while (key) {
+                char *data;
+                char *nextkey = strchr(key, ',');
+
+                if (!(data = strchr(key, '=')))
+                    goto skipchannel;
+                data++;
+
+                if (STRPREFIX(key, "connection=")) {
+                    int len = nextkey ? (nextkey - data) : sizeof(type) - 1;
+                    if (virStrncpy(type, data, len, sizeof(type)) == NULL) {
+                        virReportError(VIR_ERR_INTERNAL_ERROR,
+                                       _("connection %s too big"), data);
+                        goto skipchannel;
+                    }
+                } else if (STRPREFIX(key, "name=")) {
+                    int len = nextkey ? (nextkey - data) : strlen(data);
+                    VIR_FREE(name);
+                    if (VIR_STRNDUP(name, data, len) < 0)
+                        goto cleanup;
+                } else if (STRPREFIX(key, "path=")) {
+                    int len = nextkey ? (nextkey - data) : strlen(data);
+                    VIR_FREE(path);
+                    if (VIR_STRNDUP(path, data, len) < 0)
+                        goto cleanup;
+                }
+
+                while (nextkey && (nextkey[0] == ',' ||
+                                   nextkey[0] == ' ' ||
+                                   nextkey[0] == '\t'))
+                    nextkey++;
+                key = nextkey;
+            }
+
+            if (!(channel = virDomainChrDefNew(NULL)))
+                goto cleanup;
+
+            if (STRPREFIX(type, "socket")) {
+                channel->source->type = VIR_DOMAIN_CHR_TYPE_UNIX;
+                channel->source->data.nix.listen = 1;
+                channel->source->data.nix.path = path;
+                path = NULL;
+            } else if (STRPREFIX(type, "pty")) {
+                channel->source->type = VIR_DOMAIN_CHR_TYPE_PTY;
+                VIR_FREE(path);
+            } else {
+                goto cleanup;
+            }
+
+            channel->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_CHANNEL;
+            channel->targetType = VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_XEN;
+            channel->target.name = name;
+            name = NULL;
+
+            if (VIR_APPEND_ELEMENT(def->channels, def->nchannels, channel) < 0)
+                goto cleanup;
+
+        skipchannel:
+            list = list->next;
+        }
+    }
+
+    return 0;
+
+ cleanup:
+    virDomainChrDefFree(channel);
+    VIR_FREE(path);
+    VIR_FREE(name);
+    return -1;
+}
+
 virDomainDefPtr
 xenParseXL(virConfPtr conf,
            virCapsPtr caps,
@@ -720,8 +878,11 @@ xenParseXL(virConfPtr conf,
     if (xenParseXLUSBController(conf, def) < 0)
         goto cleanup;
 
+    if (xenParseXLChannel(conf, def) < 0)
+        goto cleanup;
+
     if (virDomainDefPostParse(def, caps, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
-                              xmlopt) < 0)
+                              xmlopt, NULL) < 0)
         goto cleanup;
 
     return def;
@@ -789,6 +950,34 @@ xenFormatXLOS(virConfPtr conf, virDomainDefPtr def)
 
         if (xenConfigSetString(conf, "boot", boot) < 0)
             return -1;
+
+        if (def->cpu &&
+            def->cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH) {
+            bool hasHwVirt = true;
+
+            if (def->cpu->nfeatures) {
+                for (i = 0; i < def->cpu->nfeatures; i++) {
+
+                    switch (def->cpu->features[i].policy) {
+                        case VIR_CPU_FEATURE_DISABLE:
+                        case VIR_CPU_FEATURE_FORBID:
+                            if (STREQ(def->cpu->features[i].name, "vmx") ||
+                                STREQ(def->cpu->features[i].name, "svm"))
+                                hasHwVirt = false;
+                            break;
+
+                        case VIR_CPU_FEATURE_FORCE:
+                        case VIR_CPU_FEATURE_REQUIRE:
+                        case VIR_CPU_FEATURE_OPTIONAL:
+                        case VIR_CPU_FEATURE_LAST:
+                            break;
+                    }
+                }
+            }
+
+            if (xenConfigSetInt(conf, "nestedhvm", hasHwVirt) < 0)
+                return -1;
+        }
 
         /* XXX floppy disks */
     } else {
@@ -927,38 +1116,42 @@ xenFormatXLDisk(virConfValuePtr list, virDomainDiskDefPtr disk)
     int format = virDomainDiskGetFormat(disk);
     const char *driver = virDomainDiskGetDriver(disk);
     char *target = NULL;
+    int ret = -1;
 
     /* format */
     virBufferAddLit(&buf, "format=");
     switch (format) {
         case VIR_STORAGE_FILE_RAW:
-            virBufferAddLit(&buf, "raw,");
+            virBufferAddLit(&buf, "raw");
             break;
         case VIR_STORAGE_FILE_VHD:
-            virBufferAddLit(&buf, "xvhd,");
+            virBufferAddLit(&buf, "xvhd");
             break;
         case VIR_STORAGE_FILE_QCOW:
-            virBufferAddLit(&buf, "qcow,");
+            virBufferAddLit(&buf, "qcow");
             break;
         case VIR_STORAGE_FILE_QCOW2:
-            virBufferAddLit(&buf, "qcow2,");
+            virBufferAddLit(&buf, "qcow2");
+            break;
+        case VIR_STORAGE_FILE_QED:
+            virBufferAddLit(&buf, "qed");
             break;
       /* set default */
         default:
-            virBufferAddLit(&buf, "raw,");
+            virBufferAddLit(&buf, "raw");
     }
 
     /* device */
-    virBufferAsprintf(&buf, "vdev=%s,", disk->dst);
+    virBufferAsprintf(&buf, ",vdev=%s", disk->dst);
 
     /* access */
-    virBufferAddLit(&buf, "access=");
+    virBufferAddLit(&buf, ",access=");
     if (disk->src->readonly)
-        virBufferAddLit(&buf, "ro,");
+        virBufferAddLit(&buf, "ro");
     else if (disk->src->shared)
-        virBufferAddLit(&buf, "!,");
+        virBufferAddLit(&buf, "!");
     else
-        virBufferAddLit(&buf, "rw,");
+        virBufferAddLit(&buf, "rw");
     if (disk->transient) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("transient disks not supported yet"));
@@ -967,18 +1160,18 @@ xenFormatXLDisk(virConfValuePtr list, virDomainDiskDefPtr disk)
 
     /* backendtype */
     if (driver) {
-        virBufferAddLit(&buf, "backendtype=");
+        virBufferAddLit(&buf, ",backendtype=");
         if (STREQ(driver, "qemu") || STREQ(driver, "file"))
-            virBufferAddLit(&buf, "qdisk,");
+            virBufferAddLit(&buf, "qdisk");
         else if (STREQ(driver, "tap"))
-            virBufferAddLit(&buf, "tap,");
+            virBufferAddLit(&buf, "tap");
         else if (STREQ(driver, "phy"))
-            virBufferAddLit(&buf, "phy,");
+            virBufferAddLit(&buf, "phy");
     }
 
     /* devtype */
     if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM)
-        virBufferAddLit(&buf, "devtype=cdrom,");
+        virBufferAddLit(&buf, ",devtype=cdrom");
 
     /*
      * target
@@ -991,7 +1184,8 @@ xenFormatXLDisk(virConfValuePtr list, virDomainDiskDefPtr disk)
     if (xenFormatXLDiskSrc(disk->src, &target) < 0)
         goto cleanup;
 
-    virBufferAsprintf(&buf, "target=%s", target);
+    if (target)
+        virBufferAsprintf(&buf, ",target=%s", target);
 
     if (virBufferCheckError(&buf) < 0)
         goto cleanup;
@@ -1008,19 +1202,18 @@ xenFormatXLDisk(virConfValuePtr list, virDomainDiskDefPtr disk)
         tmp->next = val;
     else
         list->list = val;
-    return 0;
+    ret = 0;
 
  cleanup:
     VIR_FREE(target);
     virBufferFreeAndReset(&buf);
-    return -1;
+    return ret;
 }
 
 
 static int
 xenFormatXLDomainDisks(virConfPtr conf, virDomainDefPtr def)
 {
-    int ret = -1;
     virConfValuePtr diskVal;
     size_t i;
 
@@ -1038,15 +1231,19 @@ xenFormatXLDomainDisks(virConfPtr conf, virDomainDefPtr def)
             goto cleanup;
     }
 
-    if (diskVal->list != NULL)
-        if (virConfSetValue(conf, "disk", diskVal) == 0)
-            diskVal = NULL;
+    if (diskVal->list != NULL) {
+        int ret = virConfSetValue(conf, "disk", diskVal);
+        diskVal = NULL;
+        if (ret < 0)
+            return -1;
+    }
+    VIR_FREE(diskVal);
 
-    ret = 0;
+    return 0;
 
  cleanup:
     virConfFreeValue(diskVal);
-    return ret;
+    return -1;
 }
 
 
@@ -1056,7 +1253,7 @@ xenFormatXLSpice(virConfPtr conf, virDomainDefPtr def)
     virDomainGraphicsListenDefPtr glisten;
     virDomainGraphicsDefPtr graphics;
 
-    if (def->os.type == VIR_DOMAIN_OSTYPE_HVM) {
+    if (def->os.type == VIR_DOMAIN_OSTYPE_HVM && def->graphics) {
         graphics = def->graphics[0];
 
         if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
@@ -1347,6 +1544,89 @@ xenFormatXLUSB(virConfPtr conf,
     return -1;
 }
 
+static int
+xenFormatXLChannel(virConfValuePtr list, virDomainChrDefPtr channel)
+{
+    virBuffer buf = VIR_BUFFER_INITIALIZER;
+    int sourceType = channel->source->type;
+    virConfValuePtr val, tmp;
+
+    /* connection */
+    virBufferAddLit(&buf, "connection=");
+    switch (sourceType) {
+        case VIR_DOMAIN_CHR_TYPE_PTY:
+            virBufferAddLit(&buf, "pty,");
+            break;
+        case VIR_DOMAIN_CHR_TYPE_UNIX:
+            virBufferAddLit(&buf, "socket,");
+            /* path */
+            if (channel->source->data.nix.path)
+                virBufferAsprintf(&buf, "path=%s,",
+                                  channel->source->data.nix.path);
+            break;
+        default:
+            goto cleanup;
+    }
+
+    /* name */
+    virBufferAsprintf(&buf, "name=%s", channel->target.name);
+
+    if (VIR_ALLOC(val) < 0)
+        goto cleanup;
+
+    val->type = VIR_CONF_STRING;
+    val->str = virBufferContentAndReset(&buf);
+    tmp = list->list;
+    while (tmp && tmp->next)
+        tmp = tmp->next;
+    if (tmp)
+        tmp->next = val;
+    else
+        list->list = val;
+    return 0;
+
+ cleanup:
+    virBufferFreeAndReset(&buf);
+    return -1;
+}
+
+static int
+xenFormatXLDomainChannels(virConfPtr conf, virDomainDefPtr def)
+{
+    virConfValuePtr channelVal = NULL;
+    size_t i;
+
+    if (VIR_ALLOC(channelVal) < 0)
+        goto cleanup;
+
+    channelVal->type = VIR_CONF_LIST;
+    channelVal->list = NULL;
+
+    for (i = 0; i < def->nchannels; i++) {
+        virDomainChrDefPtr chr = def->channels[i];
+
+        if (chr->targetType != VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_XEN)
+            continue;
+
+        if (xenFormatXLChannel(channelVal, def->channels[i]) < 0)
+            goto cleanup;
+    }
+
+    if (channelVal->list != NULL) {
+        int ret = virConfSetValue(conf, "channel", channelVal);
+        channelVal = NULL;
+        if (ret < 0)
+            goto cleanup;
+    }
+
+    VIR_FREE(channelVal);
+    return 0;
+
+ cleanup:
+    virConfFreeValue(channelVal);
+    return -1;
+}
+
 virConfPtr
 xenFormatXL(virDomainDefPtr def, virConnectPtr conn)
 {
@@ -1374,6 +1654,9 @@ xenFormatXL(virDomainDefPtr def, virConnectPtr conn)
         goto cleanup;
 
     if (xenFormatXLUSBController(conf, def) < 0)
+        goto cleanup;
+
+    if (xenFormatXLDomainChannels(conf, def) < 0)
         goto cleanup;
 
     return conf;

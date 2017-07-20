@@ -42,7 +42,9 @@ int qemuMonitorTestAddHandler(qemuMonitorTestPtr test,
 int qemuMonitorTestAddResponse(qemuMonitorTestPtr test,
                                const char *response);
 
-int qemuMonitorTestAddUnexpectedErrorResponse(qemuMonitorTestPtr test);
+int qemuMonitorTestAddInvalidCommandResponse(qemuMonitorTestPtr test,
+                                             const char *expectedcommand,
+                                             const char *actualcommand);
 
 void *qemuMonitorTestItemGetPrivateData(qemuMonitorTestItemPtr item);
 
@@ -52,6 +54,11 @@ int qemuMonitorTestAddItem(qemuMonitorTestPtr test,
                            const char *command_name,
                            const char *response);
 
+int qemuMonitorTestAddItemVerbatim(qemuMonitorTestPtr test,
+                                   const char *command,
+                                   const char *cmderr,
+                                   const char *response);
+
 int qemuMonitorTestAddAgentSyncResponse(qemuMonitorTestPtr test);
 
 int qemuMonitorTestAddItemParams(qemuMonitorTestPtr test,
@@ -59,6 +66,12 @@ int qemuMonitorTestAddItemParams(qemuMonitorTestPtr test,
                                  const char *response,
                                  ...)
     ATTRIBUTE_SENTINEL;
+
+int qemuMonitorTestAddItemExpect(qemuMonitorTestPtr test,
+                                 const char *cmdname,
+                                 const char *cmdargs,
+                                 bool apostrophe,
+                                 const char *response);
 
 # define qemuMonitorTestNewSimple(json, xmlopt) \
     qemuMonitorTestNew(json, xmlopt, NULL, NULL, NULL)
@@ -72,6 +85,9 @@ qemuMonitorTestPtr qemuMonitorTestNew(bool json,
 qemuMonitorTestPtr qemuMonitorTestNewFromFile(const char *fileName,
                                               virDomainXMLOptionPtr xmlopt,
                                               bool simple);
+qemuMonitorTestPtr qemuMonitorTestNewFromFileFull(const char *fileName,
+                                                  virQEMUDriverPtr driver,
+                                                  virDomainObjPtr vm);
 
 qemuMonitorTestPtr qemuMonitorTestNewAgent(virDomainXMLOptionPtr xmlopt);
 

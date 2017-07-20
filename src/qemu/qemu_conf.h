@@ -90,6 +90,8 @@ struct _virQEMUDriverConfig {
     gid_t group;
     bool dynamicOwnership;
 
+    virBitmapPtr namespaces;
+
     int cgroupControllers;
     char **cgroupDeviceACL;
 
@@ -111,6 +113,7 @@ struct _virQEMUDriverConfig {
 
     char *defaultTLSx509certdir;
     bool defaultTLSx509verify;
+    char *defaultTLSx509secretUUID;
 
     bool vncAutoUnixSocket;
     bool vncTLS;
@@ -132,6 +135,11 @@ struct _virQEMUDriverConfig {
     bool chardevTLS;
     char *chardevTLSx509certdir;
     bool chardevTLSx509verify;
+    char *chardevTLSx509secretUUID;
+
+    char *migrateTLSx509certdir;
+    bool migrateTLSx509verify;
+    char *migrateTLSx509secretUUID;
 
     unsigned int remotePortMin;
     unsigned int remotePortMax;
@@ -190,6 +198,9 @@ struct _virQEMUDriverConfig {
 
     virFirmwarePtr *firmwares;
     size_t nfirmwares;
+    unsigned int glusterDebugLevel;
+
+    char *memoryBackingDir;
 };
 
 /* Main driver state */
@@ -287,7 +298,8 @@ void qemuDomainCmdlineDefFree(qemuDomainCmdlineDefPtr def);
 virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged);
 
 int virQEMUDriverConfigLoadFile(virQEMUDriverConfigPtr cfg,
-                                const char *filename);
+                                const char *filename,
+                                bool privileged);
 
 virQEMUDriverConfigPtr virQEMUDriverGetConfig(virQEMUDriverPtr driver);
 bool virQEMUDriverIsPrivileged(virQEMUDriverPtr driver);
@@ -332,11 +344,15 @@ virDomainXMLOptionPtr virQEMUDriverCreateXMLConf(virQEMUDriverPtr driver);
 int qemuTranslateSnapshotDiskSourcePool(virConnectPtr conn,
                                         virDomainSnapshotDiskDefPtr def);
 
-char * qemuGetHugepagePath(virHugeTLBFSPtr hugepage);
-char * qemuGetDefaultHugepath(virHugeTLBFSPtr hugetlbfs,
-                              size_t nhugetlbfs);
+char * qemuGetBaseHugepagePath(virHugeTLBFSPtr hugepage);
+char * qemuGetDomainHugepagePath(const virDomainDef *def,
+                                 virHugeTLBFSPtr hugepage);
+char * qemuGetDomainDefaultHugepath(const virDomainDef *def,
+                                    virHugeTLBFSPtr hugetlbfs,
+                                    size_t nhugetlbfs);
 
-int qemuGetHupageMemPath(virQEMUDriverConfigPtr cfg,
-                         unsigned long long pagesize,
-                         char **memPath);
+int qemuGetDomainHupageMemPath(const virDomainDef *def,
+                               virQEMUDriverConfigPtr cfg,
+                               unsigned long long pagesize,
+                               char **memPath);
 #endif /* __QEMUD_CONF_H */

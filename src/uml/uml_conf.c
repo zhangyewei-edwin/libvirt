@@ -39,7 +39,6 @@
 #include "virbuffer.h"
 #include "virconf.h"
 #include "viralloc.h"
-#include "nodeinfo.h"
 #include "virlog.h"
 #include "domain_nwfilter.h"
 #include "virfile.h"
@@ -65,10 +64,13 @@ virCapsPtr umlCapsInit(void)
      * unexpected failures. We don't want to break the QEMU
      * driver in this scenario, so log errors & carry on
      */
-    if (nodeCapsInitNUMA(caps) < 0) {
+    if (virCapabilitiesInitNUMA(caps) < 0) {
         virCapabilitiesFreeNUMAInfo(caps);
         VIR_WARN("Failed to query host NUMA topology, disabling NUMA capabilities");
     }
+
+    if (virCapabilitiesInitCaches(caps) < 0)
+        VIR_WARN("Failed to get host CPU cache info");
 
     if (virNodeSuspendGetTargetMask(&caps->host.powerMgmt) < 0)
         VIR_WARN("Failed to get host power management capabilities");
@@ -113,10 +115,10 @@ umlConnectTapDevice(virDomainDefPtr vm,
     int tapfd = -1;
 
     if (!net->ifname ||
-        STRPREFIX(net->ifname, VIR_NET_GENERATED_PREFIX) ||
+        STRPREFIX(net->ifname, VIR_NET_GENERATED_TAP_PREFIX) ||
         strchr(net->ifname, '%')) {
         VIR_FREE(net->ifname);
-        if (VIR_STRDUP(net->ifname, VIR_NET_GENERATED_PREFIX "%d") < 0)
+        if (VIR_STRDUP(net->ifname, VIR_NET_GENERATED_TAP_PREFIX "%d") < 0)
             goto error;
         /* avoid exposing vnet%d in getXMLDesc or error outputs */
         template_ifname = true;
@@ -126,6 +128,7 @@ umlConnectTapDevice(virDomainDefPtr vm,
                                        vm->uuid, net->backend.tap, &tapfd, 1,
                                        virDomainNetGetActualVirtPortProfile(net),
                                        virDomainNetGetActualVlan(net),
+                                       NULL, 0, NULL,
                                        VIR_NETDEV_TAP_CREATE_IFUP |
                                        VIR_NETDEV_TAP_CREATE_PERSIST) < 0) {
         if (template_ifname)
@@ -290,7 +293,7 @@ umlBuildCommandLineChr(virDomainChrDefPtr def,
 {
     char *ret = NULL;
 
-    switch (def->source.type) {
+    switch (def->source->type) {
     case VIR_DOMAIN_CHR_TYPE_NULL:
         if (virAsprintf(&ret, "%s%d=null", dev, def->target.port) < 0)
             return NULL;
@@ -303,7 +306,7 @@ umlBuildCommandLineChr(virDomainChrDefPtr def,
 
     case VIR_DOMAIN_CHR_TYPE_DEV:
         if (virAsprintf(&ret, "%s%d=tty:%s", dev, def->target.port,
-                        def->source.data.file.path) < 0)
+                        def->source->data.file.path) < 0)
             return NULL;
         break;
 
@@ -313,14 +316,14 @@ umlBuildCommandLineChr(virDomainChrDefPtr def,
         break;
 
     case VIR_DOMAIN_CHR_TYPE_TCP:
-        if (def->source.data.tcp.listen != 1) {
+        if (def->source->data.tcp.listen != 1) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("only TCP listen is supported for chr device"));
             return NULL;
         }
 
         if (virAsprintf(&ret, "%s%d=port:%s", dev, def->target.port,
-                        def->source.data.tcp.service) < 0)
+                        def->source->data.tcp.service) < 0)
             return NULL;
         break;
 
@@ -328,11 +331,11 @@ umlBuildCommandLineChr(virDomainChrDefPtr def,
          {
             int fd_out;
 
-            if ((fd_out = open(def->source.data.file.path,
+            if ((fd_out = open(def->source->data.file.path,
                                O_WRONLY | O_APPEND | O_CREAT, 0660)) < 0) {
                 virReportSystemError(errno,
                                      _("failed to open chardev file: %s"),
-                                     def->source.data.file.path);
+                                     def->source->data.file.path);
                 return NULL;
             }
             if (virAsprintf(&ret, "%s%d=null,fd:%d", dev, def->target.port, fd_out) < 0) {
@@ -352,7 +355,7 @@ umlBuildCommandLineChr(virDomainChrDefPtr def,
     case VIR_DOMAIN_CHR_TYPE_UNIX:
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unsupported chr device type %d"), def->source.type);
+                       _("unsupported chr device type %d"), def->source->type);
         break;
     }
 
@@ -399,7 +402,7 @@ virCommandPtr umlBuildCommandLine(virConnectPtr conn,
 
     virCommandAddEnvPassCommon(cmd);
 
-    //virCommandAddArgPair(cmd, "con0", "fd:0,fd:1");
+    /* virCommandAddArgPair(cmd, "con0", "fd:0,fd:1"); */
     virCommandAddArgFormat(cmd, "mem=%lluK", vm->def->mem.cur_balloon);
     virCommandAddArgPair(cmd, "umid", vm->def->name);
     virCommandAddArgPair(cmd, "uml_dir", driver->monitorDir);

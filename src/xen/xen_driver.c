@@ -59,12 +59,11 @@
 #include "node_device_conf.h"
 #include "virpci.h"
 #include "viruuid.h"
-#include "fdstream.h"
+#include "virfdstream.h"
 #include "virfile.h"
 #include "viruri.h"
 #include "vircommand.h"
 #include "virnodesuspend.h"
-#include "nodeinfo.h"
 #include "virhostmem.h"
 #include "configmake.h"
 #include "virstring.h"
@@ -325,7 +324,8 @@ xenDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
                             const virDomainDef *def,
                             virCapsPtr caps ATTRIBUTE_UNUSED,
                             unsigned int parseFlags ATTRIBUTE_UNUSED,
-                            void *opaque ATTRIBUTE_UNUSED)
+                            void *opaque ATTRIBUTE_UNUSED,
+                            void *parseOpaque ATTRIBUTE_UNUSED)
 {
     if (dev->type == VIR_DOMAIN_DEVICE_CHR &&
         dev->data.chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&
@@ -370,7 +370,8 @@ static int
 xenDomainDefPostParse(virDomainDefPtr def,
                       virCapsPtr caps ATTRIBUTE_UNUSED,
                       unsigned int parseFlags ATTRIBUTE_UNUSED,
-                      void *opaque ATTRIBUTE_UNUSED)
+                      void *opaque ATTRIBUTE_UNUSED,
+                      void *parseOpaque ATTRIBUTE_UNUSED)
 {
     if (!def->memballoon) {
         virDomainMemballoonDefPtr memballoon;
@@ -400,7 +401,7 @@ virDomainXMLOptionPtr
 xenDomainXMLConfInit(void)
 {
     return virDomainXMLOptionNew(&xenDomainDefParserConfig,
-                                 NULL, NULL);
+                                 NULL, NULL, NULL, NULL);
 }
 
 
@@ -569,7 +570,7 @@ xenUnifiedConnectClose(virConnectPtr conn)
 
     virObjectUnref(priv->caps);
     virObjectUnref(priv->xmlopt);
-    virObjectEventStateFree(priv->domainEvents);
+    virObjectUnref(priv->domainEvents);
 
 #if WITH_XEN_INOTIFY
     if (priv->opened[XEN_UNIFIED_INOTIFY_OFFSET])
@@ -764,7 +765,7 @@ xenUnifiedDomainCreateXML(virConnectPtr conn,
         parse_flags |= VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
 
     if (!(def = virDomainDefParseString(xml, priv->caps, priv->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
         goto cleanup;
 
     if (virDomainCreateXMLEnsureACL(conn, def) < 0)
@@ -773,9 +774,7 @@ xenUnifiedDomainCreateXML(virConnectPtr conn,
     if (xenDaemonCreateXML(conn, def) < 0)
         goto cleanup;
 
-    ret = virGetDomain(conn, def->name, def->uuid);
-    if (ret)
-        ret->id = def->id;
+    ret = virGetDomain(conn, def->name, def->uuid, def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -794,10 +793,7 @@ xenUnifiedDomainLookupByID(virConnectPtr conn, int id)
     if (virDomainLookupByIDEnsureACL(conn, def) < 0)
         goto cleanup;
 
-    if (!(ret = virGetDomain(conn, def->name, def->uuid)))
-        goto cleanup;
-
-    ret->id = def->id;
+    ret = virGetDomain(conn, def->name, def->uuid, def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -817,10 +813,7 @@ xenUnifiedDomainLookupByUUID(virConnectPtr conn,
     if (virDomainLookupByUUIDEnsureACL(conn, def) < 0)
         goto cleanup;
 
-    if (!(ret = virGetDomain(conn, def->name, def->uuid)))
-        goto cleanup;
-
-    ret->id = def->id;
+    ret = virGetDomain(conn, def->name, def->uuid, def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -840,10 +833,7 @@ xenUnifiedDomainLookupByName(virConnectPtr conn,
     if (virDomainLookupByNameEnsureACL(conn, def) < 0)
         goto cleanup;
 
-    if (!(ret = virGetDomain(conn, def->name, def->uuid)))
-        goto cleanup;
-
-    ret->id = def->id;
+    ret = virGetDomain(conn, def->name, def->uuid, def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -1616,6 +1606,7 @@ xenUnifiedConnectDomainXMLToNative(virConnectPtr conn,
     }
 
     if (!(def = virDomainDefParseString(xmlData, priv->caps, priv->xmlopt,
+                                        NULL,
                                         VIR_DOMAIN_DEF_PARSE_INACTIVE)))
         goto cleanup;
 
@@ -1718,9 +1709,7 @@ xenUnifiedDomainMigrateFinish(virConnectPtr dconn,
             goto cleanup;
     }
 
-    ret = virGetDomain(dconn, minidef->name, minidef->uuid);
-    if (ret)
-        ret->id = minidef->id;
+    ret = virGetDomain(dconn, minidef->name, minidef->uuid, minidef->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -1804,7 +1793,10 @@ xenUnifiedDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int
         parse_flags |= VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
 
     if (!(def = virDomainDefParseString(xml, priv->caps, priv->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
         goto cleanup;
 
     if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
@@ -1812,10 +1804,7 @@ xenUnifiedDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int
 
     if (xenDaemonDomainDefineXML(conn, def) < 0)
         goto cleanup;
-    ret = virGetDomain(conn, def->name, def->uuid);
-
-    if (ret)
-        ret->id = -1;
+    ret = virGetDomain(conn, def->name, def->uuid, -1);
 
  cleanup:
     virDomainDefFree(def);
@@ -2295,7 +2284,7 @@ xenUnifiedConnectDomainEventDeregisterAny(virConnectPtr conn,
 
     if (virObjectEventStateDeregisterID(conn,
                                         priv->domainEvents,
-                                        callbackID) < 0)
+                                        callbackID, true) < 0)
         ret = -1;
 
     xenUnifiedUnlock(priv);
@@ -2539,14 +2528,14 @@ xenUnifiedDomainOpenConsole(virDomainPtr dom,
         goto cleanup;
     }
 
-    if (chr->source.type != VIR_DOMAIN_CHR_TYPE_PTY) {
+    if (chr->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("character device %s is not using a PTY"),
                        dev_name ? dev_name : NULLSTR(chr->info.alias));
         goto cleanup;
     }
 
-    if (virFDStreamOpenFile(st, chr->source.data.file.path,
+    if (virFDStreamOpenFile(st, chr->source->data.file.path,
                             0, 0, O_RDWR) < 0)
         goto cleanup;
 
@@ -2591,7 +2580,7 @@ xenUnifiedNodeSuspendForDuration(virConnectPtr conn,
     if (virNodeSuspendForDurationEnsureACL(conn) < 0)
         return -1;
 
-    return nodeSuspendForDuration(target, duration, flags);
+    return virNodeSuspend(target, duration, flags);
 }
 
 

@@ -32,6 +32,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#if defined(HAVE_SYS_MOUNT_H)
+# include <sys/mount.h>
+#endif
 #include <unistd.h>
 #include <dirent.h>
 #include <dirname.h>
@@ -44,6 +47,9 @@
 #endif
 #if HAVE_SYS_SYSCALL_H
 # include <sys/syscall.h>
+#endif
+#if HAVE_SYS_ACL_H
+# include <sys/acl.h>
 #endif
 
 #ifdef __linux__
@@ -59,6 +65,7 @@
 #endif
 
 #include "configmake.h"
+#include "intprops.h"
 #include "viralloc.h"
 #include "vircommand.h"
 #include "virerror.h"
@@ -70,6 +77,7 @@
 #include "virutil.h"
 
 #include "c-ctype.h"
+#include "areadlink.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -325,7 +333,7 @@ virFileWrapperFdClose(virFileWrapperFdPtr wfd)
         return 0;
 
     ret = virCommandWait(wfd->cmd, NULL);
-    if (wfd->err_msg)
+    if (wfd->err_msg && *wfd->err_msg)
         VIR_WARN("iohelper reports: %s", wfd->err_msg);
 
     return ret;
@@ -443,7 +451,7 @@ int
 virFileRewrite(const char *path,
                mode_t mode,
                virFileRewriteFunc rewrite,
-               void *opaque)
+               const void *opaque)
 {
     char *newfile = NULL;
     int fd = -1;
@@ -491,6 +499,28 @@ virFileRewrite(const char *path,
         VIR_FREE(newfile);
     }
     return ret;
+}
+
+
+static int
+virFileRewriteStrHelper(int fd, const void *opaque)
+{
+    const char *data = opaque;
+
+    if (safewrite(fd, data, strlen(data)) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+int
+virFileRewriteStr(const char *path,
+                  mode_t mode,
+                  const char *str)
+{
+    return virFileRewrite(path, mode,
+                          virFileRewriteStrHelper, str);
 }
 
 
@@ -1586,6 +1616,17 @@ virFileIsLink(const char *linkpath)
     return S_ISLNK(st.st_mode) != 0;
 }
 
+/*
+ * Read where symlink is pointing to.
+ *
+ * Returns 0 on success (@linkpath is a successfully read link),
+ *        -1 with errno set upon error.
+ */
+int
+virFileReadLink(const char *linkpath, char **resultpath)
+{
+    return (*resultpath = areadlink(linkpath)) ? 0 : -1;
+}
 
 /*
  * Finds a requested executable file in the PATH env. e.g.:
@@ -1735,6 +1776,40 @@ virFileActivateDirOverride(const char *argv0)
     }
 }
 
+
+/**
+ * virFileLength:
+ * @path: full path of the file
+ * @fd: open file descriptor for file (or -1 to use @path)
+ *
+ * If fd >= 0, return the length of the open file indicated by @fd.
+ * If fd < 0 (i.e. -1) return the length of the file indicated by
+ * @path.
+ *
+ * Returns the length, or -1 if the file doesn't
+ * exist or its info was inaccessible. No error is logged.
+ */
+off_t
+virFileLength(const char *path, int fd)
+{
+    struct stat s;
+
+    if (fd >= 0) {
+        if (fstat(fd, &s) < 0)
+            return -1;
+    } else {
+        if (stat(path, &s) < 0)
+            return -1;
+    }
+
+    if (!S_ISREG(s.st_mode))
+       return -1;
+
+    return s.st_size;
+
+}
+
+
 bool
 virFileIsDir(const char *path)
 {
@@ -1746,7 +1821,8 @@ virFileIsDir(const char *path)
  * virFileExists: Check for presence of file
  * @path: Path of file to check
  *
- * Returns if the file exists. Preserves errno in case it does not exist.
+ * Returns true if the file exists, false if it doesn't, setting errno
+ * appropriately.
  */
 bool
 virFileExists(const char *path)
@@ -1877,7 +1953,7 @@ virFileGetMountSubtreeImpl(const char *mtabpath,
 
  cleanup:
     if (ret < 0)
-        virStringFreeList(mounts);
+        virStringListFree(mounts);
     endmntent(procmnt);
     return ret;
 }
@@ -1903,10 +1979,10 @@ virFileGetMountSubtreeImpl(const char *mtabpath ATTRIBUTE_UNUSED,
  * @nmountsret: filled with number of matching mounts, not counting NULL terminator
  *
  * Return the list of mounts from @mtabpath which contain
- * the path @prefix, sorted from shortest to longest path.
+ * the path @prefix, sorted alphabetically.
  *
  * The @mountsret array will be NULL terminated and should
- * be freed with virStringFreeList
+ * be freed with virStringListFree
  *
  * Returns 0 on success, -1 on error
  */
@@ -1926,11 +2002,10 @@ int virFileGetMountSubtree(const char *mtabpath,
  * @nmountsret: filled with number of matching mounts, not counting NULL terminator
  *
  * Return the list of mounts from @mtabpath which contain
- * the path @prefix, sorted from longest to shortest path.
- * ie opposite order to which they appear in @mtabpath
+ * the path @prefix, reverse-sorted alphabetically.
  *
  * The @mountsret array will be NULL terminated and should
- * be freed with virStringFreeList
+ * be freed with virStringListFree
  *
  * Returns 0 on success, -1 on error
  */
@@ -2786,11 +2861,11 @@ virDirOpenQuiet(DIR **dirp, const char *name)
 /**
  * virDirRead:
  * @dirp: directory to read
- * @end: output one entry
+ * @ent: output one entry
  * @name: if non-NULL, the name related to @dirp for use in error reporting
  *
  * Wrapper around readdir. Typical usage:
- *   struct dirent ent;
+ *   struct dirent *ent;
  *   int rc;
  *   DIR *dir;
  *   if (virDirOpen(&dir, name) < 0)
@@ -3500,4 +3575,594 @@ int virFileIsSharedFS(const char *path)
                                  VIR_FILE_SHFS_AFS |
                                  VIR_FILE_SHFS_SMB |
                                  VIR_FILE_SHFS_CIFS);
+}
+
+
+#if defined(__linux__) && defined(HAVE_SYS_MOUNT_H)
+int
+virFileSetupDev(const char *path,
+                const char *mount_options)
+{
+    const unsigned long mount_flags = MS_NOSUID;
+    const char *mount_fs = "tmpfs";
+    int ret = -1;
+
+    if (virFileMakePath(path) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to make path %s"), path);
+        goto cleanup;
+    }
+
+    VIR_DEBUG("Mount devfs on %s type=tmpfs flags=%lx, opts=%s",
+              path, mount_flags, mount_options);
+    if (mount("devfs", path, mount_fs, mount_flags, mount_options) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to mount devfs on %s type %s (%s)"),
+                             path, mount_fs, mount_options);
+        goto cleanup;
+    }
+
+    ret = 0;
+ cleanup:
+    return ret;
+}
+
+
+int
+virFileBindMountDevice(const char *src,
+                       const char *dst)
+{
+    if (virFileTouch(dst, 0666) < 0)
+        return -1;
+
+    if (mount(src, dst, "none", MS_BIND, NULL) < 0) {
+        virReportSystemError(errno, _("Failed to bind %s on to %s"), src,
+                             dst);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int
+virFileMoveMount(const char *src,
+                 const char *dst)
+{
+    const unsigned long mount_flags = MS_MOVE;
+
+    if (mount(src, dst, NULL, mount_flags, NULL) < 0) {
+        virReportSystemError(errno,
+                             _("Unable to move %s mount to %s"),
+                             src, dst);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+#else /* !defined(__linux__) || !defined(HAVE_SYS_MOUNT_H) */
+
+int
+virFileSetupDev(const char *path ATTRIBUTE_UNUSED,
+                const char *mount_options ATTRIBUTE_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("mount is not supported on this platform."));
+    return -1;
+}
+
+
+int
+virFileBindMountDevice(const char *src ATTRIBUTE_UNUSED,
+                       const char *dst ATTRIBUTE_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("mount is not supported on this platform."));
+    return -1;
+}
+
+
+int
+virFileMoveMount(const char *src ATTRIBUTE_UNUSED,
+                 const char *dst ATTRIBUTE_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("mount move is not supported on this platform."));
+    return -1;
+}
+#endif /* !defined(__linux__) || !defined(HAVE_SYS_MOUNT_H) */
+
+
+#if defined(HAVE_SYS_ACL_H)
+int
+virFileGetACLs(const char *file,
+               void **acl)
+{
+    if (!(*acl = acl_get_file(file, ACL_TYPE_ACCESS)))
+        return -1;
+
+    return 0;
+}
+
+
+int
+virFileSetACLs(const char *file,
+               void *acl)
+{
+    if (acl_set_file(file, ACL_TYPE_ACCESS, acl) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+void
+virFileFreeACLs(void **acl)
+{
+    acl_free(*acl);
+    *acl = NULL;
+}
+
+#else /* !defined(HAVE_SYS_ACL_H) */
+
+int
+virFileGetACLs(const char *file ATTRIBUTE_UNUSED,
+               void **acl ATTRIBUTE_UNUSED)
+{
+    errno = ENOTSUP;
+    return -1;
+}
+
+
+int
+virFileSetACLs(const char *file ATTRIBUTE_UNUSED,
+               void *acl ATTRIBUTE_UNUSED)
+{
+    errno = ENOTSUP;
+    return -1;
+}
+
+
+void
+virFileFreeACLs(void **acl)
+{
+    *acl = NULL;
+}
+
+#endif /* !defined(HAVE_SYS_ACL_H) */
+
+int
+virFileCopyACLs(const char *src,
+                const char *dst)
+{
+    void *acl = NULL;
+    int ret = -1;
+
+    if (virFileGetACLs(src, &acl) < 0)
+        return ret;
+
+    if (virFileSetACLs(dst, acl) < 0)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    virFileFreeACLs(&acl);
+    return ret;
+}
+
+/*
+ * virFileComparePaths:
+ * @p1: source path 1
+ * @p2: source path 2
+ *
+ * Compares two paths for equality. To do so, it first canonicalizes both paths
+ * to resolve all symlinks and discard relative path components. If symlinks
+ * resolution or path canonicalization fails, plain string equality of @p1
+ * and @p2 is performed.
+ *
+ * Returns:
+ *  1 : Equal
+ *  0 : Non-Equal
+ * -1 : Error
+ */
+int
+virFileComparePaths(const char *p1, const char *p2)
+{
+    int ret = -1;
+    char *res1, *res2;
+
+    res1 = res2 = NULL;
+
+    /* Assume p1 and p2 are symlinks, so try to resolve and canonicalize them.
+     * Canonicalization fails for example on file systems names like 'proc' or
+     * 'sysfs', since they're no real paths so fallback to plain string
+     * comparison.
+     */
+    ignore_value(virFileResolveLink(p1, &res1));
+    if (!res1 && VIR_STRDUP(res1, p1) < 0)
+        goto cleanup;
+
+    ignore_value(virFileResolveLink(p2, &res2));
+    if (!res2 && VIR_STRDUP(res2, p2) < 0)
+        goto cleanup;
+
+    ret = STREQ_NULLABLE(res1, res2);
+
+ cleanup:
+    VIR_FREE(res1);
+    VIR_FREE(res2);
+
+    return ret;
+}
+
+
+#if HAVE_DECL_SEEK_HOLE
+/**
+ * virFileInData:
+ * @fd: file to check
+ * @inData: true if current position in the @fd is in data section
+ * @length: amount of bytes until the end of the current section
+ *
+ * With sparse files not every extent has to be physically stored on
+ * the disk. This results in so called data or hole sections.  This
+ * function checks whether the current position in the file @fd is
+ * in a data section (@inData = 1) or in a hole (@inData = 0). Also,
+ * it sets @length to match the number of bytes remaining until the
+ * end of the current section.
+ *
+ * As a special case, there is an implicit hole at the end of any
+ * file. In this case, the function sets @inData = 0, @length = 0.
+ *
+ * Upon its return, the position in the @fd is left unchanged, i.e.
+ * despite this function lseek()-ing back and forth it always
+ * restores the original position in the file.
+ *
+ * NB, @length is type of long long because it corresponds to off_t
+ * the best.
+ *
+ * Returns 0 on success,
+ *        -1 otherwise.
+ */
+int
+virFileInData(int fd,
+              int *inData,
+              long long *length)
+{
+    int ret = -1;
+    off_t cur, data, hole, end;
+
+    /* Get current position */
+    cur = lseek(fd, 0, SEEK_CUR);
+    if (cur == (off_t) -1) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to get current position in file"));
+        goto cleanup;
+    }
+
+    /* Now try to get data and hole offsets */
+    data = lseek(fd, cur, SEEK_DATA);
+
+    /* There are four options:
+     * 1) data == cur;  @cur is in data
+     * 2) data > cur; @cur is in a hole, next data at @data
+     * 3) data < 0, errno = ENXIO; either @cur is in trailing hole, or @cur is beyond EOF.
+     * 4) data < 0, errno != ENXIO; we learned nothing
+     */
+
+    if (data == (off_t) -1) {
+        /* cases 3 and 4 */
+        if (errno != ENXIO) {
+            virReportSystemError(errno, "%s",
+                                 _("Unable to seek to data"));
+            goto cleanup;
+        }
+
+        *inData = 0;
+        /* There are two situations now. There is always an
+         * implicit hole at EOF. However, there might be a
+         * trailing hole just before EOF too. If that's the case
+         * report it. */
+        if ((end = lseek(fd, 0, SEEK_END)) == (off_t) -1) {
+            virReportSystemError(errno, "%s",
+                                 _("Unable to seek to EOF"));
+            goto cleanup;
+        }
+        *length = end - cur;
+    } else if (data > cur) {
+        /* case 2 */
+        *inData = 0;
+        *length = data - cur;
+    } else {
+        /* case 1 */
+        *inData = 1;
+
+        /* We don't know where does the next hole start. Let's
+         * find out. Here we get the same 4 possibilities as
+         * described above.*/
+        hole = lseek(fd, data, SEEK_HOLE);
+        if (hole == (off_t) -1 || hole == data) {
+            /* cases 1, 3 and 4 */
+            /* Wait a second. The reason why we are here is
+             * because we are in data. But at the same time we
+             * are in a trailing hole? Wut!? Do the best what we
+             * can do here. */
+            virReportSystemError(errno, "%s",
+                                 _("unable to seek to hole"));
+            goto cleanup;
+        } else {
+            /* case 2 */
+            *length = (hole - data);
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    /* At any rate, reposition back to where we started. */
+    if (cur != (off_t) -1 &&
+        lseek(fd, cur, SEEK_SET) == (off_t) -1) {
+        virReportSystemError(errno, "%s",
+                             _("unable to restore position in file"));
+        ret = -1;
+    }
+    return ret;
+}
+
+#else /* !HAVE_DECL_SEEK_HOLE */
+
+int
+virFileInData(int fd ATTRIBUTE_UNUSED,
+              int *inData ATTRIBUTE_UNUSED,
+              long long *length ATTRIBUTE_UNUSED)
+{
+    errno = ENOSYS;
+    virReportSystemError(errno, "%s",
+                         _("sparse files not supported"));
+    return -1;
+}
+
+#endif /* !HAVE_DECL_SEEK_HOLE */
+
+
+/**
+ * virFileReadValueInt:
+ * @value: pointer to int to be filled in with the value
+ * @format, ...: file to read from
+ *
+ * Read int from @format and put it into @value.
+ *
+ * Return -2 for non-existing file, -1 on other errors and 0 if everything went
+ * fine.
+ */
+int
+virFileReadValueInt(int *value, const char *format, ...)
+{
+    int ret = -1;
+    char *str = NULL;
+    char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    if (virVasprintf(&path, format, ap) < 0) {
+        va_end(ap);
+        goto cleanup;
+    }
+    va_end(ap);
+
+    if (!virFileExists(path)) {
+        ret = -2;
+        goto cleanup;
+    }
+
+    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+        goto cleanup;
+
+    virStringTrimOptionalNewline(str);
+
+    if (virStrToLong_i(str, NULL, 10, value) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid integer value '%s' in file '%s'"),
+                       str, path);
+        goto cleanup;
+    }
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(path);
+    VIR_FREE(str);
+    return ret;
+}
+
+
+/**
+ * virFileReadValueUint:
+ * @value: pointer to int to be filled in with the value
+ * @format, ...: file to read from
+ *
+ * Read unsigned int from @format and put it into @value.
+ *
+ * Return -2 for non-existing file, -1 on other errors and 0 if everything went
+ * fine.
+ */
+int
+virFileReadValueUint(unsigned int *value, const char *format, ...)
+{
+    int ret = -1;
+    char *str = NULL;
+    char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    if (virVasprintf(&path, format, ap) < 0) {
+        va_end(ap);
+        goto cleanup;
+    }
+    va_end(ap);
+
+    if (!virFileExists(path)) {
+        ret = -2;
+        goto cleanup;
+    }
+
+    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+        goto cleanup;
+
+    virStringTrimOptionalNewline(str);
+
+    if (virStrToLong_uip(str, NULL, 10, value) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid unsigned integer value '%s' in file '%s'"),
+                       str, path);
+        goto cleanup;
+    }
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(path);
+    VIR_FREE(str);
+    return ret;
+}
+
+
+/**
+ * virFileReadValueScaledInt:
+ * @value: pointer to unsigned long long int to be filled in with the value
+ * @format, ...: file to read from
+ *
+ * Read unsigned scaled int from @format and put it into @value.
+ *
+ * Return -2 for non-existing file, -1 on other errors and 0 if everything went
+ * fine.
+ */
+int
+virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
+{
+    int ret = -1;
+    char *str = NULL;
+    char *endp = NULL;
+    char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    if (virVasprintf(&path, format, ap) < 0) {
+        va_end(ap);
+        goto cleanup;
+    }
+    va_end(ap);
+
+    if (!virFileExists(path)) {
+        ret = -2;
+        goto cleanup;
+    }
+
+    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+        goto cleanup;
+
+    virStringTrimOptionalNewline(str);
+
+    if (virStrToLong_ullp(str, &endp, 10, value) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid unsigned scaled integer value '%s' in file '%s'"),
+                       str, path);
+        goto cleanup;
+    }
+
+    ret = virScaleInteger(value, endp, 1024, ULLONG_MAX);
+ cleanup:
+    VIR_FREE(path);
+    VIR_FREE(str);
+    return ret;
+}
+
+/* Arbitrarily sized number, feel free to change, but the function should be
+ * used for small, interface-like files, so it should not be huge (subjective) */
+#define VIR_FILE_READ_VALUE_STRING_MAX 4096
+
+/**
+ * virFileReadValueBitmap:
+ * @value: pointer to virBitmapPtr to be allocated and filled in with the value
+ * @format, ...: file to read from
+ *
+ * Read int from @format and put it into @value.
+ *
+ * Return -2 for non-existing file, -1 on other errors and 0 if everything went
+ * fine.
+ */
+int
+virFileReadValueBitmap(virBitmapPtr *value, const char *format, ...)
+{
+    int ret = -1;
+    char *str = NULL;
+    char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    if (virVasprintf(&path, format, ap) < 0) {
+        va_end(ap);
+        goto cleanup;
+    }
+    va_end(ap);
+
+    if (!virFileExists(path)) {
+        ret = -2;
+        goto cleanup;
+    }
+
+    if (virFileReadAll(path, VIR_FILE_READ_VALUE_STRING_MAX, &str) < 0)
+        goto cleanup;
+
+    virStringTrimOptionalNewline(str);
+
+    *value = virBitmapParseUnlimited(str);
+    if (!*value)
+        goto cleanup;
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(path);
+    VIR_FREE(str);
+    return ret;
+}
+
+/**
+ * virFileReadValueString:
+ * @value: pointer to char * to be allocated and filled in with the value
+ * @format, ...: file to read from
+ *
+ * Read string from @format and put it into @value.  Don't get this mixed with
+ * virFileReadAll().  This function is a wrapper over it with the behaviour
+ * aligned to other virFileReadValue* functions
+ *
+ * Return -2 for non-existing file, -1 on other errors and 0 if everything went
+ * fine.
+ */
+int
+virFileReadValueString(char **value, const char *format, ...)
+{
+    int ret = -1;
+    char *str = NULL;
+    char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    if (virVasprintf(&path, format, ap) < 0) {
+        va_end(ap);
+        goto cleanup;
+    }
+    va_end(ap);
+
+    if (!virFileExists(path)) {
+        ret = -2;
+        goto cleanup;
+    }
+
+    ret = virFileReadAll(path, VIR_FILE_READ_VALUE_STRING_MAX, value);
+
+    if (*value)
+        virStringTrimOptionalNewline(*value);
+ cleanup:
+    VIR_FREE(path);
+    VIR_FREE(str);
+    return ret;
 }

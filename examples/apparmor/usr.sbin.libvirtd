@@ -2,7 +2,7 @@
 #include <tunables/global>
 @{LIBVIRT}="libvirt"
 
-/usr/sbin/libvirtd {
+/usr/sbin/libvirtd flags=(attach_disconnected) {
   #include <abstractions/base>
   #include <abstractions/dbus>
 
@@ -47,12 +47,13 @@
   /usr/bin/* PUx,
   /usr/sbin/virtlogd pix,
   /usr/sbin/* PUx,
-  /lib/udev/scsi_id PUx,
+  /{usr/,}lib/udev/scsi_id PUx,
   /usr/{lib,lib64}/xen-common/bin/xen-toolstack PUx,
   /usr/{lib,lib64}/xen/bin/* Ux,
+  /usr/lib/xen-*/bin/libxl-save-helper PUx,
 
   # force the use of virt-aa-helper
-  audit deny /sbin/apparmor_parser rwxl,
+  audit deny /{usr/,}sbin/apparmor_parser rwxl,
   audit deny /etc/apparmor.d/libvirt/** wxl,
   audit deny /sys/kernel/security/apparmor/features rwxl,
   audit deny /sys/kernel/security/apparmor/matching rwxl,
@@ -67,4 +68,22 @@
   # allow changing to our UUID-based named profiles
   change_profile -> @{LIBVIRT}-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*,
 
+  /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper Cx -> qemu_bridge_helper,
+  # child profile for bridge helper process
+  profile qemu_bridge_helper {
+   #include <abstractions/base>
+
+   capability setuid,
+   capability setgid,
+   capability setpcap,
+   capability net_admin,
+
+   network inet stream,
+
+   /dev/net/tun rw,
+   /etc/qemu/** r,
+   owner @{PROC}/*/status r,
+
+   /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
+  }
 }

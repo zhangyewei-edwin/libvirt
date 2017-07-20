@@ -36,34 +36,35 @@ EXTRA_DIST = \
   libvirt-qemu.pc.in \
   libvirt-lxc.pc.in \
   libvirt-admin.pc.in \
-  autobuild.sh \
   Makefile.nonreentrant \
   autogen.sh \
   cfg.mk \
   run.in \
+  README.md \
   AUTHORS.in
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libvirt.pc libvirt-qemu.pc libvirt-lxc.pc libvirt-admin.pc
 
-NEWS: $(top_srcdir)/docs/news.xsl $(top_srcdir)/docs/news.html.in
-	$(AM_V_GEN)if [ -x $(XSLTPROC) ] ; then			\
-	  $(XSLTPROC) --nonet $(top_srcdir)/docs/news.xsl	\
-	     $(top_srcdir)/docs/news.html.in			\
-	   | perl -0777 -pe 's/\n\n+$$/\n/'			\
-	   | perl -pe 's/[ \t]+$$//'				\
-	   > $@-t && mv $@-t $@ ; fi
-
-$(top_srcdir)/HACKING: $(top_srcdir)/docs/hacking1.xsl \
-			$(top_srcdir)/docs/hacking2.xsl \
-			$(top_srcdir)/docs/wrapstring.xsl \
-			$(top_srcdir)/docs/hacking.html.in
-	$(AM_V_GEN)if [ -x $(XSLTPROC) ] ; then \
-	   $(XSLTPROC) --nonet $(top_srcdir)/docs/hacking1.xsl \
-		$(top_srcdir)/docs/hacking.html.in | \
-	   $(XSLTPROC) --nonet $(top_srcdir)/docs/hacking2.xsl - \
-	   | perl -0777 -pe 's/\n\n+$$/\n/' \
-	   > $@-t && mv $@-t $@ ; fi;
+NEWS: \
+	  $(srcdir)/docs/news.xml \
+	  $(srcdir)/docs/news-ascii.xsl \
+	  $(srcdir)/docs/reformat-news.py
+	$(AM_V_GEN) \
+	if [ -x $(XSLTPROC) ]; then \
+	  $(XSLTPROC) --nonet \
+	    $(srcdir)/docs/news-ascii.xsl \
+	    $(srcdir)/docs/news.xml \
+	  >$@-tmp \
+	    || { rm -f $@-tmp; exit 1; }; \
+	  $(srcdir)/docs/reformat-news.py $@-tmp >$@ \
+	    || { rm -f $@-tmp; exit 1; }; \
+	  rm -f $@-tmp; \
+	fi
+EXTRA_DIST += \
+	$(srcdir)/docs/news.xml \
+	$(srcdir)/docs/news-ascii.xsl \
+	$(srcdir)/docs/reformat-news.py
 
 rpm: clean
 	@(unset CDPATH ; $(MAKE) dist && rpmbuild -ta $(distdir).tar.xz)

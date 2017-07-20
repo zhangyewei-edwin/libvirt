@@ -40,7 +40,6 @@ typedef struct _virObjectEventState virObjectEventState;
 typedef virObjectEventState *virObjectEventStatePtr;
 
 
-void virObjectEventStateFree(virObjectEventStatePtr state);
 virObjectEventStatePtr
 virObjectEventStateNew(void);
 
@@ -74,7 +73,8 @@ virObjectEventStateQueueRemote(virObjectEventStatePtr state,
 int
 virObjectEventStateDeregisterID(virConnectPtr conn,
                                 virObjectEventStatePtr state,
-                                int callbackID)
+                                int callbackID,
+                                bool doFreeCb)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int

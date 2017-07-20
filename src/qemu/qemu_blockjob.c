@@ -24,6 +24,7 @@
 #include "internal.h"
 
 #include "qemu_blockjob.h"
+#include "qemu_block.h"
 #include "qemu_domain.h"
 
 #include "conf/domain_conf.h"
@@ -33,6 +34,7 @@
 #include "virstoragefile.h"
 #include "virthread.h"
 #include "virtime.h"
+#include "locking/domain_lock.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -53,13 +55,14 @@ VIR_LOG_INIT("qemu.qemu_blockjob");
 int
 qemuBlockJobUpdate(virQEMUDriverPtr driver,
                    virDomainObjPtr vm,
+                   qemuDomainAsyncJob asyncJob,
                    virDomainDiskDefPtr disk)
 {
     qemuDomainDiskPrivatePtr diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
     int status = diskPriv->blockJobStatus;
 
     if (status != -1) {
-        qemuBlockJobEventProcess(driver, vm, disk,
+        qemuBlockJobEventProcess(driver, vm, disk, asyncJob,
                                  diskPriv->blockJobType,
                                  diskPriv->blockJobStatus);
         diskPriv->blockJobStatus = -1;
@@ -85,6 +88,7 @@ void
 qemuBlockJobEventProcess(virQEMUDriverPtr driver,
                          virDomainObjPtr vm,
                          virDomainDiskDefPtr disk,
+                         qemuDomainAsyncJob asyncJob,
                          int type,
                          int status)
 {
@@ -122,7 +126,8 @@ qemuBlockJobEventProcess(virQEMUDriverPtr driver,
                 if ((persistDisk = virDomainDiskByName(vm->newDef,
                                                        disk->dst, false))) {
                     copy = virStorageSourceCopy(disk->mirror, false);
-                    if (virStorageSourceInitChainElement(copy,
+                    if (!copy ||
+                        virStorageSourceInitChainElement(copy,
                                                          persistDisk->src,
                                                          true) < 0) {
                         VIR_WARN("Unable to update persistent definition "
@@ -139,17 +144,19 @@ qemuBlockJobEventProcess(virQEMUDriverPtr driver,
                 }
             }
 
-            /* XXX We want to revoke security labels and disk
-             * lease, as well as audit that revocation, before
-             * dropping the original source.  But it gets tricky
-             * if both source and mirror share common backing
-             * files (we want to only revoke the non-shared
-             * portion of the chain); so for now, we leak the
-             * access to the original.  */
+            /* XXX We want to revoke security labels as well as audit that
+             * revocation, before dropping the original source.  But it gets
+             * tricky if both source and mirror share common backing files (we
+             * want to only revoke the non-shared portion of the chain); so for
+             * now, we leak the access to the original.  */
+            virDomainLockImageDetach(driver->lockManager, vm, disk->src);
             virStorageSourceFree(disk->src);
             disk->src = disk->mirror;
         } else {
-            virStorageSourceFree(disk->mirror);
+            if (disk->mirror) {
+                virDomainLockImageDetach(driver->lockManager, vm, disk->mirror);
+                virStorageSourceFree(disk->mirror);
+            }
         }
 
         /* Recompute the cached backing chain to match our
@@ -162,6 +169,7 @@ qemuBlockJobEventProcess(virQEMUDriverPtr driver,
         disk->mirrorJob = VIR_DOMAIN_BLOCK_JOB_TYPE_UNKNOWN;
         ignore_value(qemuDomainDetermineDiskChain(driver, vm, disk,
                                                   true, true));
+        ignore_value(qemuBlockNodeNamesDetect(driver, vm, asyncJob));
         diskPriv->blockjob = false;
         break;
 
@@ -172,8 +180,11 @@ qemuBlockJobEventProcess(virQEMUDriverPtr driver,
 
     case VIR_DOMAIN_BLOCK_JOB_FAILED:
     case VIR_DOMAIN_BLOCK_JOB_CANCELED:
-        virStorageSourceFree(disk->mirror);
-        disk->mirror = NULL;
+        if (disk->mirror) {
+            virDomainLockImageDetach(driver->lockManager, vm, disk->mirror);
+            virStorageSourceFree(disk->mirror);
+            disk->mirror = NULL;
+        }
         disk->mirrorState = VIR_DOMAIN_DISK_MIRROR_STATE_NONE;
         disk->mirrorJob = VIR_DOMAIN_BLOCK_JOB_TYPE_UNKNOWN;
         save = true;
@@ -238,9 +249,10 @@ qemuBlockJobSyncBegin(virDomainDiskDefPtr disk)
 void
 qemuBlockJobSyncEnd(virQEMUDriverPtr driver,
                     virDomainObjPtr vm,
+                    qemuDomainAsyncJob asyncJob,
                     virDomainDiskDefPtr disk)
 {
     VIR_DEBUG("disk=%s", disk->dst);
-    qemuBlockJobUpdate(driver, vm, disk);
+    qemuBlockJobUpdate(driver, vm, asyncJob, disk);
     QEMU_DOMAIN_DISK_PRIVATE(disk)->blockJobSync = false;
 }

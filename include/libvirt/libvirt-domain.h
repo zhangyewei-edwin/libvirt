@@ -683,27 +683,146 @@ typedef enum {
 
 /* Domain migration flags. */
 typedef enum {
-    VIR_MIGRATE_LIVE              = (1 << 0), /* live migration */
-    VIR_MIGRATE_PEER2PEER         = (1 << 1), /* direct source -> dest host control channel */
-    /* Note the less-common spelling that we're stuck with:
-       VIR_MIGRATE_TUNNELLED should be VIR_MIGRATE_TUNNELED */
-    VIR_MIGRATE_TUNNELLED         = (1 << 2), /* tunnel migration data over libvirtd connection */
-    VIR_MIGRATE_PERSIST_DEST      = (1 << 3), /* persist the VM on the destination */
-    VIR_MIGRATE_UNDEFINE_SOURCE   = (1 << 4), /* undefine the VM on the source */
-    VIR_MIGRATE_PAUSED            = (1 << 5), /* pause on remote side */
-    VIR_MIGRATE_NON_SHARED_DISK   = (1 << 6), /* migration with non-shared storage with full disk copy */
-    VIR_MIGRATE_NON_SHARED_INC    = (1 << 7), /* migration with non-shared storage with incremental copy */
-                                              /* (same base image shared between source and destination) */
-    VIR_MIGRATE_CHANGE_PROTECTION = (1 << 8), /* protect for changing domain configuration through the
-                                               * whole migration process; this will be used automatically
-                                               * when supported */
-    VIR_MIGRATE_UNSAFE            = (1 << 9), /* force migration even if it is considered unsafe */
-    VIR_MIGRATE_OFFLINE           = (1 << 10), /* offline migrate */
-    VIR_MIGRATE_COMPRESSED        = (1 << 11), /* compress data during migration */
-    VIR_MIGRATE_ABORT_ON_ERROR    = (1 << 12), /* abort migration on I/O errors happened during migration */
-    VIR_MIGRATE_AUTO_CONVERGE     = (1 << 13), /* force convergence */
-    VIR_MIGRATE_RDMA_PIN_ALL      = (1 << 14), /* RDMA memory pinning */
-    VIR_MIGRATE_POSTCOPY          = (1 << 15), /* enable (but do not start) post-copy migration */
+    /* Do not pause the domain during migration. The domain's memory will
+     * be transferred to the destination host while the domain is running.
+     * The migration may never converge if the domain is changing its memory
+     * faster then it can be transferred. The domain can be manually paused
+     * anytime during migration using virDomainSuspend.
+     */
+    VIR_MIGRATE_LIVE              = (1 << 0),
+
+    /* Tell the source libvirtd to connect directly to the destination host.
+     * Without this flag the client (e.g., virsh) connects to both hosts and
+     * controls the migration process. In peer-to-peer mode, the source
+     * libvirtd controls the migration by calling the destination daemon
+     * directly.
+     */
+    VIR_MIGRATE_PEER2PEER         = (1 << 1),
+
+    /* Tunnel migration data over libvirtd connection. Without this flag the
+     * source hypervisor sends migration data directly to the destination
+     * hypervisor. This flag can only be used when VIR_MIGRATE_PEER2PEER is
+     * set as well.
+     *
+     * Note the less-common spelling that we're stuck with:
+     * VIR_MIGRATE_TUNNELLED should be VIR_MIGRATE_TUNNELED.
+     */
+    VIR_MIGRATE_TUNNELLED         = (1 << 2),
+
+    /* Define the domain as persistent on the destination host after successful
+     * migration. If the domain was persistent on the source host and
+     * VIR_MIGRATE_UNDEFINE_SOURCE is not used, it will end up persistent on
+     * both hosts.
+     */
+    VIR_MIGRATE_PERSIST_DEST      = (1 << 3),
+
+    /* Undefine the domain on the source host once migration successfully
+     * finishes.
+     */
+    VIR_MIGRATE_UNDEFINE_SOURCE   = (1 << 4),
+
+    /* Leave the domain suspended on the destination host. virDomainResume (on
+     * the virDomainPtr returned by the migration API) has to be called
+     * explicitly to resume domain's virtual CPUs.
+     */
+    VIR_MIGRATE_PAUSED            = (1 << 5),
+
+    /* Migrate full disk images in addition to domain's memory. By default
+     * only non-shared non-readonly disk images are transferred. The
+     * VIR_MIGRATE_PARAM_MIGRATE_DISKS parameter can be used to specify which
+     * disks should be migrated.
+     *
+     * This flag and VIR_MIGRATE_NON_SHARED_INC are mutually exclusive.
+     */
+    VIR_MIGRATE_NON_SHARED_DISK   = (1 << 6),
+
+    /* Migrate disk images in addition to domain's memory. This is similar to
+     * VIR_MIGRATE_NON_SHARED_DISK, but only the top level of each disk's
+     * backing chain is copied. That is, the rest of the backing chain is
+     * expected to be present on the destination and to be exactly the same as
+     * on the source host.
+     *
+     * This flag and VIR_MIGRATE_NON_SHARED_DISK are mutually exclusive.
+     */
+    VIR_MIGRATE_NON_SHARED_INC    = (1 << 7),
+
+    /* Protect against domain configuration changes during the migration
+     * process. This flag is used automatically when both sides support it.
+     * Explicitly setting this flag will cause migration to fail if either the
+     * source or the destination does not support it.
+     */
+    VIR_MIGRATE_CHANGE_PROTECTION = (1 << 8),
+
+    /* Force migration even if it is considered unsafe. In some cases libvirt
+     * may refuse to migrate the domain because doing so may lead to potential
+     * problems such as data corruption, and thus the migration is considered
+     * unsafe. For a QEMU domain this may happen if the domain uses disks
+     * without explicitly setting cache mode to "none". Migrating such domains
+     * is unsafe unless the disk images are stored on coherent clustered
+     * filesystem, such as GFS2 or GPFS.
+     */
+    VIR_MIGRATE_UNSAFE            = (1 << 9),
+
+    /* Migrate a domain definition without starting the domain on the
+     * destination and without stopping it on the source host. Offline
+     * migration requires VIR_MIGRATE_PERSIST_DEST to be set.
+     *
+     * Offline migration may not copy disk storage or any other file based
+     * storage (such as UEFI variables).
+     */
+    VIR_MIGRATE_OFFLINE           = (1 << 10),
+
+    /* Compress migration data. The compression methods can be specified using
+     * VIR_MIGRATE_PARAM_COMPRESSION. A hypervisor default method will be used
+     * if this parameter is omitted. Individual compression methods can be
+     * tuned via their specific VIR_MIGRATE_PARAM_COMPRESSION_* parameters.
+     */
+    VIR_MIGRATE_COMPRESSED        = (1 << 11),
+
+    /* Cancel migration if a soft error (such as I/O error) happens during
+     * migration.
+     */
+    VIR_MIGRATE_ABORT_ON_ERROR    = (1 << 12),
+
+    /* Enable algorithms that ensure a live migration will eventually converge.
+     * This usually means the domain will be slowed down to make sure it does
+     * not change its memory faster than a hypervisor can transfer the changed
+     * memory to the destination host. VIR_MIGRATE_PARAM_AUTO_CONVERGE_*
+     * parameters can be used to tune the algorithm.
+     */
+    VIR_MIGRATE_AUTO_CONVERGE     = (1 << 13),
+
+    /* This flag can be used with RDMA migration (i.e., when
+     * VIR_MIGRATE_PARAM_URI starts with "rdma://") to tell the hypervisor
+     * to pin all domain's memory at once before migration starts rather then
+     * letting it pin memory pages as needed. This means that all memory pages
+     * belonging to the domain will be locked in host's memory and the host
+     * will not be allowed to swap them out.
+     *
+     * For QEMU/KVM this requires hard_limit memory tuning element (in the
+     * domain XML) to be used and set to the maximum memory configured for the
+     * domain plus any memory consumed by the QEMU process itself. Beware of
+     * setting the memory limit too high (and thus allowing the domain to lock
+     * most of the host's memory). Doing so may be dangerous to both the
+     * domain and the host itself since the host's kernel may run out of
+     * memory.
+     */
+    VIR_MIGRATE_RDMA_PIN_ALL      = (1 << 14),
+
+    /* Setting the VIR_MIGRATE_POSTCOPY flag tells libvirt to enable post-copy
+     * migration. However, the migration will start normally and
+     * virDomainMigrateStartPostCopy needs to be called to switch it into the
+     * post-copy mode. See virDomainMigrateStartPostCopy for more details.
+     */
+    VIR_MIGRATE_POSTCOPY          = (1 << 15),
+
+    /* Setting the VIR_MIGRATE_TLS flag will cause the migration to attempt
+     * to use the TLS environment configured by the hypervisor in order to
+     * perform the migration. If incorrectly configured on either source or
+     * destination, the migration will fail.
+     */
+    VIR_MIGRATE_TLS               = (1 << 16),
+
 } virDomainMigrateFlags;
 
 
@@ -1707,6 +1826,7 @@ typedef enum {
     /* Additionally, these flags may be bitwise-OR'd in.  */
     VIR_DOMAIN_VCPU_MAXIMUM = (1 << 2), /* Max rather than current count */
     VIR_DOMAIN_VCPU_GUEST   = (1 << 3), /* Modify state of the cpu in the guest */
+    VIR_DOMAIN_VCPU_HOTPLUGGABLE = (1 << 4), /* Make vcpus added hot(un)pluggable */
 } virDomainVcpuFlags;
 
 int                     virDomainSetVcpus       (virDomainPtr domain,
@@ -2007,10 +2127,166 @@ void virDomainStatsRecordListFree(virDomainStatsRecordPtr *stats);
  * VIR_PERF_PARAM_CPU_CYCLES:
  *
  * Macro for typed parameter name that represents cpu_cycles perf event
- * which can be used to measure how many cpu cycles one instruction needs.
+ * describing the total/elapsed cpu cycles. This can be used to measure
+ * how many cpu cycles one instruction needs.
  * It corresponds to the "perf.cpu_cycles" field in the *Stats APIs.
  */
 # define VIR_PERF_PARAM_CPU_CYCLES "cpu_cycles"
+
+/**
+ * VIR_PERF_PARAM_BRANCH_INSTRUCTIONS:
+ *
+ * Macro for typed parameter name that represents branch_instructions
+ * perf event which can be used to measure the count of branch instructions
+ * by applications running on the platform. It corresponds to the
+ * "perf.branch_instructions" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_BRANCH_INSTRUCTIONS "branch_instructions"
+
+/**
+ * VIR_PERF_PARAM_BRANCH_MISSES:
+ *
+ * Macro for typed parameter name that represents branch_misses
+ * perf event which can be used to measure the count of branch misses
+ * by applications running on the platform. It corresponds to the
+ * "perf.branch_misses" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_BRANCH_MISSES "branch_misses"
+
+/**
+ * VIR_PERF_PARAM_BUS_CYCLES:
+ *
+ * Macro for typed parameter name that represents bus_cycles
+ * perf event which can be used to measure the count of bus cycles
+ * by applications running on the platform. It corresponds to the
+ * "perf.bus_cycles" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_BUS_CYCLES "bus_cycles"
+
+/**
+ * VIR_PERF_PARAM_STALLED_CYCLES_FRONTEND:
+ *
+ * Macro for typed parameter name that represents stalled_cycles_frontend
+ * perf event which can be used to measure the count of stalled cpu cycles
+ * in the frontend of the instruction processor pipeline by applications
+ * running on the platform. It corresponds to the
+ * "perf.stalled_cycles_frontend" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_STALLED_CYCLES_FRONTEND "stalled_cycles_frontend"
+
+/**
+ * VIR_PERF_PARAM_STALLED_CYCLES_BACKEND:
+ *
+ * Macro for typed parameter name that represents stalled_cycles_backend
+ * perf event which can be used to measure the count of stalled cpu cycles
+ * in the backend of the instruction processor pipeline by application
+ * running on the platform. It corresponds to the
+ * "perf.stalled_cycles_backend" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_STALLED_CYCLES_BACKEND "stalled_cycles_backend"
+
+/**
+ * VIR_PERF_PARAM_REF_CPU_CYCLES:
+ *
+ * Macro for typed parameter name that represents ref_cpu_cycles
+ * perf event which can be used to measure the count of total cpu
+ * cycles not affected by CPU frequency scaling by applications
+ * running on the platform. It corresponds to the
+ * "perf.ref_cpu_cycles" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_REF_CPU_CYCLES "ref_cpu_cycles"
+
+/**
+ * VIR_PERF_PARAM_CPU_CLOCK:
+ *
+ * Macro for typed parameter name that represents cpu_clock
+ * perf event which can be used to measure the count of cpu
+ * clock time by applications running on the platform. It
+ * corresponds to the "perf.cpu_clock" field in the *Stats
+ * APIs.
+ */
+# define VIR_PERF_PARAM_CPU_CLOCK "cpu_clock"
+
+/**
+ * VIR_PERF_PARAM_TASK_CLOCK:
+ *
+ * Macro for typed parameter name that represents task_clock
+ * perf event which can be used to measure the count of task
+ * clock time by applications running on the platform. It
+ * corresponds to the "perf.task_clock" field in the *Stats
+ * APIs.
+ */
+# define VIR_PERF_PARAM_TASK_CLOCK "task_clock"
+
+/**
+* VIR_PERF_PARAM_PAGE_FAULTS:
+*
+* Macro for typed parameter name that represents page_faults
+* perf event which can be used to measure the count of page
+* faults by applications running on the platform. It corresponds
+* to the "perf.page_faults" field in the *Stats APIs.
+*/
+# define VIR_PERF_PARAM_PAGE_FAULTS "page_faults"
+
+/**
+ * VIR_PERF_PARAM_CONTEXT_SWITCHES:
+ *
+ * Macro for typed parameter name that represents context_switches
+ * perf event which can be used to measure the count of context
+ * switches by applications running on the platform. It corresponds
+ * to the "perf.context_switches" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_CONTEXT_SWITCHES "context_switches"
+
+/**
+ * VIR_PERF_PARAM_CPU_MIGRATIONS:
+ *
+ * Macro for typed parameter name that represents cpu_migrations
+ * perf event which can be used to measure the count of cpu
+ * migrations by applications running on the platform. It corresponds
+ * to the "perf.cpu_migrations" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_CPU_MIGRATIONS "cpu_migrations"
+
+/**
+ * VIR_PERF_PARAM_PAGE_FAULTS_MIN:
+ *
+ * Macro for typed parameter name that represents page_faults_min
+ * perf event which can be used to measure the count of minor page
+ * faults by applications running on the platform. It corresponds
+ * to the "perf.page_faults_min" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_PAGE_FAULTS_MIN  "page_faults_min"
+
+/**
+ * VIR_PERF_PARAM_PAGE_FAULTS_MAJ:
+ *
+ * Macro for typed parameter name that represents page_faults_maj
+ * perf event which can be used to measure the count of major page
+ * faults by applications running on the platform. It corresponds
+ * to the "perf.page_faults_maj" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_PAGE_FAULTS_MAJ  "page_faults_maj"
+
+/**
+ * VIR_PERF_PARAM_ALIGNMENT_FAULTS:
+ *
+ * Macro for typed parameter name that represents alignment_faults
+ * perf event which can be used to measure the count of alignment
+ * faults by applications running on the platform. It corresponds
+ * to the "perf.alignment_faults" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_ALIGNMENT_FAULTS  "alignment_faults"
+
+/**
+ * VIR_PERF_PARAM_EMULATION_FAULTS:
+ *
+ * Macro for typed parameter name that represents emulation_faults
+ * perf event which can be used to measure the count of emulation
+ * faults by applications running on the platform. It corresponds
+ * to the "perf.emulation_faults" field in the *Stats APIs.
+ */
+# define VIR_PERF_PARAM_EMULATION_FAULTS  "emulation_faults"
 
 int virDomainGetPerfEvents(virDomainPtr dom,
                            virTypedParameterPtr *params,
@@ -2152,6 +2428,9 @@ typedef enum {
                                                  backing chain */
     VIR_DOMAIN_BLOCK_COPY_REUSE_EXT = 1 << 1, /* Reuse existing external
                                                  file for a copy */
+    VIR_DOMAIN_BLOCK_COPY_TRANSIENT_JOB = 1 << 2, /* Don't force usage of
+                                                     recoverable job for the
+                                                     copy operation */
 } virDomainBlockCopyFlags;
 
 /**
@@ -2321,11 +2600,66 @@ int virDomainBlockCommit(virDomainPtr dom, const char *disk, const char *base,
 # define VIR_DOMAIN_BLOCK_IOTUNE_WRITE_IOPS_SEC_MAX "write_iops_sec_max"
 
 /**
+ * VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_BYTES_SEC_MAX_LENGTH:
+ *
+ * Macro for the BlockIoTune tunable weight: it represents the duration in
+ * seconds for the burst allowed by total_bytes_sec_max, as a ullong.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_BYTES_SEC_MAX_LENGTH "total_bytes_sec_max_length"
+
+/**
+ * VIR_DOMAIN_BLOCK_IOTUNE_READ_BYTES_SEC_MAX_LENGTH:
+ *
+ * Macro for the BlockIoTune tunable weight: it represents the duration in
+ * seconds for the burst allowed by read_bytes_sec_max, as a ullong.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_READ_BYTES_SEC_MAX_LENGTH "read_bytes_sec_max_length"
+
+/**
+ * VIR_DOMAIN_BLOCK_IOTUNE_WRITE_BYTES_SEC_MAX_LENGTH:
+ *
+ * Macro for the BlockIoTune tunable weight: it represents the duration in
+ * seconds for the burst allowed by write_bytes_sec_max, as a ullong.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_WRITE_BYTES_SEC_MAX_LENGTH "write_bytes_sec_max_length"
+
+/**
+ * VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_IOPS_SEC_MAX_LENGTH:
+ *
+ * Macro for the BlockIoTune tunable weight: it represents the duration in
+ * seconds for the burst allowed by total_iops_sec_max, as a ullong.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_TOTAL_IOPS_SEC_MAX_LENGTH "total_iops_sec_max_length"
+
+/**
+ * VIR_DOMAIN_BLOCK_IOTUNE_READ_IOPS_SEC_MAX_LENGTH:
+ *
+ * Macro for the BlockIoTune tunable weight: it represents the duration in
+ * seconds for the burst allowed by read_iops_sec_max, as a ullong.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_READ_IOPS_SEC_MAX_LENGTH "read_iops_sec_max_length"
+
+/**
+ * VIR_DOMAIN_BLOCK_IOTUNE_WRITE_IOPS_SEC_MAX_LENGTH:
+ *
+ * Macro for the BlockIoTune tunable weight: it represents the duration in
+ * seconds for the burst allowed by write_iops_sec_max, as a ullong.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_WRITE_IOPS_SEC_MAX_LENGTH "write_iops_sec_max_length"
+
+/**
  * VIR_DOMAIN_BLOCK_IOTUNE_SIZE_IOPS_SEC:
  * Macro for the BlockIoTune tunable weight: it represents the size
  * I/O operations per second permitted through a block device, as a ullong.
  */
 # define VIR_DOMAIN_BLOCK_IOTUNE_SIZE_IOPS_SEC "size_iops_sec"
+
+/**
+ * VIR_DOMAIN_BLOCK_IOTUNE_GROUP_NAME:
+ * Macro for the BlockIoTune tunable weight: it represents a group name to
+ * allow sharing of I/O throttling quota between multiple drives, as a string.
+ */
+# define VIR_DOMAIN_BLOCK_IOTUNE_GROUP_NAME "group_name"
 
 int
 virDomainSetBlockIoTune(virDomainPtr dom,
@@ -2652,7 +2986,16 @@ typedef enum {
  * Details on the cause of a 'shutdown' lifecycle event
  */
 typedef enum {
-    VIR_DOMAIN_EVENT_SHUTDOWN_FINISHED = 0, /* Guest finished shutdown sequence */
+    /* Guest finished shutdown sequence */
+    VIR_DOMAIN_EVENT_SHUTDOWN_FINISHED = 0,
+
+    /* Domain finished shutting down after request from the guest itself
+     * (e.g. hardware-specific action) */
+    VIR_DOMAIN_EVENT_SHUTDOWN_GUEST = 1,
+
+    /* Domain finished shutting down after request from the host (e.g. killed by
+     * a signal) */
+    VIR_DOMAIN_EVENT_SHUTDOWN_HOST = 2,
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_EVENT_SHUTDOWN_LAST
@@ -2785,6 +3128,31 @@ int virDomainGetJobStats(virDomainPtr domain,
                          int *nparams,
                          unsigned int flags);
 int virDomainAbortJob(virDomainPtr dom);
+
+typedef enum {
+    VIR_DOMAIN_JOB_OPERATION_UNKNOWN = 0,
+    VIR_DOMAIN_JOB_OPERATION_START = 1,
+    VIR_DOMAIN_JOB_OPERATION_SAVE = 2,
+    VIR_DOMAIN_JOB_OPERATION_RESTORE = 3,
+    VIR_DOMAIN_JOB_OPERATION_MIGRATION_IN = 4,
+    VIR_DOMAIN_JOB_OPERATION_MIGRATION_OUT = 5,
+    VIR_DOMAIN_JOB_OPERATION_SNAPSHOT = 6,
+    VIR_DOMAIN_JOB_OPERATION_SNAPSHOT_REVERT = 7,
+    VIR_DOMAIN_JOB_OPERATION_DUMP = 8,
+
+# ifdef VIR_ENUM_SENTINELS
+    VIR_DOMAIN_JOB_OPERATION_LAST
+# endif
+} virDomainJobOperation;
+
+/**
+ * VIR_DOMAIN_JOB_OPERATION:
+ *
+ * virDomainGetJobStats field: the operation which started the job as
+ * VIR_TYPED_PARAM_INT. The values correspond to the items in
+ * virDomainJobOperation enum.
+ */
+# define VIR_DOMAIN_JOB_OPERATION                "operation"
 
 /**
  * VIR_DOMAIN_JOB_TIME_ELAPSED:
@@ -3539,6 +3907,25 @@ typedef void (*virConnectDomainEventDeviceRemovalFailedCallback)(virConnectPtr c
                                                                  const char *devAlias,
                                                                  void *opaque);
 
+/**
+ * virConnectDomainEventMetadataChangeCallback:
+ * @conn: connection object
+ * @dom: domain on which the event occurred
+ * @type: a value from virDomainMetadataTypea
+ * @nsuri: XML namespace URI
+ * @opaque: application specified data
+ *
+ * This callback is triggered when the domain XML metadata is changed
+ *
+ * The callback signature to use when registering for an event of type
+ * VIR_DOMAIN_EVENT_ID_METADATA_CHANGE with virConnectDomainEventRegisterAny().
+ */
+typedef void (*virConnectDomainEventMetadataChangeCallback)(virConnectPtr conn,
+                                                            virDomainPtr dom,
+                                                            int type,
+                                                            const char *nsuri,
+                                                            void *opaque);
+
 
 /**
  * virConnectDomainEventMigrationIterationCallback:
@@ -3695,7 +4082,7 @@ typedef void (*virConnectDomainEventJobCompletedCallback)(virConnectPtr conn,
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC:
  *
- * Marco represents the total throughput limit in bytes per second,
+ * Macro represents the total throughput limit in bytes per second,
  * as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC "blkdeviotune.total_bytes_sec"
@@ -3703,7 +4090,7 @@ typedef void (*virConnectDomainEventJobCompletedCallback)(virConnectPtr conn,
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC:
  *
- * Marco represents the read throughput limit in bytes per second,
+ * Macro represents the read throughput limit in bytes per second,
  * as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC "blkdeviotune.read_bytes_sec"
@@ -3743,31 +4130,31 @@ typedef void (*virConnectDomainEventJobCompletedCallback)(virConnectPtr conn,
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX:
  *
- * Marco represents the total throughput limit in maximum bytes per second,
- * as VIR_TYPED_PARAM_ULLONG.
+ * Macro represents the total throughput limit during bursts in
+ * maximum bytes per second, as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX "blkdeviotune.total_bytes_sec_max"
 
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC_MAX:
  *
- * Marco represents the read throughput limit in maximum bytes per second,
- * as VIR_TYPED_PARAM_ULLONG.
+ * Macro represents the read throughput limit during bursts in
+ * maximum bytes per second, as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC_MAX "blkdeviotune.read_bytes_sec_max"
 
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX:
  *
- * Macro represents the write throughput limit in maximum bytes per second,
- * as VIR_TYPED_PARAM_ULLONG.
+ * Macro represents the write throughput limit during bursts in
+ * maximum bytes per second, as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX "blkdeviotune.write_bytes_sec_max"
 
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX:
  *
- * Macro represents the total maximum I/O operations per second,
+ * Macro represents the total maximum I/O operations per second during bursts,
  * as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX "blkdeviotune.total_iops_sec_max"
@@ -3775,7 +4162,7 @@ typedef void (*virConnectDomainEventJobCompletedCallback)(virConnectPtr conn,
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_READ_IOPS_SEC_MAX:
  *
- * Macro represents the read maximum I/O operations per second,
+ * Macro represents the read maximum I/O operations per second during bursts,
  * as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_READ_IOPS_SEC_MAX "blkdeviotune.read_iops_sec_max"
@@ -3783,7 +4170,7 @@ typedef void (*virConnectDomainEventJobCompletedCallback)(virConnectPtr conn,
 /**
  * VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_IOPS_SEC_MAX:
  *
- * Macro represents the write maximum I/O operations per second,
+ * Macro represents the write maximum I/O operations per second during bursts,
  * as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_IOPS_SEC_MAX "blkdeviotune.write_iops_sec_max"
@@ -3795,6 +4182,68 @@ typedef void (*virConnectDomainEventJobCompletedCallback)(virConnectPtr conn,
  * as VIR_TYPED_PARAM_ULLONG.
  */
 # define VIR_DOMAIN_TUNABLE_BLKDEV_SIZE_IOPS_SEC "blkdeviotune.size_iops_sec"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_GROUP_NAME:
+ *
+ * Macro represents the group name to be used,
+ * as VIR_TYPED_PARAM_STRING.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_GROUP_NAME "blkdeviotune.group_name"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX_LENGTH:
+ *
+ * Macro represents the length in seconds allowed for a burst period
+ * for the blkdeviotune.total_bytes_sec_max,
+ * as VIR_TYPED_PARAM_ULLONG.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_BYTES_SEC_MAX_LENGTH "blkdeviotune.total_bytes_sec_max_length"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC_MAX_LENGTH:
+ *
+ * Macro represents the length in seconds allowed for a burst period
+ * for the blkdeviotune.read_bytes_sec_max
+ * as VIR_TYPED_PARAM_ULLONG.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_READ_BYTES_SEC_MAX_LENGTH "blkdeviotune.read_bytes_sec_max_length"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX_LENGTH:
+ *
+ * Macro represents the length in seconds allowed for a burst period
+ * for the blkdeviotune.write_bytes_sec_max
+ * as VIR_TYPED_PARAM_ULLONG.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_BYTES_SEC_MAX_LENGTH "blkdeviotune.write_bytes_sec_max_length"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX_LENGTH:
+ *
+ * Macro represents the length in seconds allowed for a burst period
+ * for the blkdeviotune.total_iops_sec_max
+ * as VIR_TYPED_PARAM_ULLONG.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_TOTAL_IOPS_SEC_MAX_LENGTH "blkdeviotune.total_iops_sec_max_length"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_READ_IOPS_SEC_MAX_LENGTH:
+ *
+ * Macro represents the length in seconds allowed for a burst period
+ * for the blkdeviotune.read_iops_sec_max
+ * as VIR_TYPED_PARAM_ULLONG.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_READ_IOPS_SEC_MAX_LENGTH "blkdeviotune.read_iops_sec_max_length"
+
+/**
+ * VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_IOPS_SEC_MAX_LENGTH:
+ *
+ * Macro represents the length in seconds allowed for a burst period
+ * for the blkdeviotune.write_iops_sec_max
+ * as VIR_TYPED_PARAM_ULLONG.
+ */
+# define VIR_DOMAIN_TUNABLE_BLKDEV_WRITE_IOPS_SEC_MAX_LENGTH "blkdeviotune.write_iops_sec_max_length"
 
 /**
  * virConnectDomainEventTunableCallback:
@@ -3863,6 +4312,36 @@ typedef void (*virConnectDomainEventAgentLifecycleCallback)(virConnectPtr conn,
 
 
 /**
+ * virConnectDomainEventBlockThresholdCallback:
+ * @conn: connection object
+ * @dom: domain on which the event occurred
+ * @dev: name associated with the affected disk or storage backing chain
+ *       element
+ * @path: for local storage, the path of the backing chain element
+ * @threshold: threshold offset in bytes
+ * @excess: number of bytes written beyond the threshold
+ * @opaque: application specified data
+ *
+ * The callback occurs when the hypervisor detects that the given storage
+ * element was written beyond the point specified by @threshold. The excess
+ * data size written beyond @threshold is reported by @excess (if supported
+ * by the hypervisor, 0 otherwise). The event is useful for thin-provisioned
+ * storage.
+ *
+ * The threshold size can be set via the virDomainSetBlockThreshold API.
+ *
+ * The callback signature to use when registering for an event of type
+ * VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD with virConnectDomainEventRegisterAny()
+ */
+typedef void (*virConnectDomainEventBlockThresholdCallback)(virConnectPtr conn,
+                                                            virDomainPtr dom,
+                                                            const char *dev,
+                                                            const char *path,
+                                                            unsigned long long threshold,
+                                                            unsigned long long excess,
+                                                            void *opaque);
+
+/**
  * VIR_DOMAIN_EVENT_CALLBACK:
  *
  * Used to cast the event specific callback into the generic one
@@ -3902,6 +4381,8 @@ typedef enum {
     VIR_DOMAIN_EVENT_ID_MIGRATION_ITERATION = 20, /* virConnectDomainEventMigrationIterationCallback */
     VIR_DOMAIN_EVENT_ID_JOB_COMPLETED = 21,  /* virConnectDomainEventJobCompletedCallback */
     VIR_DOMAIN_EVENT_ID_DEVICE_REMOVAL_FAILED = 22, /* virConnectDomainEventDeviceRemovalFailedCallback */
+    VIR_DOMAIN_EVENT_ID_METADATA_CHANGE = 23, /* virConnectDomainEventMetadataChangeCallback */
+    VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD = 24, /* virConnectDomainEventBlockThresholdCallback */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_EVENT_ID_LAST
@@ -4214,5 +4695,15 @@ int virDomainSetGuestVcpus(virDomainPtr domain,
                            const char *cpumap,
                            int state,
                            unsigned int flags);
+
+int virDomainSetVcpu(virDomainPtr domain,
+                     const char *vcpumap,
+                     int state,
+                     unsigned int flags);
+
+int virDomainSetBlockThreshold(virDomainPtr domain,
+                               const char *dev,
+                               unsigned long long threshold,
+                               unsigned int flags);
 
 #endif /* __VIR_LIBVIRT_DOMAIN_H__ */

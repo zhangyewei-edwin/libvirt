@@ -37,7 +37,7 @@ char *virSCSIDeviceGetSgName(const char *sysfs_prefix,
                              const char *adapter,
                              unsigned int bus,
                              unsigned int target,
-                             unsigned long long unit);
+                             unsigned long long unit) ATTRIBUTE_NOINLINE;
 char *virSCSIDeviceGetDevName(const char *sysfs_prefix,
                               const char *adapter,
                               unsigned int bus,
@@ -58,6 +58,7 @@ int virSCSIDeviceSetUsedBy(virSCSIDevicePtr dev,
                            const char *domname);
 bool virSCSIDeviceIsAvailable(virSCSIDevicePtr dev);
 const char *virSCSIDeviceGetName(virSCSIDevicePtr dev);
+const char *virSCSIDeviceGetPath(virSCSIDevicePtr dev);
 unsigned int virSCSIDeviceGetAdapter(virSCSIDevicePtr dev);
 unsigned int virSCSIDeviceGetBus(virSCSIDevicePtr dev);
 unsigned int virSCSIDeviceGetTarget(virSCSIDevicePtr dev);

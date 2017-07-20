@@ -24,6 +24,8 @@
 #ifndef __VIR_STORAGE_FILE_H__
 # define __VIR_STORAGE_FILE_H__
 
+# include <sys/stat.h>
+
 # include "virbitmap.h"
 # include "virseclabel.h"
 # include "virstorageencryption.h"
@@ -274,6 +276,10 @@ struct _virStorageSource {
     /* Name of the child backing store recorded in metadata of the
      * current file.  */
     char *backingStoreRaw;
+
+    /* metadata that allows identifying given storage source */
+    char *nodeformat;  /* name of the format handler object */
+    char *nodebacking; /* name of the backing storage object */
 };
 
 
@@ -282,15 +288,12 @@ struct _virStorageSource {
 # endif
 
 int virStorageFileProbeFormat(const char *path, uid_t uid, gid_t gid);
-int virStorageFileProbeFormatFromBuf(const char *path,
-                                     char *buf,
-                                     size_t buflen);
 
 int virStorageFileGetMetadataInternal(virStorageSourcePtr meta,
                                       char *buf,
                                       size_t len,
                                       int *backingFormat)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(4);
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 virStorageSourcePtr virStorageFileGetMetadataFromFD(const char *path,
                                                     int fd,
@@ -310,6 +313,11 @@ int virStorageFileParseChainIndex(const char *diskTarget,
                                   unsigned int *chainIndex)
     ATTRIBUTE_NONNULL(3);
 
+int virStorageFileParseBackingStoreStr(const char *str,
+                                       char **target,
+                                       unsigned int *chainIndex)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
+
 virStorageSourcePtr virStorageFileChainLookup(virStorageSourcePtr chain,
                                               virStorageSourcePtr startFrom,
                                               const char *name,
@@ -324,6 +332,7 @@ int virStorageFileResize(const char *path,
 
 int virStorageFileIsClusterFS(const char *path);
 bool virStorageIsFile(const char *path);
+bool virStorageIsRelative(const char *backing);
 
 int virStorageFileGetLVMKey(const char *path,
                             char **key);
@@ -350,13 +359,19 @@ int virStorageSourceInitChainElement(virStorageSourcePtr newelem,
 void virStorageSourcePoolDefFree(virStorageSourcePoolDefPtr def);
 void virStorageSourceClear(virStorageSourcePtr def);
 int virStorageSourceGetActualType(const virStorageSource *def);
-bool virStorageSourceIsLocalStorage(virStorageSourcePtr src);
+bool virStorageSourceIsLocalStorage(const virStorageSource *src);
 bool virStorageSourceIsEmpty(virStorageSourcePtr src);
 bool virStorageSourceIsBlockLocal(const virStorageSource *src);
 void virStorageSourceFree(virStorageSourcePtr def);
 void virStorageSourceBackingStoreClear(virStorageSourcePtr def);
-int virStorageSourceUpdateBlockPhysicalSize(virStorageSourcePtr src,
-                                            bool report);
+int virStorageSourceUpdatePhysicalSize(virStorageSourcePtr src,
+                                       int fd, struct stat const *sb);
+int virStorageSourceUpdateBackingSizes(virStorageSourcePtr src,
+                                       int fd, struct stat const *sb);
+int virStorageSourceUpdateCapacity(virStorageSourcePtr src,
+                                   char *buf, ssize_t len,
+                                   bool probe);
+
 virStorageSourcePtr virStorageSourceNewFromBacking(virStorageSourcePtr parent);
 virStorageSourcePtr virStorageSourceCopy(const virStorageSource *src,
                                          bool backingChain)
@@ -382,5 +397,17 @@ int virStorageFileGetRelativeBackingPath(virStorageSourcePtr from,
 int virStorageFileCheckCompat(const char *compat);
 
 virStorageSourcePtr virStorageSourceNewFromBackingAbsolute(const char *path);
+
+bool virStorageSourceIsRelative(virStorageSourcePtr src);
+
+virStorageSourcePtr
+virStorageSourceFindByNodeName(virStorageSourcePtr top,
+                               const char *nodeName,
+                               unsigned int *index)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+
+int
+virStorageSourceNetworkAssignDefaultPorts(virStorageSourcePtr src)
+    ATTRIBUTE_NONNULL(1);
 
 #endif /* __VIR_STORAGE_FILE_H__ */

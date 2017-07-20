@@ -58,7 +58,8 @@ int qemuAssignDeviceRNGAlias(virDomainDefPtr def,
                              virDomainRNGDefPtr rng);
 
 int qemuAssignDeviceMemoryAlias(virDomainDefPtr def,
-                                virDomainMemoryDefPtr mems);
+                                virDomainMemoryDefPtr mems,
+                                bool oldAlias);
 
 int qemuAssignDeviceShmemAlias(virDomainDefPtr def,
                                virDomainShmemDefPtr shmem,
@@ -80,7 +81,10 @@ char *qemuDomainGetMasterKeyAlias(void);
 char *qemuDomainGetSecretAESAlias(const char *srcalias,
                                   bool isLuks);
 
-char *qemuAliasTLSObjFromChardevAlias(const char *chardev_alias)
+char *qemuAliasTLSObjFromSrcAlias(const char *srcAlias)
+    ATTRIBUTE_NONNULL(1);
+
+char *qemuAliasChardevFromDevAlias(const char *devAlias)
     ATTRIBUTE_NONNULL(1);
 
 #endif /* __QEMU_ALIAS_H__*/

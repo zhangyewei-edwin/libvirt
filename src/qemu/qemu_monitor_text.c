@@ -521,14 +521,24 @@ qemuMonitorTextQueryCPUs(qemuMonitorPtr mon,
      * (qemu) info cpus
      * * CPU #0: pc=0x00000000000f0c4a thread_id=30019
      *   CPU #1: pc=0x00000000fffffff0 thread_id=30020
-     *   CPU #2: pc=0x00000000fffffff0 thread_id=30021
+     *   CPU #2: pc=0x00000000fffffff0 (halted) thread_id=30021
      *
      */
     line = qemucpus;
     do {
         char *offset = NULL;
         char *end = NULL;
+        int cpuid = -1;
         int tid = 0;
+
+        /* extract cpu number */
+        if ((offset = strstr(line, "#")) == NULL)
+            goto cleanup;
+
+        if (virStrToLong_i(offset + strlen("#"), &end, 10, &cpuid) < 0)
+            goto cleanup;
+        if (end == NULL || *end != ':')
+            goto cleanup;
 
         /* Extract host Thread ID */
         if ((offset = strstr(line, "thread_id=")) == NULL)
@@ -539,6 +549,7 @@ qemuMonitorTextQueryCPUs(qemuMonitorPtr mon,
         if (end == NULL || !c_isspace(*end))
             goto cleanup;
 
+        cpu.qemu_id = cpuid;
         cpu.tid = tid;
 
         if (VIR_APPEND_ELEMENT_COPY(cpus, ncpus, cpu) < 0) {
@@ -584,7 +595,7 @@ int qemuMonitorTextGetVirtType(qemuMonitorPtr mon,
 
 
 static int parseMemoryStat(char **text, unsigned int tag,
-                           const char *search, virDomainMemoryStatPtr stat)
+                           const char *search, virDomainMemoryStatPtr mstat)
 {
     char *dummy;
     unsigned long long value;
@@ -608,8 +619,8 @@ static int parseMemoryStat(char **text, unsigned int tag,
             case VIR_DOMAIN_MEMORY_STAT_AVAILABLE:
                 value >>= 10;
         }
-        stat->tag = tag;
-        stat->val = value;
+        mstat->tag = tag;
+        mstat->val = value;
         return 1;
     }
     return 0;
@@ -954,15 +965,15 @@ qemuMonitorTextGetAllBlockStatsInfo(qemuMonitorPtr mon,
             goto cleanup;
         stats = NULL;
 
-        virStringFreeList(values);
+        virStringListFree(values);
         values = NULL;
     }
 
     ret = maxstats;
 
  cleanup:
-    virStringFreeList(lines);
-    virStringFreeList(values);
+    virStringListFree(lines);
+    virStringListFree(values);
     VIR_FREE(stats);
     VIR_FREE(info);
     return ret;
@@ -1939,6 +1950,22 @@ int qemuMonitorTextAddDrive(qemuMonitorPtr mon,
     if (strstr(reply, "could not open disk image")) {
         virReportError(VIR_ERR_OPERATION_FAILED, "%s",
                        _("open disk image file failed"));
+        goto cleanup;
+    }
+
+    if (strstr(reply, "Could not open")) {
+        size_t len = strlen(reply);
+        if (reply[len - 1] == '\n')
+            reply[len - 1] = '\0';
+
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       reply);
+        goto cleanup;
+    }
+
+    if (strstr(reply, "Image is not in")) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("Incorrect disk format"));
         goto cleanup;
     }
 

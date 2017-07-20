@@ -27,7 +27,6 @@
 #include <config.h>
 
 #include <fcntl.h>
-#include <sched.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -50,7 +49,7 @@
 #endif
 
 #if WITH_BLKID
-# include <blkid/blkid.h>
+# include <blkid.h>
 #endif
 
 #if WITH_SELINUX
@@ -246,6 +245,13 @@ static virCommandPtr lxcContainerBuildInitCmd(virDomainDefPtr vmDef,
     virCommandAddEnvPair(cmd, "LIBVIRT_LXC_NAME", vmDef->name);
     if (vmDef->os.cmdline)
         virCommandAddEnvPair(cmd, "LIBVIRT_LXC_CMDLINE", vmDef->os.cmdline);
+    if (vmDef->os.initdir)
+        virCommandSetWorkingDirectory(cmd, vmDef->os.initdir);
+
+    for (i = 0; vmDef->os.initenv[i]; i++) {
+        virCommandAddEnvPair(cmd, vmDef->os.initenv[i]->name,
+                                  vmDef->os.initenv[i]->value);
+    }
 
     virBufferFreeAndReset(&buf);
     return cmd;
@@ -607,7 +613,7 @@ static int lxcContainerUnmountSubtree(const char *prefix,
     ret = 0;
 
  cleanup:
-    virStringFreeList(mounts);
+    virStringListFree(mounts);
 
     return ret;
 }
@@ -1112,20 +1118,6 @@ static int lxcContainerMountFSDevPTS(virDomainDefPtr def,
     return ret;
 }
 
-static int lxcContainerBindMountDevice(const char *src, const char *dst)
-{
-    if (virFileTouch(dst, 0666) < 0)
-        return -1;
-
-    if (mount(src, dst, "none", MS_BIND, NULL) < 0) {
-        virReportSystemError(errno, _("Failed to bind %s on to %s"), src,
-                             dst);
-        return -1;
-    }
-
-    return 0;
-}
-
 static int lxcContainerSetupDevices(char **ttyPaths, size_t nttyPaths)
 {
     size_t i;
@@ -1149,7 +1141,7 @@ static int lxcContainerSetupDevices(char **ttyPaths, size_t nttyPaths)
     }
 
     /* We have private devpts capability, so bind that */
-    if (lxcContainerBindMountDevice("/dev/pts/ptmx", "/dev/ptmx") < 0)
+    if (virFileBindMountDevice("/dev/pts/ptmx", "/dev/ptmx") < 0)
         return -1;
 
     for (i = 0; i < nttyPaths; i++) {
@@ -1157,15 +1149,15 @@ static int lxcContainerSetupDevices(char **ttyPaths, size_t nttyPaths)
         if (virAsprintf(&tty, "/dev/tty%zu", i+1) < 0)
             return -1;
 
-        if (lxcContainerBindMountDevice(ttyPaths[i], tty) < 0) {
-            return -1;
+        if (virFileBindMountDevice(ttyPaths[i], tty) < 0) {
             VIR_FREE(tty);
+            return -1;
         }
 
         VIR_FREE(tty);
 
         if (i == 0 &&
-            lxcContainerBindMountDevice(ttyPaths[i], "/dev/console") < 0)
+            virFileBindMountDevice(ttyPaths[i], "/dev/console") < 0)
             return -1;
     }
     return 0;
@@ -2057,7 +2049,7 @@ static int lxcContainerDropCapabilities(virDomainDefPtr def,
             default: /* User specified capabilities to drop */
                 toDrop = (state == VIR_TRISTATE_SWITCH_OFF);
             }
-            /* Fallthrough */
+            ATTRIBUTE_FALLTHROUGH;
 
         case VIR_DOMAIN_CAPABILITIES_POLICY_ALLOW:
             if (policy == VIR_DOMAIN_CAPABILITIES_POLICY_ALLOW)
@@ -2115,6 +2107,55 @@ static int lxcAttachNS(int *ns_fd)
         virProcessSetNamespaces((size_t)VIR_LXC_DOMAIN_NAMESPACE_LAST,
                                 ns_fd) < 0)
         return -1;
+    return 0;
+}
+
+/**
+ * lxcContainerSetUserGroup:
+ * @cmd: command to update
+ * @vmDef: domain definition for the container
+ * @ttyPath: guest path to the tty
+ *
+ * Set the command UID and GID. As this function attempts at
+ * converting the user/group name into uid/gid, it needs to
+ * be called after the pivot root is done.
+ *
+ * The owner of the tty is also changed to the given user.
+ */
+static int lxcContainerSetUserGroup(virCommandPtr cmd,
+                                    virDomainDefPtr vmDef,
+                                    const char *ttyPath)
+{
+    uid_t uid;
+    gid_t gid;
+
+    if (vmDef->os.inituser) {
+        if (virGetUserID(vmDef->os.inituser, &uid) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, _("User %s doesn't exist"),
+                           vmDef->os.inituser);
+            return -1;
+        }
+        virCommandSetUID(cmd, uid);
+
+        /* Change the newly created tty owner to the inituid for
+         * shells to have job control. */
+        if (chown(ttyPath, uid, -1) < 0) {
+            virReportSystemError(errno,
+                                 _("Failed to change ownership of tty %s"),
+                                 ttyPath);
+            return -1;
+        }
+    }
+
+    if (vmDef->os.initgroup) {
+        if (virGetGroupID(vmDef->os.initgroup, &gid) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, _("Group %s doesn't exist"),
+                           vmDef->os.initgroup);
+            return -1;
+        }
+        virCommandSetGID(cmd, gid);
+    }
+
     return 0;
 }
 
@@ -2216,6 +2257,9 @@ static int lxcContainerChild(void *data)
         goto cleanup;
     }
 
+    if (lxcContainerSetUserGroup(cmd, vmDef, argv->ttyPaths[0]) < 0)
+        goto cleanup;
+
     /* rename and enable interfaces */
     if (lxcContainerRenameAndEnableInterfaces(vmDef,
                                               argv->nveths,
@@ -2277,11 +2321,6 @@ static int lxcContainerChild(void *data)
     return ret;
 }
 
-static int userns_supported(void)
-{
-    return lxcContainerAvailable(LXC_CONTAINER_FEATURE_USER) == 0;
-}
-
 static int userns_required(virDomainDefPtr def)
 {
     return def->idmap.uidmap && def->idmap.gidmap;
@@ -2305,6 +2344,8 @@ virArch lxcContainerGetAlt32bitArch(virArch arch)
         return VIR_ARCH_MIPS;
     if (arch == VIR_ARCH_MIPS64EL)
         return VIR_ARCH_MIPSEL;
+    if (arch == VIR_ARCH_AARCH64)
+        return VIR_ARCH_ARMV7L;
 
     return VIR_ARCH_NONE;
 }
@@ -2361,15 +2402,14 @@ int lxcContainerStart(virDomainDefPtr def,
     cflags = CLONE_NEWPID|CLONE_NEWNS|SIGCHLD;
 
     if (userns_required(def)) {
-        if (userns_supported()) {
-            VIR_DEBUG("Enable user namespace");
-            cflags |= CLONE_NEWUSER;
-        } else {
+        if (virProcessNamespaceAvailable(VIR_PROCESS_NAMESPACE_USER) < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Kernel doesn't support user namespace"));
             VIR_FREE(stack);
             return -1;
         }
+        VIR_DEBUG("Enable user namespace");
+        cflags |= CLONE_NEWUSER;
     }
     if (!nsInheritFDs || nsInheritFDs[VIR_LXC_DOMAIN_NAMESPACE_SHARENET] == -1) {
         if (lxcNeedNetworkNamespace(def)) {
@@ -2411,47 +2451,6 @@ int lxcContainerStart(virDomainDefPtr def,
     }
 
     return pid;
-}
-
-ATTRIBUTE_NORETURN static int
-lxcContainerDummyChild(void *argv ATTRIBUTE_UNUSED)
-{
-    _exit(0);
-}
-
-int lxcContainerAvailable(int features)
-{
-    int flags = CLONE_NEWPID|CLONE_NEWNS|CLONE_NEWUTS|
-        CLONE_NEWIPC|SIGCHLD;
-    int cpid;
-    char *childStack;
-    char *stack;
-    int stacksize = getpagesize() * 4;
-
-    if (features & LXC_CONTAINER_FEATURE_USER)
-        flags |= CLONE_NEWUSER;
-
-    if (features & LXC_CONTAINER_FEATURE_NET)
-        flags |= CLONE_NEWNET;
-
-    if (VIR_ALLOC_N(stack, stacksize) < 0)
-        return -1;
-
-    childStack = stack + stacksize;
-
-    cpid = clone(lxcContainerDummyChild, childStack, flags, NULL);
-    VIR_FREE(stack);
-    if (cpid < 0) {
-        char ebuf[1024] ATTRIBUTE_UNUSED;
-        VIR_DEBUG("clone call returned %s, container support is not enabled",
-                  virStrerror(errno, ebuf, sizeof(ebuf)));
-        return -1;
-    } else if (virProcessWait(cpid, NULL, false) < 0) {
-        return -1;
-    }
-
-    VIR_DEBUG("container support is enabled");
-    return 0;
 }
 
 int lxcContainerChown(virDomainDefPtr def, const char *path)

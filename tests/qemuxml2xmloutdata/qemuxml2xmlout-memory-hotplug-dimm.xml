@@ -24,7 +24,7 @@
   <on_reboot>restart</on_reboot>
   <on_crash>destroy</on_crash>
   <devices>
-    <emulator>/usr/bin/qemu</emulator>
+    <emulator>/usr/bin/qemu-system-i686</emulator>
     <disk type='block' device='disk'>
       <source dev='/dev/HostVG/QEMUGuest1'/>
       <target dev='hda' bus='ide'/>
@@ -47,6 +47,7 @@
         <size unit='KiB'>523264</size>
         <node>0</node>
       </target>
+      <address type='dimm' slot='0'/>
     </memory>
     <memory model='dimm'>
       <source>
@@ -57,6 +58,7 @@
         <size unit='KiB'>524287</size>
         <node>0</node>
       </target>
+      <address type='dimm' slot='1'/>
     </memory>
   </devices>
 </domain>

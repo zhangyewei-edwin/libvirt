@@ -1,7 +1,7 @@
 /*
  * virstoragefile.c: file utility functions for FS storage backend
  *
- * Copyright (C) 2007-2014, 2016 Red Hat, Inc.
+ * Copyright (C) 2007-2017 Red Hat, Inc.
  * Copyright (C) 2007-2008 Daniel P. Berrange
  *
  * This library is free software; you can redistribute it and/or
@@ -24,7 +24,6 @@
 #include <config.h>
 #include "virstoragefile.h"
 
-#include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -114,7 +113,7 @@ enum {
     BACKING_STORE_ERROR,
 };
 
-#define FILE_TYPE_VERSIONS_LAST 2
+#define FILE_TYPE_VERSIONS_LAST 3
 
 struct FileEncryptionInfo {
     int format; /* Encryption format to assign */
@@ -134,6 +133,8 @@ struct FileEncryptionInfo {
 
     int modeOffset; /* Byte offset of the format native encryption mode */
     char modeValue; /* Value expected at offset */
+
+    int payloadOffset; /* start offset of the volume data (in 512 byte sectors) */
 };
 
 /* Either 'magic' or 'extension' *must* be provided */
@@ -213,9 +214,18 @@ qedGetBackingStore(char **, int *, const char *, size_t);
 
 #define LUKS_HDR_MAGIC_LEN 6
 #define LUKS_HDR_VERSION_LEN 2
+#define LUKS_HDR_CIPHER_NAME_LEN 32
+#define LUKS_HDR_CIPHER_MODE_LEN 32
+#define LUKS_HDR_HASH_SPEC_LEN 32
+#define LUKS_HDR_PAYLOAD_LEN 4
 
 /* Format described by qemu commit id '3e308f20e' */
 #define LUKS_HDR_VERSION_OFFSET LUKS_HDR_MAGIC_LEN
+#define LUKS_HDR_PAYLOAD_OFFSET (LUKS_HDR_MAGIC_LEN+\
+                                 LUKS_HDR_VERSION_LEN+\
+                                 LUKS_HDR_CIPHER_NAME_LEN+\
+                                 LUKS_HDR_CIPHER_MODE_LEN+\
+                                 LUKS_HDR_HASH_SPEC_LEN)
 
 static struct FileEncryptionInfo const luksEncryptionInfo[] = {
     {
@@ -232,6 +242,8 @@ static struct FileEncryptionInfo const luksEncryptionInfo[] = {
 
         .modeOffset = -1,
         .modeValue = -1,
+
+        .payloadOffset = LUKS_HDR_PAYLOAD_OFFSET,
     },
     { 0 }
 };
@@ -250,6 +262,8 @@ static struct FileEncryptionInfo const qcow1EncryptionInfo[] = {
 
         .modeOffset = QCOW1_HDR_CRYPT,
         .modeValue = 1,
+
+        .payloadOffset = -1,
     },
     { 0 }
 };
@@ -268,6 +282,8 @@ static struct FileEncryptionInfo const qcow2EncryptionInfo[] = {
 
         .modeOffset = QCOW2_HDR_CRYPT,
         .modeValue = 1,
+
+        .payloadOffset = -1,
     },
     { 0 }
 };
@@ -358,7 +374,7 @@ static struct FileTypeInfo const fileTypeInfo[] = {
     },
     [VIR_STORAGE_FILE_VMDK] = {
         0, "KDMV", NULL,
-        LV_LITTLE_ENDIAN, 4, 4, {1, 2},
+        LV_LITTLE_ENDIAN, 4, 4, {1, 2, 3},
         4+4+4, 8, 512, NULL, vmdk4GetBackingStore, NULL
     },
 };
@@ -785,7 +801,7 @@ virStorageIsFile(const char *backing)
 }
 
 
-static bool
+bool
 virStorageIsRelative(const char *backing)
 {
     if (backing[0] == '/')
@@ -798,7 +814,7 @@ virStorageIsRelative(const char *backing)
 }
 
 
-int
+static int
 virStorageFileProbeFormatFromBuf(const char *path,
                                  char *buf,
                                  size_t buflen)
@@ -922,6 +938,23 @@ virStorageFileHasEncryptionFormat(const struct FileEncryptionInfo *info,
 }
 
 
+static int
+virStorageFileGetEncryptionPayloadOffset(const struct FileEncryptionInfo *info,
+                                         char *buf)
+{
+    int payload_offset = -1;
+
+    if (info->payloadOffset != -1) {
+        if (info->endian == LV_LITTLE_ENDIAN)
+            payload_offset = virReadBufInt32LE(buf + info->payloadOffset);
+        else
+            payload_offset = virReadBufInt32BE(buf + info->payloadOffset);
+    }
+
+    return payload_offset;
+}
+
+
 /* Given a header in BUF with length LEN, as parsed from the storage file
  * assuming it has the given FORMAT, populate information into META
  * with information about the file and its backing store. Return format
@@ -933,8 +966,12 @@ virStorageFileGetMetadataInternal(virStorageSourcePtr meta,
                                   size_t len,
                                   int *backingFormat)
 {
+    int dummy;
     int ret = -1;
     size_t i;
+
+    if (!backingFormat)
+        backingFormat = &dummy;
 
     VIR_DEBUG("path=%s, buf=%p, len=%zu, meta->format=%d",
               meta->path, buf, len, meta->format);
@@ -968,6 +1005,8 @@ virStorageFileGetMetadataInternal(virStorageSourcePtr meta,
                         goto cleanup;
                     }
                 }
+                meta->encryption->payload_offset =
+                    virStorageFileGetEncryptionPayloadOffset(&fileTypeInfo[meta->format].cryptInfo[i], buf);
             }
         }
     }
@@ -1443,32 +1482,78 @@ int virStorageFileGetSCSIKey(const char *path,
 }
 #endif
 
+
+/**
+ * virStorageFileParseBackingStoreStr:
+ * @str: backing store specifier string to parse
+ * @target: returns target device portion of the string
+ * @chainIndex: returns the backing store portion of the string
+ *
+ * Parses the backing store specifier string such as vda[1], or sda into
+ * components and returns them via arguments. If the string did not specify an
+ * index, 0 is assumed.
+ *
+ * Returns 0 on success -1 on error
+ */
+int
+virStorageFileParseBackingStoreStr(const char *str,
+                                   char **target,
+                                   unsigned int *chainIndex)
+{
+    char **strings = NULL;
+    size_t nstrings;
+    unsigned int idx = 0;
+    char *suffix;
+    int ret = -1;
+
+    *chainIndex = 0;
+
+    if (!(strings = virStringSplitCount(str, "[", 2, &nstrings)))
+        return -1;
+
+    if (nstrings == 2) {
+        if (virStrToLong_uip(strings[1], &suffix, 10, &idx) < 0 ||
+            STRNEQ(suffix, "]"))
+            goto cleanup;
+    }
+
+    if (target &&
+        VIR_STRDUP(*target, strings[0]) < 0)
+        goto cleanup;
+
+    *chainIndex = idx;
+    ret = 0;
+
+ cleanup:
+    virStringListFreeCount(strings, nstrings);
+    return ret;
+}
+
+
 int
 virStorageFileParseChainIndex(const char *diskTarget,
                               const char *name,
                               unsigned int *chainIndex)
 {
-    char **strings = NULL;
     unsigned int idx = 0;
-    char *suffix;
+    char *target = NULL;
     int ret = 0;
 
     *chainIndex = 0;
 
-    if (name && diskTarget)
-        strings = virStringSplit(name, "[", 2);
+    if (!name || !diskTarget)
+        return 0;
 
-    if (virStringListLength((const char * const *)strings) != 2)
+    if (virStorageFileParseBackingStoreStr(name, &target, &idx) < 0)
+        return 0;
+
+    if (idx == 0)
         goto cleanup;
 
-    if (virStrToLong_uip(strings[1], &suffix, 10, &idx) < 0 ||
-        STRNEQ(suffix, "]"))
-        goto cleanup;
-
-    if (STRNEQ(diskTarget, strings[0])) {
+    if (STRNEQ(diskTarget, target)) {
         virReportError(VIR_ERR_INVALID_ARG,
                        _("requested target '%s' does not match target '%s'"),
-                       strings[0], diskTarget);
+                       target, diskTarget);
         ret = -1;
         goto cleanup;
     }
@@ -1476,7 +1561,7 @@ virStorageFileParseChainIndex(const char *diskTarget,
     *chainIndex = idx;
 
  cleanup:
-    virStringFreeList(strings);
+    VIR_FREE(target);
     return ret;
 }
 
@@ -1893,7 +1978,7 @@ virStoragePermsCopy(const virStoragePerms *src)
     ret->uid = src->uid;
     ret->gid = src->gid;
 
-    if (VIR_STRDUP(ret->label, src->label))
+    if (VIR_STRDUP(ret->label, src->label) < 0)
         goto error;
 
     return ret;
@@ -1967,6 +2052,8 @@ virStorageSourceCopy(const virStorageSource *src,
         VIR_STRDUP(ret->backingStoreRaw, src->backingStoreRaw) < 0 ||
         VIR_STRDUP(ret->snapshot, src->snapshot) < 0 ||
         VIR_STRDUP(ret->configFile, src->configFile) < 0 ||
+        VIR_STRDUP(ret->nodeformat, src->nodeformat) < 0 ||
+        VIR_STRDUP(ret->nodebacking, src->nodebacking) < 0 ||
         VIR_STRDUP(ret->compat, src->compat) < 0)
         goto error;
 
@@ -2022,7 +2109,7 @@ virStorageSourceCopy(const virStorageSource *src,
  * virStorageSourceInitChainElement:
  * @newelem: New backing chain element disk source
  * @old: Existing top level disk source
- * @transferLabels: Transfer security lables.
+ * @transferLabels: Transfer security labels.
  *
  * Transfers relevant information from the existing disk source to the new
  * backing chain element if they weren't supplied so that labelling info
@@ -2083,7 +2170,7 @@ virStorageSourceGetActualType(const virStorageSource *def)
 
 
 bool
-virStorageSourceIsLocalStorage(virStorageSourcePtr src)
+virStorageSourceIsLocalStorage(const virStorageSource *src)
 {
     virStorageType type = virStorageSourceGetActualType(src);
 
@@ -2187,7 +2274,12 @@ virStorageSourceClear(virStorageSourcePtr def)
     virStorageNetHostDefFree(def->nhosts, def->hosts);
     virStorageAuthDefFree(def->auth);
 
+    VIR_FREE(def->nodebacking);
+    VIR_FREE(def->nodeformat);
+
     virStorageSourceBackingStoreClear(def);
+
+    memset(def, 0, sizeof(*def));
 }
 
 
@@ -2350,7 +2442,7 @@ virStorageSourceParseBackingURI(virStorageSourcePtr src,
 
  cleanup:
     virURIFree(uri);
-    virStringFreeList(scheme);
+    virStringListFree(scheme);
     return ret;
 }
 
@@ -2385,8 +2477,8 @@ virStorageSourceRBDAddHost(virStorageSourcePtr src,
     parts = virStringSplit(hostport, "\\:", 0);
     if (!parts)
         goto error;
-    src->hosts[src->nhosts-1].name = virStringJoin((const char **)parts, ":");
-    virStringFreeList(parts);
+    src->hosts[src->nhosts-1].name = virStringListJoin((const char **)parts, ":");
+    virStringListFree(parts);
     if (!src->hosts[src->nhosts-1].name)
         goto error;
 
@@ -2547,13 +2639,6 @@ virStorageSourceParseNBDColonString(const char *nbdstr,
             goto cleanup;
 
    } else {
-        if (!backing[1]) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("missing host name in nbd string '%s'"),
-                           nbdstr);
-            goto cleanup;
-        }
-
         if (VIR_STRDUP(src->hosts->name, backing[1]) < 0)
             goto cleanup;
 
@@ -2576,7 +2661,7 @@ virStorageSourceParseNBDColonString(const char *nbdstr,
     ret = 0;
 
  cleanup:
-    virStringFreeList(backing);
+    virStringListFree(backing);
 
     return ret;
 }
@@ -2649,6 +2734,11 @@ virStorageSourceParseBackingColon(virStorageSourcePtr src,
 
 
 static int
+virStorageSourceParseBackingJSONInternal(virStorageSourcePtr src,
+                                         virJSONValuePtr json);
+
+
+static int
 virStorageSourceParseBackingJSONPath(virStorageSourcePtr src,
                                      virJSONValuePtr json,
                                      int type)
@@ -2709,52 +2799,76 @@ virStorageSourceParseBackingJSONUri(virStorageSourcePtr src,
 
 
 static int
-virStorageSourceParseBackingJSONGlusterHost(virStorageNetHostDefPtr host,
-                                            virJSONValuePtr json)
+virStorageSourceParseBackingJSONInetSocketAddress(virStorageNetHostDefPtr host,
+                                                  virJSONValuePtr json)
 {
-    const char *type = virJSONValueObjectGetString(json, "type");
-    const char *hostname = virJSONValueObjectGetString(json, "host");
-    const char *port = virJSONValueObjectGetString(json, "port");
-    const char *socket = virJSONValueObjectGetString(json, "socket");
-    int transport;
+    const char *hostname;
+    const char *port;
 
-    if ((transport = virStorageNetHostTransportTypeFromString(type)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown backing store transport protocol '%s'"), type);
+    if (!json) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing remote server specification in JSON "
+                         "backing volume definition"));
         return -1;
     }
 
-    host->transport = transport;
+    hostname = virJSONValueObjectGetString(json, "host");
+    port = virJSONValueObjectGetString(json, "port");
 
-    switch ((virStorageNetHostTransport) transport) {
-    case VIR_STORAGE_NET_HOST_TRANS_TCP:
-        if (!hostname) {
-            virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("missing hostname for tcp backing server in "
-                             "JSON backing definition for gluster volume"));
-            return -1;
-        }
+    if (!hostname) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing hostname for tcp backing server in "
+                         "JSON backing volume definition"));
+        return -1;
+    }
 
-        if (VIR_STRDUP(host->name, hostname) < 0 ||
-            VIR_STRDUP(host->port, port) < 0)
-            return -1;
-        break;
+    host->transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
 
-    case VIR_STORAGE_NET_HOST_TRANS_UNIX:
-        if (!socket) {
+    if (VIR_STRDUP(host->name, hostname) < 0 ||
+        VIR_STRDUP(host->port, port) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+virStorageSourceParseBackingJSONSocketAddress(virStorageNetHostDefPtr host,
+                                              virJSONValuePtr json)
+{
+    const char *type;
+    const char *socket;
+
+    if (!json) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing remote server specification in JSON "
+                         "backing volume definition"));
+        return -1;
+    }
+
+    if (!(type = virJSONValueObjectGetString(json, "type"))) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing socket address type in "
+                         "JSON backing volume definition"));
+        return -1;
+    }
+
+    if (STREQ(type, "tcp") || STREQ(type, "inet")) {
+        return virStorageSourceParseBackingJSONInetSocketAddress(host, json);
+
+    } else if (STREQ(type, "unix")) {
+        host->transport = VIR_STORAGE_NET_HOST_TRANS_UNIX;
+
+        if (!(socket = virJSONValueObjectGetString(json, "socket"))) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
                            _("missing socket path for udp backing server in "
-                             "JSON backing definition for gluster volume"));
+                             "JSON backing volume definition"));
             return -1;
         }
-
 
         if (VIR_STRDUP(host->socket, socket) < 0)
             return -1;
-        break;
-
-    case VIR_STORAGE_NET_HOST_TRANS_RDMA:
-    case VIR_STORAGE_NET_HOST_TRANS_LAST:
+    } else {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("backing store protocol '%s' is not yet supported"),
                        type);
@@ -2802,6 +2916,8 @@ virStorageSourceParseBackingJSONGluster(virStorageSourcePtr src,
         virReportError(VIR_ERR_INVALID_ARG, "%s",
                        _("at least 1 server is necessary in "
                          "JSON backing definition for gluster volume"));
+
+        return -1;
     }
 
     if (VIR_ALLOC_N(src->hosts, nservers) < 0)
@@ -2809,8 +2925,8 @@ virStorageSourceParseBackingJSONGluster(virStorageSourcePtr src,
     src->nhosts = nservers;
 
     for (i = 0; i < nservers; i++) {
-        if (virStorageSourceParseBackingJSONGlusterHost(src->hosts + i,
-                                                        virJSONValueArrayGet(server, i)) < 0)
+        if (virStorageSourceParseBackingJSONSocketAddress(src->hosts + i,
+                                                          virJSONValueArrayGet(server, i)) < 0)
             return -1;
     }
 
@@ -2823,18 +2939,73 @@ virStorageSourceParseBackingJSONiSCSI(virStorageSourcePtr src,
                                       virJSONValuePtr json,
                                       int opaque ATTRIBUTE_UNUSED)
 {
+    const char *transport = virJSONValueObjectGetString(json, "transport");
+    const char *portal = virJSONValueObjectGetString(json, "portal");
+    const char *target = virJSONValueObjectGetString(json, "target");
     const char *uri;
+    char *port;
+    unsigned int lun = 0;
+    char *fulltarget = NULL;
+    int ret = -1;
 
     /* legacy URI based syntax passed via 'filename' option */
     if ((uri = virJSONValueObjectGetString(json, "filename")))
         return virStorageSourceParseBackingJSONUriStr(src, uri,
                                                       VIR_STORAGE_NET_PROTOCOL_ISCSI);
 
-    /* iSCSI currently supports only URI syntax passed in as filename */
-    virReportError(VIR_ERR_INVALID_ARG, "%s",
-                   _("missing iSCSI URI in JSON backing volume definition"));
+    src->type = VIR_STORAGE_TYPE_NETWORK;
+    src->protocol = VIR_STORAGE_NET_PROTOCOL_ISCSI;
 
-    return -1;
+    if (VIR_ALLOC(src->hosts) < 0)
+        goto cleanup;
+
+    src->nhosts = 1;
+
+    if (STRNEQ_NULLABLE(transport, "tcp")) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("only TCP transport is supported for iSCSI volumes"));
+        goto cleanup;
+    }
+
+    src->hosts->transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
+
+    if (!portal) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing 'portal' address in iSCSI backing definition"));
+        goto cleanup;
+    }
+
+    if (!target) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing 'target' in iSCSI backing definition"));
+        goto cleanup;
+    }
+
+    if (VIR_STRDUP(src->hosts->name, portal) < 0)
+        goto cleanup;
+
+    if ((port = strchr(src->hosts->name, ':'))) {
+        if (VIR_STRDUP(src->hosts->port, port + 1) < 0)
+            goto cleanup;
+
+        if (strlen(src->hosts->port) == 0)
+            VIR_FREE(src->hosts->port);
+
+        *port = '\0';
+    }
+
+    ignore_value(virJSONValueObjectGetNumberUint(json, "lun", &lun));
+
+    if (virAsprintf(&fulltarget, "%s/%u", target, lun) < 0)
+        goto cleanup;
+
+    VIR_STEAL_PTR(src->path, fulltarget);
+
+    ret = 0;
+
+ cleanup:
+    VIR_FREE(fulltarget);
+    return ret;
 }
 
 
@@ -2847,11 +3018,12 @@ virStorageSourceParseBackingJSONNbd(virStorageSourcePtr src,
     const char *host = virJSONValueObjectGetString(json, "host");
     const char *port = virJSONValueObjectGetString(json, "port");
     const char *export = virJSONValueObjectGetString(json, "export");
+    virJSONValuePtr server = virJSONValueObjectGetObject(json, "server");
 
-    if (!path && !host) {
+    if (!path && !host && !server) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("missing path or host of NBD server in JSON backing "
-                         "volume definition"));
+                       _("missing host specification of NBD server in JSON "
+                         "backing volume definition"));
         return -1;
     }
 
@@ -2865,17 +3037,22 @@ virStorageSourceParseBackingJSONNbd(virStorageSourcePtr src,
         return -1;
     src->nhosts = 1;
 
-    if (path) {
-        src->hosts[0].transport = VIR_STORAGE_NET_HOST_TRANS_UNIX;
-        if (VIR_STRDUP(src->hosts[0].socket, path) < 0)
+    if (server) {
+        if (virStorageSourceParseBackingJSONSocketAddress(src->hosts, server) < 0)
             return -1;
     } else {
-        src->hosts[0].transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
-        if (VIR_STRDUP(src->hosts[0].name, host) < 0)
-            return -1;
+        if (path) {
+            src->hosts[0].transport = VIR_STORAGE_NET_HOST_TRANS_UNIX;
+            if (VIR_STRDUP(src->hosts[0].socket, path) < 0)
+                return -1;
+        } else {
+            src->hosts[0].transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
+            if (VIR_STRDUP(src->hosts[0].name, host) < 0)
+                return -1;
 
-        if (VIR_STRDUP(src->hosts[0].port, port) < 0)
-            return -1;
+            if (VIR_STRDUP(src->hosts[0].port, port) < 0)
+                return -1;
+        }
     }
 
     return 0;
@@ -2888,6 +3065,8 @@ virStorageSourceParseBackingJSONSheepdog(virStorageSourcePtr src,
                                          int opaque ATTRIBUTE_UNUSED)
 {
     const char *filename;
+    const char *vdi = virJSONValueObjectGetString(json, "vdi");
+    virJSONValuePtr server = virJSONValueObjectGetObject(json, "server");
 
     /* legacy URI based syntax passed via 'filename' option */
     if ((filename = virJSONValueObjectGetString(json, "filename"))) {
@@ -2896,13 +3075,31 @@ virStorageSourceParseBackingJSONSheepdog(virStorageSourcePtr src,
                                                           VIR_STORAGE_NET_PROTOCOL_SHEEPDOG);
 
         /* libvirt doesn't implement a parser for the legacy non-URI syntax */
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing sheepdog URI in JSON backing volume definition"));
+        return -1;
     }
 
-    /* Sheepdog currently supports only URI and legacy syntax passed in as filename */
-    virReportError(VIR_ERR_INVALID_ARG, "%s",
-                   _("missing sheepdog URI in JSON backing volume definition"));
+    src->type = VIR_STORAGE_TYPE_NETWORK;
+    src->protocol = VIR_STORAGE_NET_PROTOCOL_SHEEPDOG;
 
-    return -1;
+    if (!vdi) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s", _("missing sheepdog vdi name"));
+        return -1;
+    }
+
+    if (VIR_STRDUP(src->path, vdi) < 0)
+        return -1;
+
+    if (VIR_ALLOC(src->hosts) < 0)
+        return -1;
+
+    src->nhosts = 1;
+
+    if (virStorageSourceParseBackingJSONSocketAddress(src->hosts, server) < 0)
+        return -1;
+
+    return 0;
 }
 
 
@@ -2914,10 +3111,11 @@ virStorageSourceParseBackingJSONSSH(virStorageSourcePtr src,
     const char *path = virJSONValueObjectGetString(json, "path");
     const char *host = virJSONValueObjectGetString(json, "host");
     const char *port = virJSONValueObjectGetString(json, "port");
+    virJSONValuePtr server = virJSONValueObjectGetObject(json, "server");
 
-    if (!host || !path) {
+    if (!(host || server) || !path) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("missing host or path of SSH JSON backing "
+                       _("missing host/server or path of SSH JSON backing "
                          "volume definition"));
         return -1;
     }
@@ -2932,12 +3130,16 @@ virStorageSourceParseBackingJSONSSH(virStorageSourcePtr src,
         return -1;
     src->nhosts = 1;
 
-    src->hosts[0].transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
-    if (VIR_STRDUP(src->hosts[0].name, host) < 0)
-        return -1;
-
-    if (VIR_STRDUP(src->hosts[0].port, port) < 0)
-        return -1;
+    if (server) {
+        if (virStorageSourceParseBackingJSONInetSocketAddress(src->hosts,
+                                                              server) < 0)
+            return -1;
+    } else {
+        src->hosts[0].transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
+        if (VIR_STRDUP(src->hosts[0].name, host) < 0 ||
+            VIR_STRDUP(src->hosts[0].port, port) < 0)
+            return -1;
+    }
 
     return 0;
 }
@@ -2949,6 +3151,15 @@ virStorageSourceParseBackingJSONRBD(virStorageSourcePtr src,
                                     int opaque ATTRIBUTE_UNUSED)
 {
     const char *filename;
+    const char *pool = virJSONValueObjectGetString(json, "pool");
+    const char *image = virJSONValueObjectGetString(json, "image");
+    const char *conf = virJSONValueObjectGetString(json, "conf");
+    const char *snapshot = virJSONValueObjectGetString(json, "snapshot");
+    virJSONValuePtr servers = virJSONValueObjectGetArray(json, "server");
+    char *fullname = NULL;
+    size_t nservers;
+    size_t i;
+    int ret = -1;
 
     src->type = VIR_STORAGE_TYPE_NETWORK;
     src->protocol = VIR_STORAGE_NET_PROTOCOL_RBD;
@@ -2957,13 +3168,56 @@ virStorageSourceParseBackingJSONRBD(virStorageSourcePtr src,
     if ((filename = virJSONValueObjectGetString(json, "filename")))
         return virStorageSourceParseRBDColonString(filename, src);
 
-    /* RBD currently supports only URI syntax passed in as filename */
-    virReportError(VIR_ERR_INVALID_ARG, "%s",
-                   _("missing RBD filename in JSON backing volume definition"));
+    if (!pool || !image) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing pool or image name in ceph backing volume "
+                         "JSON specification"));
+        return -1;
+    }
 
-    return -1;
+    /* currently we need to store the pool name and image name together, since
+     * the rest of the code is not prepared for it */
+    if (virAsprintf(&fullname, "%s/%s", pool, image) < 0)
+        return -1;
+
+    if (VIR_STRDUP(src->snapshot, snapshot) < 0 ||
+        VIR_STRDUP(src->configFile, conf) < 0)
+        goto cleanup;
+
+    VIR_STEAL_PTR(src->path, fullname);
+
+    if (servers) {
+        nservers = virJSONValueArraySize(servers);
+
+        if (VIR_ALLOC_N(src->hosts, nservers) < 0)
+            goto cleanup;
+
+        src->nhosts = nservers;
+
+        for (i = 0; i < nservers; i++) {
+            if (virStorageSourceParseBackingJSONInetSocketAddress(src->hosts + i,
+                                                                  virJSONValueArrayGet(servers, i)) < 0)
+                goto cleanup;
+        }
+    }
+
+    ret = 0;
+ cleanup:
+    VIR_FREE(fullname);
+
+    return ret;
 }
 
+static int
+virStorageSourceParseBackingJSONRaw(virStorageSourcePtr src,
+                                    virJSONValuePtr json,
+                                    int opaque ATTRIBUTE_UNUSED)
+{
+    /* There are no interesting attributes in raw driver.
+     * Treat it as pass-through.
+     */
+    return virStorageSourceParseBackingJSONInternal(src, json);
+}
 
 struct virStorageSourceJSONDriverParser {
     const char *drvname;
@@ -2986,97 +3240,38 @@ static const struct virStorageSourceJSONDriverParser jsonParsers[] = {
     {"sheepdog", virStorageSourceParseBackingJSONSheepdog, 0},
     {"ssh", virStorageSourceParseBackingJSONSSH, 0},
     {"rbd", virStorageSourceParseBackingJSONRBD, 0},
+    {"raw", virStorageSourceParseBackingJSONRaw, 0},
 };
 
 
-static int
-virStorageSourceParseBackingJSONDeflattenWorker(const char *key,
-                                                const virJSONValue *value,
-                                                void *opaque)
-{
-    virJSONValuePtr retobj = opaque;
-    virJSONValuePtr newval = NULL;
-    const char *newkey;
-
-    if (!(newkey = STRSKIP(key, "file."))) {
-        virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("JSON backing file syntax is neither nested nor "
-                         "flattened"));
-        return -1;
-    }
-
-    if (!(newval = virJSONValueCopy(value)))
-        return -1;
-
-    if (virJSONValueObjectAppend(retobj, newkey, newval) < 0) {
-        virJSONValueFree(newval);
-        return -1;
-    }
-
-    return 0;
-}
-
-
-/**
- * virStorageSourceParseBackingJSONDeflatten:
- *
- * The json: pseudo-protocol syntax in qemu allows multiple approaches to
- * describe nesting of the values. This is due to the lax handling of the string
- * in qemu and the fact that internally qemu is flattening the values using '.'.
- *
- * This allows to specify nested json strings either using nested json objects
- * or prefixing object members with the parent object name followed by the dot.
- *
- * This function will attempt to reverse the process and provide a nested json
- * hierarchy so that the parsers can be kept simple and we still can use the
- * weird syntax some users might use.
- *
- * Currently this function will flatten out just the 'file.' prefix into a new
- * tree. Any other syntax will be rejected.
- */
-static virJSONValuePtr
-virStorageSourceParseBackingJSONDeflatten(virJSONValuePtr json)
-{
-    virJSONValuePtr ret;
-
-    if (!(ret = virJSONValueNewObject()))
-        return NULL;
-
-    if (virJSONValueObjectForeachKeyValue(json,
-                                          virStorageSourceParseBackingJSONDeflattenWorker,
-                                          ret) < 0) {
-        virJSONValueFree(ret);
-        return NULL;
-    }
-
-    return ret;
-}
-
 
 static int
-virStorageSourceParseBackingJSON(virStorageSourcePtr src,
-                                 const char *json)
+virStorageSourceParseBackingJSONInternal(virStorageSourcePtr src,
+                                         virJSONValuePtr json)
 {
-    virJSONValuePtr root = NULL;
-    virJSONValuePtr fixedroot = NULL;
+    virJSONValuePtr deflattened = NULL;
     virJSONValuePtr file;
     const char *drvname;
+    char *str = NULL;
     size_t i;
     int ret = -1;
 
-    if (!(root = virJSONValueFromString(json)))
-        return -1;
+    if (!(deflattened = virJSONValueObjectDeflatten(json)))
+        goto cleanup;
 
-    if (!(file = virJSONValueObjectGetObject(root, "file"))) {
-        if (!(fixedroot = virStorageSourceParseBackingJSONDeflatten(root)))
-            goto cleanup;
-
-        file = fixedroot;
+    if (!(file = virJSONValueObjectGetObject(deflattened, "file"))) {
+        str = virJSONValueToString(json, false);
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("JSON backing volume defintion '%s' lacks 'file' object"),
+                       NULLSTR(str));
+        goto cleanup;
     }
 
     if (!(drvname = virJSONValueObjectGetString(file, "driver"))) {
-        virReportError(VIR_ERR_INVALID_ARG, _("JSON backing volume defintion "
-                                              "'%s' lacks driver name"), json);
+        str = virJSONValueToString(json, false);
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("JSON backing volume defintion '%s' lacks driver name"),
+                       NULLSTR(str));
         goto cleanup;
     }
 
@@ -3092,8 +3287,25 @@ virStorageSourceParseBackingJSON(virStorageSourcePtr src,
                      "driver '%s'"), drvname);
 
  cleanup:
+    VIR_FREE(str);
+    virJSONValueFree(deflattened);
+    return ret;
+}
+
+
+static int
+virStorageSourceParseBackingJSON(virStorageSourcePtr src,
+                                 const char *json)
+{
+    virJSONValuePtr root = NULL;
+    int ret = -1;
+
+    if (!(root = virJSONValueFromString(json)))
+        return -1;
+
+    ret = virStorageSourceParseBackingJSONInternal(src, root);
+
     virJSONValueFree(root);
-    virJSONValueFree(fixedroot);
     return ret;
 }
 
@@ -3115,6 +3327,8 @@ virStorageSourceNewFromBackingAbsolute(const char *path)
             goto error;
     } else {
         ret->type = VIR_STORAGE_TYPE_NETWORK;
+
+        VIR_DEBUG("parsing backing store string: '%s'", path);
 
         /* handle URI formatted backing stores */
         if ((json = STRSKIP(path, "json:")))
@@ -3175,40 +3389,182 @@ virStorageSourceNewFromBacking(virStorageSourcePtr parent)
 
 
 /**
- * @src: disk source definiton structure
- * @report: report libvirt errors if set to true
+ * @src: disk source definition structure
+ * @fd: file descriptor
+ * @sb: stat buffer
  *
- * Updates src->physical for block devices since qemu doesn't report the current
- * size correctly for them. Returns 0 on success, -1 on error.
+ * Updates src->physical depending on the actual type of storage being used.
+ * To be called for domain storage source reporting as the volume code does
+ * not set/use the 'type' field for the voldef->source.target
+ *
+ * Returns 0 on success, -1 on error.
  */
 int
-virStorageSourceUpdateBlockPhysicalSize(virStorageSourcePtr src,
-                                        bool report)
+virStorageSourceUpdatePhysicalSize(virStorageSourcePtr src,
+                                   int fd,
+                                   struct stat const *sb)
 {
-    int fd = -1;
     off_t end;
-    int ret = -1;
+    virStorageType actual_type = virStorageSourceGetActualType(src);
 
-    if (virStorageSourceGetActualType(src) != VIR_STORAGE_TYPE_BLOCK)
-        return 0;
+    switch (actual_type) {
+    case VIR_STORAGE_TYPE_FILE:
+    case VIR_STORAGE_TYPE_NETWORK:
+        src->physical = sb->st_size;
+        break;
 
-    if ((fd = open(src->path, O_RDONLY)) < 0) {
-        if (report)
-            virReportSystemError(errno, _("failed to open block device '%s'"),
+    case VIR_STORAGE_TYPE_BLOCK:
+        if ((end = lseek(fd, 0, SEEK_END)) == (off_t) -1) {
+            virReportSystemError(errno, _("failed to seek to end of '%s'"),
                                  src->path);
-        return -1;
-    }
+            return -1;
+        }
 
-    if ((end = lseek(fd, 0, SEEK_END)) == (off_t) -1) {
-        if (report)
-            virReportSystemError(errno,
-                                 _("failed to seek to end of '%s'"), src->path);
-    } else {
         src->physical = end;
-        ret = 0;
+        break;
+
+    case VIR_STORAGE_TYPE_DIR:
+        src->physical = 0;
+        break;
+
+    /* We shouldn't get VOLUME, but the switch requires all cases */
+    case VIR_STORAGE_TYPE_VOLUME:
+    case VIR_STORAGE_TYPE_NONE:
+    case VIR_STORAGE_TYPE_LAST:
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                      _("cannot retrieve physical for path '%s' type '%s'"),
+                      NULLSTR(src->path),
+                      virStorageTypeToString(actual_type));
+        return -1;
+        break;
     }
 
-    VIR_FORCE_CLOSE(fd);
+    return 0;
+}
+
+
+/**
+ * @src: disk source definition structure
+ * @fd: file descriptor
+ * @sb: stat buffer
+ *
+ * Update the capacity, allocation, physical values for the storage @src
+ * Shared between the domain storage source for an inactive domain and the
+ * voldef source target as the result is not affected by the 'type' field.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int
+virStorageSourceUpdateBackingSizes(virStorageSourcePtr src,
+                                   int fd,
+                                   struct stat const *sb)
+{
+    /* Get info for normal formats */
+    if (S_ISREG(sb->st_mode) || fd == -1) {
+#ifndef WIN32
+        src->allocation = (unsigned long long)sb->st_blocks *
+            (unsigned long long)DEV_BSIZE;
+#else
+        src->allocation = sb->st_size;
+#endif
+        /* Regular files may be sparse, so logical size (capacity) is not same
+         * as actual allocation above
+         */
+        src->capacity = sb->st_size;
+
+        /* Allocation tracks when the file is sparse, physical is the
+         * last offset of the file. */
+        src->physical = sb->st_size;
+    } else if (S_ISDIR(sb->st_mode)) {
+        src->allocation = 0;
+        src->capacity = 0;
+        src->physical = 0;
+    } else if (fd >= 0) {
+        off_t end;
+
+        /* XXX this is POSIX compliant, but doesn't work for CHAR files,
+         * only BLOCK. There is a Linux specific ioctl() for getting
+         * size of both CHAR / BLOCK devices we should check for in
+         * configure
+         *
+         * NB. Because we configure with AC_SYS_LARGEFILE, off_t
+         * should be 64 bits on all platforms.  For block devices, we
+         * have to seek (safe even if someone else is writing) to
+         * determine physical size, and assume that allocation is the
+         * same as physical (but can refine that assumption later if
+         * qemu is still running).
+         */
+        if ((end = lseek(fd, 0, SEEK_END)) == (off_t)-1) {
+            virReportSystemError(errno,
+                                 _("failed to seek to end of %s"), src->path);
+            return -1;
+        }
+        src->physical = end;
+        src->allocation = end;
+        src->capacity = end;
+    }
+
+    return 0;
+}
+
+
+/**
+ * @src: disk source definition structure
+ * @buf: buffer to the storage file header
+ * @len: length of the storage file header
+ * @probe: allow probe
+ *
+ * Update the storage @src capacity. This may involve probing the storage
+ * @src in order to "see" if we can recognize what exists.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int
+virStorageSourceUpdateCapacity(virStorageSourcePtr src,
+                               char *buf,
+                               ssize_t len,
+                               bool probe)
+{
+    int ret = -1;
+    virStorageSourcePtr meta = NULL;
+    int format = src->format;
+
+    /* Raw files: capacity is physical size.  For all other files: if
+     * the metadata has a capacity, use that, otherwise fall back to
+     * physical size.  */
+    if (format == VIR_STORAGE_FILE_NONE) {
+        if (!probe) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("no disk format for %s and probing is disabled"),
+                           src->path);
+            goto cleanup;
+        }
+
+        if ((format = virStorageFileProbeFormatFromBuf(src->path,
+                                                       buf, len)) < 0)
+            goto cleanup;
+
+        src->format = format;
+    }
+
+    if (format == VIR_STORAGE_FILE_RAW && !src->encryption) {
+        src->capacity = src->physical;
+    } else if ((meta = virStorageFileGetMetadataFromBuf(src->path, buf,
+                                                        len, format, NULL))) {
+        src->capacity = meta->capacity ? meta->capacity : src->physical;
+        if (src->encryption && meta->encryption)
+            src->encryption->payload_offset = meta->encryption->payload_offset;
+    } else {
+        goto cleanup;
+    }
+
+    if (src->encryption && src->encryption->payload_offset != -1)
+        src->capacity -= src->encryption->payload_offset * 512;
+
+    ret = 0;
+
+ cleanup:
+    virStorageSourceFree(meta);
     return ret;
 }
 
@@ -3272,7 +3628,7 @@ virStorageFileCanonicalizeInjectSymlink(const char *path,
     ret = 0;
 
  cleanup:
-    virStringFreeListCount(tmp, ntmp);
+    virStringListFreeCount(tmp, ntmp);
     return ret;
 }
 
@@ -3420,7 +3776,7 @@ virStorageFileCanonicalizePath(const char *path,
 
  cleanup:
     virHashFree(cycle);
-    virStringFreeListCount(components, ncomponents);
+    virStringListFreeCount(components, ncomponents);
     VIR_FREE(linkpath);
     VIR_FREE(currentpath);
 
@@ -3534,6 +3890,137 @@ virStorageFileCheckCompat(const char *compat)
     ret = 0;
 
  cleanup:
-    virStringFreeList(version);
+    virStringListFree(version);
     return ret;
+}
+
+
+/**
+ * virStorageSourceIsRelative:
+ * @src: storage source to check
+ *
+ * Returns true if given storage source definition is a relative path.
+ */
+bool
+virStorageSourceIsRelative(virStorageSourcePtr src)
+{
+    virStorageType actual_type = virStorageSourceGetActualType(src);
+
+    if (!src->path)
+        return false;
+
+    switch (actual_type) {
+    case VIR_STORAGE_TYPE_FILE:
+    case VIR_STORAGE_TYPE_BLOCK:
+    case VIR_STORAGE_TYPE_DIR:
+        return src->path[0] != '/';
+
+    case VIR_STORAGE_TYPE_NETWORK:
+    case VIR_STORAGE_TYPE_VOLUME:
+    case VIR_STORAGE_TYPE_NONE:
+    case VIR_STORAGE_TYPE_LAST:
+        return false;
+    }
+
+    return false;
+}
+
+
+/**
+ * virStorageSourceFindByNodeName:
+ * @top: backing chain top
+ * @nodeName: node name to find in backing chain
+ * @index: if provided the index in the backing chain
+ *
+ * Looks up the given storage source in the backing chain and returns the
+ * pointer to it. If @index is passed then it's filled by the index in the
+ * backing chain. On failure NULL is returned and no error is reported.
+ */
+virStorageSourcePtr
+virStorageSourceFindByNodeName(virStorageSourcePtr top,
+                               const char *nodeName,
+                               unsigned int *idx)
+{
+    virStorageSourcePtr tmp;
+
+    if (idx)
+        *idx = 0;
+
+    for (tmp = top; tmp; tmp = tmp->backingStore) {
+        if ((tmp->nodeformat && STREQ(tmp->nodeformat, nodeName)) ||
+            (tmp->nodebacking && STREQ(tmp->nodebacking, nodeName)))
+            return tmp;
+
+        if (idx)
+            (*idx)++;
+    }
+
+    if (idx)
+        *idx = 0;
+    return NULL;
+}
+
+
+static const char *
+virStorageSourceNetworkDefaultPort(virStorageNetProtocol protocol)
+{
+    switch (protocol) {
+        case VIR_STORAGE_NET_PROTOCOL_HTTP:
+            return "80";
+
+        case VIR_STORAGE_NET_PROTOCOL_HTTPS:
+            return "443";
+
+        case VIR_STORAGE_NET_PROTOCOL_FTP:
+            return "21";
+
+        case VIR_STORAGE_NET_PROTOCOL_FTPS:
+            return "990";
+
+        case VIR_STORAGE_NET_PROTOCOL_TFTP:
+            return "69";
+
+        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
+            return "7000";
+
+        case VIR_STORAGE_NET_PROTOCOL_NBD:
+            return "10809";
+
+        case VIR_STORAGE_NET_PROTOCOL_SSH:
+            return "22";
+
+        case VIR_STORAGE_NET_PROTOCOL_ISCSI:
+            return "3260";
+
+        case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
+            return "24007";
+
+        case VIR_STORAGE_NET_PROTOCOL_RBD:
+            /* we don't provide a default for RBD */
+            return NULL;
+
+        case VIR_STORAGE_NET_PROTOCOL_LAST:
+        case VIR_STORAGE_NET_PROTOCOL_NONE:
+            return NULL;
+    }
+
+    return NULL;
+}
+
+
+int
+virStorageSourceNetworkAssignDefaultPorts(virStorageSourcePtr src)
+{
+    size_t i;
+
+    for (i = 0; i < src->nhosts; i++) {
+        if (src->hosts[i].transport == VIR_STORAGE_NET_HOST_TRANS_TCP &&
+            src->hosts[i].port == NULL) {
+            if (VIR_STRDUP(src->hosts[i].port,
+                           virStorageSourceNetworkDefaultPort(src->protocol)) < 0)
+                return -1;
+        }
+    }
+
+    return 0;
 }

@@ -32,6 +32,18 @@
 #  include <sys/un.h>
 # endif
 
+/* On architectures which lack these limits, define them (ie. Cygwin).
+ * Note that the libvirt code should be robust enough to handle the
+ * case where actual value is longer than these limits (eg. by setting
+ * length correctly in second argument to gethostname and by always
+ * using strncpy instead of strcpy).
+ */
+# ifndef INET_ADDRSTRLEN
+#  define INET_ADDRSTRLEN 16
+# endif
+
+# define VIR_LOOPBACK_IPV4_ADDR "127.0.0.1"
+
 typedef struct {
     union {
         struct sockaddr sa;
@@ -56,6 +68,9 @@ typedef struct {
 
 # define VIR_SOCKET_ADDR_IPV4_ALL "0.0.0.0"
 # define VIR_SOCKET_ADDR_IPV6_ALL "::"
+
+# define VIR_SOCKET_ADDR_IPV4_ARPA "in-addr.arpa"
+# define VIR_SOCKET_ADDR_IPV6_ARPA "ip6.arpa"
 
 typedef virSocketAddr *virSocketAddrPtr;
 
@@ -136,4 +151,10 @@ bool virSocketAddrIsWildcard(const virSocketAddr *addr);
 int virSocketAddrNumericFamily(const char *address);
 
 bool virSocketAddrIsNumericLocalhost(const char *addr);
+
+int virSocketAddrPTRDomain(const virSocketAddr *addr,
+                           unsigned int prefix,
+                           char **ptr)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
+
 #endif /* __VIR_SOCKETADDR_H__ */

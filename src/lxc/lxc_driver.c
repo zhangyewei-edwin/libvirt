@@ -57,15 +57,13 @@
 #include "virnetdevbridge.h"
 #include "virnetdevveth.h"
 #include "virnetdevopenvswitch.h"
-#include "nodeinfo.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
 #include "viruuid.h"
-#include "virstats.h"
 #include "virhook.h"
 #include "virfile.h"
 #include "virpidfile.h"
-#include "fdstream.h"
+#include "virfdstream.h"
 #include "domain_audit.h"
 #include "domain_nwfilter.h"
 #include "nwfilter_conf.h"
@@ -269,9 +267,7 @@ static virDomainPtr lxcDomainLookupByID(virConnectPtr conn,
     if (virDomainLookupByIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -299,9 +295,7 @@ static virDomainPtr lxcDomainLookupByUUID(virConnectPtr conn,
     if (virDomainLookupByUUIDEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -325,9 +319,7 @@ static virDomainPtr lxcDomainLookupByName(virConnectPtr conn,
     if (virDomainLookupByNameEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -472,7 +464,10 @@ lxcDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
         goto cleanup;
 
     if (!(def = virDomainDefParseString(xml, caps, driver->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", def->name, "\n") < 0)
         goto cleanup;
 
     if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
@@ -508,9 +503,7 @@ lxcDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
                                      VIR_DOMAIN_EVENT_DEFINED_ADDED :
                                      VIR_DOMAIN_EVENT_DEFINED_UPDATED);
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainDefFree(def);
@@ -1225,7 +1218,7 @@ lxcDomainCreateXMLWithFiles(virConnectPtr conn,
         goto cleanup;
 
     if (!(def = virDomainDefParseString(xml, caps, driver->xmlopt,
-                                        parse_flags)))
+                                        NULL, parse_flags)))
         goto cleanup;
 
     if (virDomainCreateXMLWithFilesEnsureACL(conn, def) < 0)
@@ -1276,9 +1269,7 @@ lxcDomainCreateXMLWithFiles(virConnectPtr conn,
                                      VIR_DOMAIN_EVENT_STARTED_BOOTED);
     virDomainAuditStart(vm, "booted", true);
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
     virLXCDomainObjEndJob(driver, vm);
 
@@ -1488,7 +1479,7 @@ lxcConnectDomainEventDeregisterAny(virConnectPtr conn,
 
     if (virObjectEventStateDeregisterID(conn,
                                         driver->domainEventState,
-                                        callbackID) < 0)
+                                        callbackID, true) < 0)
         return -1;
 
     return 0;
@@ -1573,7 +1564,7 @@ static int lxcCheckNetNsSupport(void)
     if (virRun(argv, &ip_rc) < 0 || ip_rc == 255)
         return 0;
 
-    if (lxcContainerAvailable(LXC_CONTAINER_FEATURE_NET) < 0)
+    if (virProcessNamespaceAvailable(VIR_PROCESS_NAMESPACE_NET) < 0)
         return 0;
 
     return 1;
@@ -1631,7 +1622,10 @@ static int lxcStateInitialize(bool privileged,
     }
 
     /* Check that this is a container enabled kernel */
-    if (lxcContainerAvailable(0) < 0) {
+    if (virProcessNamespaceAvailable(VIR_PROCESS_NAMESPACE_MNT |
+                                     VIR_PROCESS_NAMESPACE_PID |
+                                     VIR_PROCESS_NAMESPACE_UTS |
+                                     VIR_PROCESS_NAMESPACE_IPC) < 0) {
         VIR_INFO("LXC support not available in this kernel, disabling driver");
         return 0;
     }
@@ -1781,7 +1775,7 @@ static int lxcStateCleanup(void)
 
     virNWFilterUnRegisterCallbackDriver(&lxcCallbackDriver);
     virObjectUnref(lxc_driver->domains);
-    virObjectEventStateFree(lxc_driver->domainEventState);
+    virObjectUnref(lxc_driver->domainEventState);
 
     virObjectUnref(lxc_driver->closeCallbacks);
 
@@ -2893,7 +2887,7 @@ lxcDomainInterfaceStats(virDomainPtr dom,
     }
 
     if (ret == 0)
-        ret = virNetInterfaceStats(path, stats);
+        ret = virNetDevTapInterfaceStats(path, stats);
     else
         virReportError(VIR_ERR_INVALID_ARG,
                        _("Invalid path, '%s' is not a known interface"), path);
@@ -3156,6 +3150,7 @@ static int lxcDomainResume(virDomainPtr dom)
     virDomainObjPtr vm;
     virObjectEventPtr event = NULL;
     int ret = -1;
+    int state;
     virLXCDomainObjPrivatePtr priv;
     virLXCDriverConfigPtr cfg = virLXCDriverGetConfig(driver);
 
@@ -3176,7 +3171,12 @@ static int lxcDomainResume(virDomainPtr dom)
         goto endjob;
     }
 
-    if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
+    state = virDomainObjGetState(vm, NULL);
+    if (state == VIR_DOMAIN_RUNNING) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       "%s", _("domain is already running"));
+        goto endjob;
+    } else if (state == VIR_DOMAIN_PAUSED) {
         if (virCgroupSetFreezerState(priv->cgroup, "THAWED") < 0) {
             virReportError(VIR_ERR_OPERATION_FAILED,
                            "%s", _("Resume operation failed"));
@@ -3252,14 +3252,14 @@ lxcDomainOpenConsole(virDomainPtr dom,
         goto cleanup;
     }
 
-    if (chr->source.type != VIR_DOMAIN_CHR_TYPE_PTY) {
+    if (chr->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("character device %s is not using a PTY"),
                        dev_name ? dev_name : NULLSTR(chr->info.alias));
         goto cleanup;
     }
 
-    if (virFDStreamOpenFile(st, chr->source.data.file.path,
+    if (virFDStreamOpenFile(st, chr->source->data.file.path,
                             0, 0, O_RDWR) < 0)
         goto cleanup;
 
@@ -3438,7 +3438,7 @@ lxcDomainShutdownFlags(virDomainPtr dom,
             errno != ESRCH) {
             virReportSystemError(errno,
                                  _("Unable to send SIGTERM to init pid %llu"),
-                                 (unsigned long long)priv->initpid);
+                                 (long long) priv->initpid);
             goto endjob;
         }
     }
@@ -3521,7 +3521,7 @@ lxcDomainReboot(virDomainPtr dom,
             errno != ESRCH) {
             virReportSystemError(errno,
                                  _("Unable to send SIGTERM to init pid %llu"),
-                                 (unsigned long long)priv->initpid);
+                                 (long long) priv->initpid);
             goto endjob;
         }
     }
@@ -3943,7 +3943,7 @@ lxcDomainAttachDeviceNetLive(virConnectPtr conn,
 {
     virLXCDomainObjPrivatePtr priv = vm->privateData;
     int ret = -1;
-    int actualType;
+    virDomainNetType actualType;
     virNetDevBandwidthPtr actualBandwidth;
     char *veth = NULL;
 
@@ -4029,6 +4029,10 @@ lxcDomainAttachDeviceNetLive(virConnectPtr conn,
 
         case VIR_DOMAIN_NET_TYPE_DIRECT:
             ignore_value(virNetDevMacVLanDelete(veth));
+            break;
+
+        default:
+            /* no-op */
             break;
         }
     }
@@ -4430,7 +4434,8 @@ static int
 lxcDomainDetachDeviceNetLive(virDomainObjPtr vm,
                              virDomainDeviceDefPtr dev)
 {
-    int detachidx, actualType, ret = -1;
+    int detachidx, ret = -1;
+    virDomainNetType actualType;
     virDomainNetDefPtr detach = NULL;
     virNetDevVPortProfilePtr vport = NULL;
 
@@ -5155,7 +5160,7 @@ lxcNodeGetInfo(virConnectPtr conn,
     if (virNodeGetInfoEnsureACL(conn) < 0)
         return -1;
 
-    return nodeGetInfo(nodeinfo);
+    return virCapabilitiesGetNodeInfo(nodeinfo);
 }
 
 
@@ -5327,7 +5332,7 @@ lxcNodeSuspendForDuration(virConnectPtr conn,
     if (virNodeSuspendForDurationEnsureACL(conn) < 0)
         return -1;
 
-    return nodeSuspendForDuration(target, duration, flags);
+    return virNodeSuspend(target, duration, flags);
 }
 
 
@@ -5365,6 +5370,12 @@ lxcDomainSetMetadata(virDomainPtr dom,
     ret = virDomainObjSetMetadata(vm, type, metadata, key, uri, caps,
                                   driver->xmlopt, cfg->stateDir,
                                   cfg->configDir, flags);
+
+    if (ret == 0) {
+        virObjectEventPtr ev = NULL;
+        ev = virDomainEventMetadataChangeNewFromObj(vm, type, uri);
+        virObjectEventStateQueue(driver->domainEventState, ev);
+    }
 
     virLXCDomainObjEndJob(driver, vm);
 

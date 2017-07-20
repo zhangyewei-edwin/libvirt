@@ -872,7 +872,7 @@ void qemuAgentClose(qemuAgentPtr mon)
  * VIR_DOMAIN_QEMU_AGENT_COMMAND_BLOCK(-2), this function will block forever
  * waiting for the result. The value of
  * VIR_DOMAIN_QEMU_AGENT_COMMAND_DEFAULT(-1) means use default timeout value
- * and VIR_DOMAIN_QEMU_AGENT_COMMAND_NOWAIT(0) makes this this function return
+ * and VIR_DOMAIN_QEMU_AGENT_COMMAND_NOWAIT(0) makes this function return
  * immediately without waiting. Any positive value means the number of seconds
  * to wait for the result.
  *
@@ -1248,6 +1248,8 @@ qemuAgentMakeStringsArray(const char **strings, unsigned int len)
 void qemuAgentNotifyEvent(qemuAgentPtr mon,
                           qemuAgentEvent event)
 {
+    virObjectLock(mon);
+
     VIR_DEBUG("mon=%p event=%d await_event=%d", mon, event, mon->await_event);
     if (mon->await_event == event) {
         mon->await_event = QEMU_AGENT_EVENT_NONE;
@@ -1257,6 +1259,8 @@ void qemuAgentNotifyEvent(qemuAgentPtr mon,
             virCondSignal(&mon->notify);
         }
     }
+
+    virObjectUnlock(mon);
 }
 
 VIR_ENUM_DECL(qemuAgentShutdownMode);
@@ -1872,6 +1876,7 @@ qemuAgentGetFSInfo(qemuAgentPtr mon, virDomainFSInfoPtr **info,
     ndata = virJSONValueArraySize(data);
     if (!ndata) {
         ret = 0;
+        *info = NULL;
         goto cleanup;
     }
     if (VIR_ALLOC_N(info_ret, ndata) < 0)
@@ -2115,7 +2120,7 @@ qemuAgentGetInterfaces(qemuAgentPtr mon,
         }
 
         /* Has to be freed for each interface. */
-        virStringFreeList(ifname);
+        virStringListFree(ifname);
 
         /* as well as IP address which - moreover -
          * can be presented multiple times */
@@ -2201,7 +2206,7 @@ qemuAgentGetInterfaces(qemuAgentPtr mon,
             virDomainInterfaceFree(ifaces_ret[i]);
     }
     VIR_FREE(ifaces_ret);
-    virStringFreeList(ifname);
+    virStringListFree(ifname);
 
     goto cleanup;
 }

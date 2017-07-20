@@ -48,7 +48,6 @@
 #include "openvz_util.h"
 #include "virbuffer.h"
 #include "openvz_conf.h"
-#include "nodeinfo.h"
 #include "virhostcpu.h"
 #include "virhostmem.h"
 #include "viralloc.h"
@@ -57,7 +56,7 @@
 #include "virlog.h"
 #include "vircommand.h"
 #include "viruri.h"
-#include "virstats.h"
+#include "virnetdevtap.h"
 #include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_OPENVZ
@@ -92,7 +91,8 @@ static int
 openvzDomainDefPostParse(virDomainDefPtr def,
                          virCapsPtr caps ATTRIBUTE_UNUSED,
                          unsigned int parseFlags ATTRIBUTE_UNUSED,
-                         void *opaque ATTRIBUTE_UNUSED)
+                         void *opaque ATTRIBUTE_UNUSED,
+                         void *parseOpaque ATTRIBUTE_UNUSED)
 {
     /* fill the init path */
     if (def->os.type == VIR_DOMAIN_OSTYPE_EXE && !def->os.init) {
@@ -109,7 +109,8 @@ openvzDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
                                const virDomainDef *def ATTRIBUTE_UNUSED,
                                virCapsPtr caps ATTRIBUTE_UNUSED,
                                unsigned int parseFlags ATTRIBUTE_UNUSED,
-                               void *opaque ATTRIBUTE_UNUSED)
+                               void *opaque ATTRIBUTE_UNUSED,
+                               void *parseOpaque ATTRIBUTE_UNUSED)
 {
     if (dev->type == VIR_DOMAIN_DEVICE_CHR &&
         dev->data.chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&
@@ -328,9 +329,7 @@ static virDomainPtr openvzDomainLookupByID(virConnectPtr conn,
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -394,9 +393,7 @@ static virDomainPtr openvzDomainLookupByUUID(virConnectPtr conn,
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     if (vm)
@@ -420,9 +417,7 @@ static virDomainPtr openvzDomainLookupByName(virConnectPtr conn,
         goto cleanup;
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -995,7 +990,10 @@ openvzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int fla
 
     openvzDriverLock(driver);
     if ((vmdef = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
-                                         parse_flags)) == NULL)
+                                         NULL, parse_flags)) == NULL)
+        goto cleanup;
+
+    if (virXMLCheckIllegalChars("name", vmdef->name, "\n") < 0)
         goto cleanup;
 
     if (!(vm = virDomainObjListAdd(driver->domains, vmdef,
@@ -1049,9 +1047,7 @@ openvzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int fla
         }
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = -1;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, -1);
 
  cleanup:
     virDomainDefFree(vmdef);
@@ -1085,7 +1081,7 @@ openvzDomainCreateXML(virConnectPtr conn, const char *xml,
 
     openvzDriverLock(driver);
     if ((vmdef = virDomainDefParseString(xml, driver->caps, driver->xmlopt,
-                                         parse_flags)) == NULL)
+                                         NULL, parse_flags)) == NULL)
         goto cleanup;
 
     if (!(vm = virDomainObjListAdd(driver->domains,
@@ -1140,9 +1136,7 @@ openvzDomainCreateXML(virConnectPtr conn, const char *xml,
         }
     }
 
-    dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainDefFree(vmdef);
@@ -1357,7 +1351,7 @@ static int openvzDomainSetVcpusInternal(virDomainObjPtr vm,
     const char *prog[] = { VZCTL, "--quiet", "set", PROGRAM_SENTINEL,
                            "--cpus", str_vcpus, "--save", NULL };
     unsigned int pcpus;
-    pcpus = openvzGetNodeCPUs();
+    pcpus = virHostCPUGetCount();
     if (pcpus > 0 && pcpus < nvcpus)
         nvcpus = pcpus;
 
@@ -1489,7 +1483,7 @@ static virDrvOpenStatus openvzConnectOpen(virConnectPtr conn,
         goto cleanup;
 
     if (!(driver->xmlopt = virDomainXMLOptionNew(&openvzDomainDefParserConfig,
-                                                 NULL, NULL)))
+                                                 NULL, NULL, NULL, NULL)))
         goto cleanup;
 
     if (openvzLoadDomains(driver) < 0)
@@ -2022,7 +2016,7 @@ openvzDomainInterfaceStats(virDomainPtr dom,
     }
 
     if (ret == 0)
-        ret = virNetInterfaceStats(path, stats);
+        ret = virNetDevTapInterfaceStats(path, stats);
     else
         virReportError(VIR_ERR_INVALID_ARG,
                        _("invalid path, '%s' is not a known interface"), path);
@@ -2157,7 +2151,7 @@ static int
 openvzNodeGetInfo(virConnectPtr conn ATTRIBUTE_UNUSED,
                   virNodeInfoPtr nodeinfo)
 {
-    return nodeGetInfo(nodeinfo);
+    return virCapabilitiesGetNodeInfo(nodeinfo);
 }
 
 
@@ -2316,6 +2310,7 @@ openvzDomainMigratePrepare3Params(virConnectPtr dconn,
     }
 
     if (!(def = virDomainDefParseString(dom_xml, driver->caps, driver->xmlopt,
+                                        NULL,
                                         VIR_DOMAIN_DEF_PARSE_INACTIVE |
                                         VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE)))
         goto error;
@@ -2491,9 +2486,7 @@ openvzDomainMigrateFinish3Params(virConnectPtr dconn,
     vm->def->id = strtoI(vm->def->name);
     virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, VIR_DOMAIN_RUNNING_MIGRATED);
 
-    dom = virGetDomain(dconn, vm->def->name, vm->def->uuid);
-    if (dom)
-        dom->id = vm->def->id;
+    dom = virGetDomain(dconn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
     virDomainObjEndAPI(&vm);

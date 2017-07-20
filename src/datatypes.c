@@ -193,11 +193,9 @@ void virConnectCloseCallbackDataRegister(virConnectCloseCallbackDataPtr closeDat
         VIR_WARN("Attempt to register callback on armed"
                  " close callback object %p", closeData);
         goto cleanup;
-        return;
     }
 
-    closeData->conn = conn;
-    virObjectRef(closeData->conn);
+    closeData->conn = virObjectRef(conn);
     closeData->callback = cb;
     closeData->opaque = opaque;
     closeData->freeCallback = freecb;
@@ -261,6 +259,7 @@ virConnectCloseCallbackDataGetCallback(virConnectCloseCallbackDataPtr closeData)
  * @conn: the hypervisor connection
  * @name: pointer to the domain name
  * @uuid: pointer to the uuid
+ * @id: domain ID
  *
  * Allocates a new domain object. When the object is no longer needed,
  * virObjectUnref() must be called in order to not leak data.
@@ -268,7 +267,10 @@ virConnectCloseCallbackDataGetCallback(virConnectCloseCallbackDataPtr closeData)
  * Returns a pointer to the domain object, or NULL on error.
  */
 virDomainPtr
-virGetDomain(virConnectPtr conn, const char *name, const unsigned char *uuid)
+virGetDomain(virConnectPtr conn,
+             const char *name,
+             const unsigned char *uuid,
+             int id)
 {
     virDomainPtr ret = NULL;
 
@@ -286,7 +288,7 @@ virGetDomain(virConnectPtr conn, const char *name, const unsigned char *uuid)
         goto error;
 
     ret->conn = virObjectRef(conn);
-    ret->id = -1;
+    ret->id = id;
     memcpy(&(ret->uuid[0]), uuid, VIR_UUID_BUFLEN);
 
     return ret;
@@ -678,14 +680,13 @@ virGetSecret(virConnectPtr conn, const unsigned char *uuid,
 
     virCheckConnectGoto(conn, error);
     virCheckNonNullArgGoto(uuid, error);
-    virCheckNonNullArgGoto(usageID, error);
 
     if (!(ret = virObjectNew(virSecretClass)))
         return NULL;
 
     memcpy(&(ret->uuid[0]), uuid, VIR_UUID_BUFLEN);
     ret->usageType = usageType;
-    if (VIR_STRDUP(ret->usageID, usageID) < 0)
+    if (VIR_STRDUP(ret->usageID, usageID ? usageID : "") < 0)
         goto error;
 
     ret->conn = virObjectRef(conn);
@@ -928,11 +929,69 @@ virAdmConnectCloseCallbackDataDispose(void *obj)
     virAdmConnectCloseCallbackDataPtr cb_data = obj;
 
     virObjectLock(cb_data);
-
-    if (cb_data->freeCallback)
-        cb_data->freeCallback(cb_data->opaque);
-
+    virAdmConnectCloseCallbackDataReset(cb_data);
     virObjectUnlock(cb_data);
+}
+
+void
+virAdmConnectCloseCallbackDataReset(virAdmConnectCloseCallbackDataPtr cbdata)
+{
+    if (cbdata->freeCallback)
+        cbdata->freeCallback(cbdata->opaque);
+
+    virObjectUnref(cbdata->conn);
+    cbdata->conn = NULL;
+    cbdata->freeCallback = NULL;
+    cbdata->callback = NULL;
+    cbdata->opaque = NULL;
+}
+
+int
+virAdmConnectCloseCallbackDataUnregister(virAdmConnectCloseCallbackDataPtr cbdata,
+                                         virAdmConnectCloseFunc cb)
+{
+    int ret = -1;
+
+    virObjectLock(cbdata);
+    if (cbdata->callback != cb) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("A different callback was requested"));
+        goto cleanup;
+    }
+
+    virAdmConnectCloseCallbackDataReset(cbdata);
+    ret = 0;
+ cleanup:
+    virObjectUnlock(cbdata);
+    return ret;
+}
+
+int
+virAdmConnectCloseCallbackDataRegister(virAdmConnectCloseCallbackDataPtr cbdata,
+                                       virAdmConnectPtr conn,
+                                       virAdmConnectCloseFunc cb,
+                                       void *opaque,
+                                       virFreeCallback freecb)
+{
+    int ret = -1;
+
+    virObjectLock(cbdata);
+
+    if (cbdata->callback) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("A close callback is already registered"));
+        goto cleanup;
+    }
+
+    cbdata->conn = virObjectRef(conn);
+    cbdata->callback = cb;
+    cbdata->opaque = opaque;
+    cbdata->freeCallback = freecb;
+
+    ret = 0;
+ cleanup:
+    virObjectUnlock(conn->closeCallback);
+    return ret;
 }
 
 virAdmServerPtr

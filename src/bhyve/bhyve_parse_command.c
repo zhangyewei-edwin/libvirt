@@ -246,7 +246,7 @@ bhyveCommandLineToArgv(const char *nativeConfig,
         } else {
             /* To prevent a use-after-free here, only free the argument list
              * when it is definitely not going to be used */
-            virStringFreeList(arglist);
+            virStringListFree(arglist);
         }
     }
 
@@ -254,13 +254,13 @@ bhyveCommandLineToArgv(const char *nativeConfig,
     if (!(*bhyve_argv = _bhyve_argv))
         goto error;
 
-    virStringFreeList(lines);
+    virStringListFree(lines);
     return 0;
 
  error:
     VIR_FREE(_loader_argv);
     VIR_FREE(_bhyve_argv);
-    virStringFreeList(lines);
+    virStringListFree(lines);
     return -1;
 }
 
@@ -287,12 +287,12 @@ bhyveParseBhyveLPCArg(virDomainDefPtr def,
 
     /* Only support com%d */
     if (STRPREFIX(type, "com") && type[4] == 0) {
-        if (!(chr = virDomainChrDefNew()))
+        if (!(chr = virDomainChrDefNew(NULL)))
             goto error;
 
-        chr->source.type = VIR_DOMAIN_CHR_TYPE_NMDM;
-        chr->source.data.nmdm.master = NULL;
-        chr->source.data.nmdm.slave = NULL;
+        chr->source->type = VIR_DOMAIN_CHR_TYPE_NMDM;
+        chr->source->data.nmdm.master = NULL;
+        chr->source->data.nmdm.slave = NULL;
         chr->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL;
 
         if (!STRPREFIX(param, "/dev/nmdm")) {
@@ -302,12 +302,12 @@ bhyveParseBhyveLPCArg(virDomainDefPtr def,
                 goto error;
         }
 
-        if (VIR_STRDUP(chr->source.data.nmdm.master, param) < 0) {
+        if (VIR_STRDUP(chr->source->data.nmdm.master, param) < 0) {
             virDomainChrDefFree(chr);
             goto error;
         }
 
-        if (VIR_STRDUP(chr->source.data.nmdm.slave, chr->source.data.file.path)
+        if (VIR_STRDUP(chr->source->data.nmdm.slave, chr->source->data.file.path)
             < 0) {
             virDomainChrDefFree(chr);
             goto error;
@@ -315,19 +315,19 @@ bhyveParseBhyveLPCArg(virDomainDefPtr def,
 
         /* If the last character of the master is 'A', the slave will be 'B'
          * and vice versa */
-        last = strlen(chr->source.data.nmdm.master) - 1;
-        switch (chr->source.data.file.path[last]) {
+        last = strlen(chr->source->data.nmdm.master) - 1;
+        switch (chr->source->data.file.path[last]) {
             case 'A':
-                chr->source.data.nmdm.slave[last] = 'B';
+                chr->source->data.nmdm.slave[last] = 'B';
                 break;
             case 'B':
-                chr->source.data.nmdm.slave[last] = 'A';
+                chr->source->data.nmdm.slave[last] = 'A';
                 break;
             default:
                 virReportError(VIR_ERR_OPERATION_FAILED,
                                _("Failed to set slave for %s: last letter not "
                                  "'A' or 'B'"),
-                               NULLSTR(chr->source.data.nmdm.master));
+                               NULLSTR(chr->source->data.nmdm.master));
                 goto error;
         }
 
@@ -496,6 +496,7 @@ bhyveParsePCINet(virDomainDefPtr def,
                  unsigned pcislot,
                  unsigned pcibus,
                  unsigned function,
+                 const char *model,
                  const char *config)
 {
     /* -s slot,virtio-net,tapN[,mac=xx:xx:xx:xx:xx:xx] */
@@ -507,9 +508,15 @@ bhyveParsePCINet(virDomainDefPtr def,
     if (VIR_ALLOC(net) < 0)
         goto cleanup;
 
-    /* Let's just assume it is VIR_DOMAIN_NET_TYPE_ETHERNET, it could also be
-     * a bridge, but this is the most generic option. */
-    net->type = VIR_DOMAIN_NET_TYPE_ETHERNET;
+    /* As we only support interface type='bridge' and cannot
+     * guess the actual bridge name from the command line,
+     * try to come up with some reasonable defaults */
+    net->type = VIR_DOMAIN_NET_TYPE_BRIDGE;
+    if (VIR_STRDUP(net->data.bridge.brname, "virbr0") < 0)
+        goto error;
+
+    if (VIR_STRDUP(net->model, model) < 0)
+        goto error;
 
     net->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI;
     net->info.addr.pci.slot = pcislot;
@@ -617,7 +624,11 @@ bhyveParseBhyvePCIArg(virDomainDefPtr def,
                           nahcidisk,
                           conf);
     else if (STREQ(emulation, "virtio-net"))
-        bhyveParsePCINet(def, xmlopt, caps, pcislot, bus, function, conf);
+        bhyveParsePCINet(def, xmlopt, caps, pcislot, bus, function,
+                         "virtio", conf);
+    else if (STREQ(emulation, "e1000"))
+        bhyveParsePCINet(def, xmlopt, caps, pcislot, bus, function,
+                         "e1000", conf);
 
     VIR_FREE(emulation);
     VIR_FREE(slotdef);
@@ -804,7 +815,7 @@ bhyveParseBhyveLoadCommandLine(virDomainDefPtr def,
         if (VIR_STRDUP(def->os.bootloader, argv[0]) < 0)
            goto error;
 
-        def->os.bootloaderArgs = virStringJoin((const char**) &argv[1], " ");
+        def->os.bootloaderArgs = virStringListJoin((const char**) &argv[1], " ");
     }
 
     if (argc != parser->optind) {
@@ -841,7 +852,7 @@ bhyveParseCustomLoaderCommandLine(virDomainDefPtr def,
     if (VIR_STRDUP(def->os.bootloader, argv[0]) < 0)
        goto error;
 
-    def->os.bootloaderArgs = virStringJoin((const char**) &argv[1], " ");
+    def->os.bootloaderArgs = virStringListJoin((const char**) &argv[1], " ");
 
     return 0;
  error:
@@ -893,8 +904,8 @@ bhyveParseCommandLineString(const char* nativeConfig,
     }
 
  cleanup:
-    virStringFreeList(loader_argv);
-    virStringFreeList(bhyve_argv);
+    virStringListFree(loader_argv);
+    virStringListFree(bhyve_argv);
     return def;
  error:
     virDomainDefFree(def);
